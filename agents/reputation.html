@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>대한은행 평판리스크 관제센터</title>
+<style>
+@font-face{
+  font-family:'Pretendard';
+  src:local('Pretendard'), local('Apple SD Gothic Neo');
+}
+:root{
+  --bg-void:#f4f8fd;
+  --bg-panel:#ffffff;
+  --bg-raised:#eef4fb;
+  --bg-raised-hover:#e2ecf9;
+  --line:#dbe6f3;
+  --line-soft:#e9f0f9;
+  --ink:#12233f;
+  --ink-dim:#5b7093;
+  --ink-faint:#93a7c4;
+  --calm:#0e9f6e;
+  --calm-dim:#e3f7ef;
+  --watch:#d97e0a;
+  --watch-dim:#fbf0dc;
+  --alert:#d5343f;
+  --alert-dim:#fbe4e5;
+  --info:#1c6fd9;
+  --info-dim:#e4eefc;
+  --mono: 'D2Coding','JetBrains Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  --sans: 'Pretendard', -apple-system, 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{
+  background:var(--bg-void);
+  color:var(--ink);
+  font-family:var(--sans);
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+body{
+  background-image:
+    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(28,111,217,0.06), transparent 60%),
+    radial-gradient(ellipse 700px 400px at 100% 0%, rgba(28,111,217,0.05), transparent 55%);
+}
+::selection{ background:var(--info-dim); color:var(--ink); }
+:focus-visible{ outline:2px solid var(--info); outline-offset:2px; }
+
+/* ---------- layout shell ---------- */
+.shell{
+  max-width:1440px;
+  margin:0 auto;
+  padding:0 20px 48px;
+}
+.topbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:18px 4px 16px;
+  border-bottom:1px solid var(--line);
+  margin-bottom:0;
+  flex-wrap:wrap;
+  gap:12px;
+}
+.brand{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+.brand-mark{
+  width:44px; height:34px;
+  border-radius:8px;
+  background:linear-gradient(145deg, var(--info) 0%, #1d5f96 100%);
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--sans); font-weight:700; font-size:12.5px; color:#ffffff;
+  flex-shrink:0;
+}
+.brand-text .name{ font-size:15px; font-weight:700; letter-spacing:0.02em; }
+.brand-text .sub{ font-size:11.5px; color:var(--ink-dim); font-family:var(--mono); margin-top:1px; }
+.topbar-right{ display:flex; align-items:center; gap:18px; }
+.live-clock{
+  font-family:var(--mono); font-size:12.5px; color:var(--ink-dim);
+  display:flex; align-items:center; gap:8px;
+}
+.live-dot{
+  width:7px; height:7px; border-radius:50%; background:var(--calm);
+  box-shadow:0 0 0 3px var(--calm-dim);
+  animation:pulse-dot 2.2s ease-in-out infinite;
+}
+@keyframes pulse-dot{ 0%,100%{opacity:1;} 50%{opacity:0.35;} }
+.tabs{ display:flex; gap:2px; }
+.tab-btn{
+  font-family:var(--sans); font-size:12.5px; font-weight:600;
+  color:var(--ink-dim); background:transparent; border:1px solid transparent;
+  padding:7px 13px; border-radius:7px; cursor:pointer; transition:all .15s ease;
+}
+.tab-btn:hover{ color:var(--ink); background:var(--bg-raised); }
+.tab-btn.active{ color:var(--bg-void); background:var(--ink); }
+
+/* ---------- ticker (signature element) ---------- */
+.ticker-wrap{
+  border-bottom:1px solid var(--line);
+  background:var(--bg-panel);
+  display:flex;
+  align-items:stretch;
+  overflow:hidden;
+  margin:0 -20px;
+}
+.ticker-label{
+  flex-shrink:0;
+  display:flex; align-items:center; gap:7px;
+  padding:0 16px;
+  font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.06em;
+  color:var(--alert);
+  background:linear-gradient(90deg, var(--alert-dim), transparent);
+  border-right:1px solid var(--line);
+  white-space:nowrap;
+}
+.ticker-track-outer{ overflow:hidden; flex:1; position:relative; }
+.ticker-track{
+  display:flex;
+  width:max-content;
+  animation:ticker-scroll 48s linear infinite;
+}
+.ticker-track:hover{ animation-play-state:paused; }
+@keyframes ticker-scroll{
+  from{ transform:translateX(0); }
+  to{ transform:translateX(-50%); }
+}
+.ticker-item{
+  display:flex; align-items:center; gap:8px;
+  padding:9px 22px;
+  font-family:var(--mono); font-size:12px;
+  color:var(--ink-dim);
+  white-space:nowrap;
+  border-right:1px solid var(--line-soft);
+}
+.tk-dot{ width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+.tk-dot.sev-alert{ background:var(--alert); box-shadow:0 0 6px var(--alert); }
+.tk-dot.sev-watch{ background:var(--watch); }
+.tk-dot.sev-calm{ background:var(--calm); }
+.ticker-item .tk-src{ color:var(--ink-faint); }
+.ticker-item .tk-text{ color:var(--ink); }
+.ticker-item .tk-time{ color:var(--ink-faint); font-size:11px; }
+
+@media (prefers-reduced-motion: reduce){
+  .ticker-track{ animation:none; }
+  .live-dot{ animation:none; }
+}
+
+/* ---------- grid ---------- */
+.grid{
+  display:grid;
+  grid-template-columns:340px 1fr;
+  gap:16px;
+  margin-top:16px;
+}
+.panel{
+  background:var(--bg-panel);
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:18px 18px 20px;
+}
+.panel-head{
+  display:flex; align-items:baseline; justify-content:space-between;
+  margin-bottom:14px;
+}
+.panel-title{
+  font-size:12.5px; font-weight:700; letter-spacing:0.03em;
+  color:var(--ink-dim); text-transform:uppercase;
+}
+.panel-title .eyebrow-num{ font-family:var(--mono); color:var(--ink-faint); margin-right:6px; }
+.panel-meta{ font-family:var(--mono); font-size:11px; color:var(--ink-faint); }
+
+/* ---------- gauge panel ---------- */
+.gauge-panel{ display:flex; flex-direction:column; align-items:center; }
+.gauge-wrap{ position:relative; width:220px; height:220px; margin:6px 0 8px; }
+.gauge-center{
+  position:absolute; inset:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+}
+.gauge-value{ font-family:var(--mono); font-size:52px; font-weight:700; line-height:1; letter-spacing:-0.02em; }
+.gauge-unit{ font-family:var(--mono); font-size:12px; color:var(--ink-faint); margin-top:2px; }
+.grade-badge{
+  margin-top:14px;
+  display:inline-flex; align-items:center; gap:7px;
+  padding:6px 14px; border-radius:20px;
+  font-size:13px; font-weight:700;
+  border:1px solid;
+}
+.grade-badge .grade-dot{ width:8px; height:8px; border-radius:50%; }
+.gauge-trend{
+  margin-top:16px; width:100%;
+  display:flex; align-items:center; justify-content:space-between;
+  font-family:var(--mono); font-size:12px; color:var(--ink-dim);
+  padding-top:14px; border-top:1px solid var(--line-soft);
+}
+.gauge-trend .trend-val{ font-weight:700; }
+.gauge-trend .trend-val.up{ color:var(--calm); }
+.gauge-trend .trend-val.down{ color:var(--alert); }
+
+.range-toggle{ display:flex; gap:4px; margin-top:16px; width:100%; }
+.range-btn{
+  flex:1; font-family:var(--mono); font-size:11px; font-weight:600;
+  color:var(--ink-dim); background:var(--bg-raised); border:1px solid var(--line);
+  padding:7px 0; border-radius:6px; cursor:pointer; transition:all .15s ease;
+}
+.range-btn:hover{ background:var(--bg-raised-hover); color:var(--ink); }
+.range-btn.active{ background:var(--info-dim); border-color:var(--info); color:var(--info); }
+
+.contrib-list{ width:100%; margin-top:16px; display:flex; flex-direction:column; gap:9px; }
+.contrib-row{ display:flex; align-items:center; gap:9px; font-size:12px; }
+.contrib-row .clabel{ color:var(--ink-dim); width:64px; flex-shrink:0; }
+.contrib-track{ flex:1; height:5px; background:var(--bg-raised); border-radius:3px; overflow:hidden; }
+.contrib-fill{ height:100%; border-radius:3px; }
+.contrib-row .cval{ font-family:var(--mono); font-size:11px; color:var(--ink-faint); width:34px; text-align:right; }
+
+/* ---------- chart panel ---------- */
+.chart-panel canvas{ width:100%; display:block; }
+.chart-legend{ display:flex; gap:16px; margin-top:2px; flex-wrap:wrap; }
+.leg-item{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-dim); }
+.leg-swatch{ width:10px; height:10px; border-radius:3px; }
+
+/* ---------- channel cards ---------- */
+.channel-grid{
+  display:grid;
+  grid-template-columns:repeat(5, 1fr);
+  gap:14px;
+  margin-top:16px;
+}
+.channel-card{
+  background:var(--bg-panel);
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:16px;
+  transition:border-color .15s ease, transform .15s ease;
+}
+.channel-card:hover{ border-color:var(--ink-faint); transform:translateY(-1px); }
+.channel-card-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.channel-name{ font-size:13px; font-weight:700; }
+.channel-status{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.donut-row{ display:flex; align-items:center; gap:14px; }
+.donut{ width:64px; height:64px; border-radius:50%; flex-shrink:0; position:relative; }
+.donut::after{
+  content:''; position:absolute; inset:8px; border-radius:50%; background:var(--bg-panel);
+}
+.donut-stats{ flex:1; display:flex; flex-direction:column; gap:4px; }
+.dstat{ display:flex; align-items:center; gap:6px; font-size:11px; color:var(--ink-dim); }
+.dstat .dsw{ width:7px; height:7px; border-radius:2px; flex-shrink:0; }
+.dstat b{ color:var(--ink); font-family:var(--mono); font-weight:600; margin-left:auto; }
+.channel-foot{
+  margin-top:12px; padding-top:11px; border-top:1px solid var(--line-soft);
+  display:flex; justify-content:space-between; font-family:var(--mono); font-size:11px; color:var(--ink-faint);
+}
+.channel-foot .vol-up{ color:var(--alert); }
+.channel-foot .vol-down{ color:var(--calm); }
+
+/* ---------- keyword + alerts row ---------- */
+.row2{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px; }
+.kw-list{ display:flex; flex-direction:column; gap:2px; }
+.kw-row{
+  display:flex; align-items:center; gap:10px;
+  padding:9px 6px; border-radius:7px;
+  cursor:default;
+}
+.kw-row:hover{ background:var(--bg-raised); }
+.kw-rank{ font-family:var(--mono); font-size:11px; color:var(--ink-faint); width:16px; }
+.kw-name{ font-size:13px; flex:1; }
+.kw-bar-track{ width:90px; height:4px; background:var(--bg-raised); border-radius:2px; overflow:hidden; }
+.kw-bar-fill{ height:100%; background:var(--alert); border-radius:2px; }
+.kw-count{ font-family:var(--mono); font-size:11px; color:var(--ink-dim); width:44px; text-align:right; }
+
+.alert-list{ display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto; padding-right:4px; }
+.alert-list::-webkit-scrollbar{ width:5px; }
+.alert-list::-webkit-scrollbar-thumb{ background:var(--line); border-radius:3px; }
+.alert-row{
+  display:flex; gap:10px; padding:10px 11px;
+  background:var(--bg-raised); border-radius:8px;
+  border-left:3px solid var(--line);
+}
+.alert-row.sev-alert{ border-left-color:var(--alert); }
+.alert-row.sev-watch{ border-left-color:var(--watch); }
+.alert-row.sev-info{ border-left-color:var(--info); }
+.alert-icon{ font-family:var(--mono); font-size:11px; font-weight:700; flex-shrink:0; width:16px; text-align:center; }
+.alert-row.sev-alert .alert-icon{ color:var(--alert); }
+.alert-row.sev-watch .alert-icon{ color:var(--watch); }
+.alert-row.sev-info .alert-icon{ color:var(--info); }
+.alert-body .atitle{ font-size:12.5px; font-weight:600; }
+.alert-body .adesc{ font-size:11.5px; color:var(--ink-dim); margin-top:2px; }
+.alert-body .atime{ font-family:var(--mono); font-size:10.5px; color:var(--ink-faint); margin-top:4px; }
+
+.threshold-box{ margin-top:16px; padding-top:14px; border-top:1px solid var(--line-soft); }
+.threshold-row{ display:flex; align-items:center; justify-content:space-between; padding:8px 0; }
+.threshold-row .tlabel{ font-size:12px; color:var(--ink-dim); }
+.threshold-row .tval{ font-family:var(--mono); font-size:12px; color:var(--ink); background:var(--bg-raised); padding:4px 10px; border-radius:6px; border:1px solid var(--line); }
+
+/* ---------- integration panel ---------- */
+.integ-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; margin-top:16px; }
+.integ-card{
+  background:var(--bg-panel); border:1px dashed var(--line); border-radius:12px;
+  padding:16px;
+}
+.integ-card .ihead{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.integ-card .iname{ font-size:13px; font-weight:700; }
+.integ-status{
+  font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:0.04em;
+  padding:3px 8px; border-radius:20px; text-transform:uppercase;
+}
+.integ-status.pending{ background:var(--watch-dim); color:var(--watch); }
+.integ-field{ margin-top:9px; }
+.integ-field label{ display:block; font-size:11px; color:var(--ink-faint); margin-bottom:4px; font-family:var(--mono); }
+.integ-field input{
+  width:100%; background:var(--bg-raised); border:1px solid var(--line); border-radius:6px;
+  padding:8px 10px; color:var(--ink-faint); font-family:var(--mono); font-size:11.5px;
+}
+.integ-field input::placeholder{ color:var(--ink-faint); }
+.integ-note{ margin-top:11px; font-size:11px; color:var(--ink-faint); line-height:1.5; }
+
+footer.foot{
+  margin-top:24px; padding-top:16px; border-top:1px solid var(--line);
+  display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;
+  font-family:var(--mono); font-size:11px; color:var(--ink-faint);
+}
+
+.hidden{ display:none !important; }
+
+@media (max-width:1100px){
+  .grid{ grid-template-columns:1fr; }
+  .channel-grid{ grid-template-columns:repeat(2,1fr); }
+  .row2{ grid-template-columns:1fr; }
+  .integ-grid{ grid-template-columns:1fr; }
+}
+@media (max-width:560px){
+  .channel-grid{ grid-template-columns:1fr; }
+  .topbar-right{ width:100%; justify-content:space-between; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">대한</div>
+      <div class="brand-text">
+        <div class="name">대한은행 평판리스크 관제센터</div>
+        <div class="sub">REPUTATION RISK COMMAND · SENTIMENT INTELLIGENCE</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="tabs" role="tablist">
+        <button class="tab-btn active" data-view="dashboard">대시보드</button>
+        <button class="tab-btn" data-view="integration">데이터 연동</button>
+      </div>
+      <div class="live-clock"><span class="live-dot"></span><span id="clockText">--:--:--</span></div>
+    </div>
+  </div>
+
+  <div class="ticker-wrap">
+    <div class="ticker-label">⚡ 실시간 이슈</div>
+    <div class="ticker-track-outer">
+      <div class="ticker-track" id="tickerTrack"></div>
+    </div>
+  </div>
+
+  <!-- ===================== DASHBOARD VIEW ===================== -->
+  <div id="view-dashboard">
+
+    <div class="grid">
+      <!-- 종합 리스크 게이지 -->
+      <div class="panel gauge-panel">
+        <div class="panel-head" style="width:100%;">
+          <div class="panel-title"><span class="eyebrow-num">01</span>종합 평판 리스크 지수</div>
+          <div class="panel-meta" id="gaugeUpdated">--</div>
+        </div>
+        <div class="gauge-wrap">
+          <canvas id="gaugeCanvas" width="220" height="220"></canvas>
+          <div class="gauge-center">
+            <div class="gauge-value" id="gaugeValue" style="color:var(--calm)">--</div>
+            <div class="gauge-unit">/ 100 · 안정 기준 高</div>
+          </div>
+        </div>
+        <div class="grade-badge" id="gradeBadge">
+          <span class="grade-dot"></span><span id="gradeText">산출 중</span>
+        </div>
+        <div class="gauge-trend">
+          <span>전일 대비</span>
+          <span class="trend-val" id="trendVal">--</span>
+        </div>
+        <div class="range-toggle">
+          <button class="range-btn" data-range="24h">24시간</button>
+          <button class="range-btn active" data-range="7d">7일</button>
+          <button class="range-btn" data-range="30d">30일</button>
+        </div>
+        <div class="contrib-list" id="contribList"></div>
+      </div>
+
+      <!-- 채널별 감성 추이 차트 -->
+      <div class="panel chart-panel">
+        <div class="panel-head">
+          <div class="panel-title"><span class="eyebrow-num">02</span>채널별 감성 추이</div>
+          <div class="panel-meta">긍정 − 부정 순감성 스코어</div>
+        </div>
+        <canvas id="trendCanvas" width="1000" height="300"></canvas>
+        <div class="chart-legend" id="trendLegend"></div>
+      </div>
+    </div>
+
+    <!-- 채널별 카드 -->
+    <div class="panel-head" style="margin-top:22px;">
+      <div class="panel-title"><span class="eyebrow-num">03</span>채널별 감성 분포</div>
+      <div class="panel-meta">최근 24시간 · 수집 건수 기준</div>
+    </div>
+    <div class="channel-grid" id="channelGrid"></div>
+
+    <!-- 부정 키워드 + 알림 -->
+    <div class="row2">
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title"><span class="eyebrow-num">04</span>부정 언급 키워드 순위</div>
+          <div class="panel-meta">최근 24시간</div>
+        </div>
+        <div class="kw-list" id="kwList"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title"><span class="eyebrow-num">05</span>알림 로그</div>
+          <div class="panel-meta" id="alertCount">-- 건</div>
+        </div>
+        <div class="alert-list" id="alertList"></div>
+        <div class="threshold-box">
+          <div class="panel-title" style="margin-bottom:2px;">임계치 설정</div>
+          <div class="threshold-row"><span class="tlabel">감성지수 급락 (1시간)</span><span class="tval">−8pt 이상</span></div>
+          <div class="threshold-row"><span class="tlabel">부정 게시물 급증</span><span class="tval">평시 대비 300%</span></div>
+          <div class="threshold-row"><span class="tlabel">특정 키워드 동시 언급</span><span class="tval">뱅크런 · 지급불능 · 부도</span></div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="foot">
+      <span>SENTIMENT ENGINE v1 · 데모 데이터 기반 프로토타입</span>
+      <span>RiskMania Group · AI Risk Analytics</span>
+    </footer>
+  </div>
+
+  <!-- ===================== INTEGRATION VIEW ===================== -->
+  <div id="view-integration" class="hidden">
+    <div class="panel-head" style="margin-top:18px;">
+      <div class="panel-title"><span class="eyebrow-num">06</span>데이터 연동 설정</div>
+      <div class="panel-meta">실연동 준비 · 현재는 자리만 마련된 상태</div>
+    </div>
+    <div class="integ-grid">
+      <div class="integ-card">
+        <div class="ihead"><span class="iname">뉴스 수집 API</span><span class="integ-status pending">연동 대기</span></div>
+        <div class="integ-field"><label>PROVIDER ENDPOINT</label><input type="text" placeholder="https://api.news-provider.example/v1/search" disabled></div>
+        <div class="integ-field"><label>API KEY</label><input type="text" placeholder="●●●●●●●●●●●●●●●●" disabled></div>
+        <div class="integ-note">주요 경제지·통신사 기사 및 헤드라인을 실시간 수집해 감성분석 파이프라인에 투입합니다.</div>
+      </div>
+      <div class="integ-card">
+        <div class="ihead"><span class="iname">SNS / 커뮤니티 API</span><span class="integ-status pending">연동 대기</span></div>
+        <div class="integ-field"><label>PROVIDER ENDPOINT</label><input type="text" placeholder="https://api.sns-listener.example/v1/stream" disabled></div>
+        <div class="integ-field"><label>API KEY</label><input type="text" placeholder="●●●●●●●●●●●●●●●●" disabled></div>
+        <div class="integ-note">X(트위터), 커뮤니티, 유튜브 댓글 등에서 은행명·상품명 언급을 수집합니다.</div>
+      </div>
+      <div class="integ-card">
+        <div class="ihead"><span class="iname">민원 · 콜센터 연계</span><span class="integ-status pending">연동 대기</span></div>
+        <div class="integ-field"><label>INTERNAL SYSTEM ID</label><input type="text" placeholder="VOC-SYSTEM-CONNECTOR" disabled></div>
+        <div class="integ-field"><label>ACCESS TOKEN</label><input type="text" placeholder="●●●●●●●●●●●●●●●●" disabled></div>
+        <div class="integ-note">금감원 민원 게시판 및 내부 콜센터 VOC 데이터를 연계해 조기 신호를 포착합니다.</div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:16px;">
+      <div class="panel-title" style="margin-bottom:10px;">연동 로드맵</div>
+      <div style="font-size:12.5px; color:var(--ink-dim); line-height:1.9;">
+        1단계 · 뉴스 API 연동 및 형태소 기반 1차 감성분류 모델 적용<br>
+        2단계 · SNS/커뮤니티 크롤러 연동 및 오탐 필터링(광고·봇 계정 제외)<br>
+        3단계 · 민원/VOC 내부 시스템 연계 및 임계치 자동 알림(사내 메신저·이메일) 발송<br>
+        4단계 · RRP 위기대응 시나리오 모듈과 연계해 등급 격상 시 대응 매뉴얼 자동 제시
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- utility ---------------- */
+  function pad(n){ return n.toString().padStart(2,'0'); }
+  function fmtTime(d){ return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds()); }
+  function seedRandom(seed){
+    let s = seed;
+    return function(){ s = (s*9301+49297)%233280; return s/233280; };
+  }
+  const rnd = seedRandom(42);
+
+  /* ---------------- clock ---------------- */
+  function tickClock(){
+    document.getElementById('clockText').textContent = fmtTime(new Date());
+  }
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  /* ---------------- tabs ---------------- */
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  tabBtns.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      tabBtns.forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const view = btn.dataset.view;
+      document.getElementById('view-dashboard').classList.toggle('hidden', view!=='dashboard');
+      document.getElementById('view-integration').classList.toggle('hidden', view!=='integration');
+    });
+  });
+
+  /* ---------------- mock data ---------------- */
+  const CHANNELS = [
+    { key:'news', name:'뉴스·언론', color:'#4ea8de' },
+    { key:'sns', name:'SNS(X)', color:'#f0454b' },
+    { key:'community', name:'커뮤니티', color:'#fbbf24' },
+    { key:'youtube', name:'유튜브', color:'#a78bfa' },
+    { key:'complaint', name:'민원게시판', color:'#34d399' },
+  ];
+
+  function genChannelSnapshot(){
+    return CHANNELS.map((c,i)=>{
+      const base = 55 + Math.floor(rnd()*30) - i*3;
+      const pos = Math.max(15, Math.min(70, base + Math.floor(rnd()*10-5)));
+      const neg = Math.max(8, Math.floor(rnd()*35) + (c.key==='sns'?12:0));
+      const neu = Math.max(5, 100-pos-neg);
+      const total = pos+neg+neu;
+      const volume = Math.floor(400 + rnd()*3200);
+      const volChange = Math.floor(rnd()*60 - 22);
+      return { ...c, pos:Math.round(pos/total*100), neg:Math.round(neg/total*100), neu:Math.round(neu/total*100), volume, volChange };
+    });
+  }
+  const channelData = genChannelSnapshot();
+
+  const KEYWORDS = ['대출금리 인상','앱 오류','상담 지연','수수료 불만','대기시간','약관 불완전판매','개인정보 유출 우려','ATM 장애','창구 응대','해외송금 지연'];
+  const kwData = KEYWORDS.map((k,i)=>({ name:k, count: Math.floor(600 - i*48 + rnd()*40) })).sort((a,b)=>b.count-a.count);
+
+  const ALERTS = [
+    { sev:'alert', title:'감성지수 급락 감지', desc:'최근 1시간 종합 감성지수 −11.4pt · SNS 채널 중심', min: 6 },
+    { sev:'watch', title:'부정 게시물 증가', desc:'커뮤니티 채널 부정 언급 전일 대비 +184%', min: 42 },
+    { sev:'info', title:'뉴스 보도 급증', desc:'경제지 3곳 동시 보도 · "가계대출 관리 강화" 키워드', min: 95 },
+    { sev:'watch', title:'키워드 임계치 근접', desc:'"수수료 불만" 언급 24시간 내 520건 (임계치 600건)', min: 138 },
+    { sev:'info', title:'채널 정상화', desc:'유튜브 채널 감성지수 안정권 복귀 (62 → 71)', min: 210 },
+    { sev:'alert', title:'복합 부정 신호', desc:'"대기시간" + "상담 지연" 키워드 동시 급증', min: 305 },
+  ];
+
+  /* ---------------- ticker ---------------- */
+  const tickerSrc = [
+    { sev:'alert', src:'SNS', text:'"○○지점 대기시간 너무 길다" 게시물 확산 중', time:'2분 전' },
+    { sev:'watch', src:'커뮤니티', text:'대출금리 인상 관련 부정 여론 형성', time:'8분 전' },
+    { sev:'calm', src:'뉴스', text:'디지털 뱅킹 만족도 조사 3위 기록 보도', time:'15분 전' },
+    { sev:'watch', src:'유튜브', text:'앱 오류 관련 후기 영상 조회수 급상승', time:'23분 전' },
+    { sev:'alert', src:'민원', text:'수수료 불만 민원 접수 건수 임계치 근접', time:'31분 전' },
+    { sev:'calm', src:'SNS', text:'신규 적금 상품 긍정 반응 다수', time:'44분 전' },
+    { sev:'watch', src:'뉴스', text:'가계대출 관리 강화 기사 3건 동시 보도', time:'52분 전' },
+  ];
+  function buildTicker(){
+    const track = document.getElementById('tickerTrack');
+    const items = [...tickerSrc, ...tickerSrc]; // duplicate for seamless loop
+    track.innerHTML = items.map(t=>`
+      <div class="ticker-item">
+        <span class="tk-dot sev-${t.sev}"></span>
+        <span class="tk-src">[${t.src}]</span>
+        <span class="tk-text">${t.text}</span>
+        <span class="tk-time">${t.time}</span>
+      </div>`).join('');
+  }
+  buildTicker();
+
+  /* ---------------- gauge ---------------- */
+  function gradeFor(score){
+    if(score>=75) return { label:'안정', color:getCss('--calm') };
+    if(score>=55) return { label:'주의', color:getCss('--watch') };
+    if(score>=35) return { label:'경보', color:getCss('--alert') };
+    return { label:'위기', color:getCss('--alert') };
+  }
+  function getCss(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+  function drawGauge(score){
+    const canvas = document.getElementById('gaugeCanvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const cx = W/2, cy = H/2, r = 92;
+    ctx.clearRect(0,0,W,H);
+
+    const startAngle = Math.PI*0.75, endAngle = Math.PI*2.25;
+    // track
+    ctx.beginPath();
+    ctx.arc(cx,cy,r,startAngle,endAngle);
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = getCss('--bg-raised');
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // colored segments (위기/경보/주의/안정)
+    const segs = [
+      { from:0, to:35, color:getCss('--alert') },
+      { from:35, to:55, color:getCss('--alert') },
+      { from:55, to:75, color:getCss('--watch') },
+      { from:75, to:100, color:getCss('--calm') },
+    ];
+    segs.forEach(seg=>{
+      const a1 = startAngle + (endAngle-startAngle)*(seg.from/100);
+      const a2 = startAngle + (endAngle-startAngle)*(seg.to/100);
+      ctx.beginPath();
+      ctx.arc(cx,cy,r,a1,a2);
+      ctx.lineWidth = 14;
+      ctx.strokeStyle = seg.color;
+      ctx.globalAlpha = 0.28;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    });
+
+    // value arc
+    const valAngle = startAngle + (endAngle-startAngle)*(score/100);
+    ctx.beginPath();
+    ctx.arc(cx,cy,r,startAngle,valAngle);
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = gradeFor(score).color;
+    ctx.lineCap = 'round';
+    ctx.shadowColor = gradeFor(score).color;
+    ctx.shadowBlur = 10;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // needle tick
+    const nx = cx + Math.cos(valAngle)*(r+13);
+    const ny = cy + Math.sin(valAngle)*(r+13);
+    ctx.beginPath();
+    ctx.arc(nx,ny,4,0,Math.PI*2);
+    ctx.fillStyle = getCss('--ink');
+    ctx.fill();
+  }
+
+  function renderGauge(){
+    const score = Math.round(channelData.reduce((s,c)=>s+(c.pos-c.neg),0)/channelData.length + 58);
+    const clamped = Math.max(5, Math.min(95, score));
+    drawGauge(clamped);
+    const g = gradeFor(clamped);
+    document.getElementById('gaugeValue').textContent = clamped;
+    document.getElementById('gaugeValue').style.color = g.color;
+    const badge = document.getElementById('gradeBadge');
+    badge.style.borderColor = g.color;
+    badge.style.color = g.color;
+    badge.querySelector('.grade-dot').style.background = g.color;
+    document.getElementById('gradeText').textContent = g.label+' 등급';
+    document.getElementById('gaugeUpdated').textContent = fmtTime(new Date())+' 갱신';
+
+    const delta = -3.2;
+    const tv = document.getElementById('trendVal');
+    tv.textContent = (delta>=0?'+':'')+delta.toFixed(1)+'pt';
+    tv.className = 'trend-val '+(delta>=0?'up':'down');
+
+    const contribWrap = document.getElementById('contribList');
+    contribWrap.innerHTML = channelData.map(c=>{
+      const net = c.pos-c.neg;
+      const pct = Math.max(6, Math.min(100, (net+40)/80*100));
+      const color = net>=10? getCss('--calm') : net>=-5? getCss('--watch') : getCss('--alert');
+      return `<div class="contrib-row">
+        <span class="clabel">${c.name}</span>
+        <span class="contrib-track"><span class="contrib-fill" style="width:${pct}%; background:${color};"></span></span>
+        <span class="cval">${net>=0?'+':''}${net}</span>
+      </div>`;
+    }).join('');
+  }
+  renderGauge();
+
+  document.querySelectorAll('.range-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.range-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      drawTrendChart(btn.dataset.range);
+    });
+  });
+
+  /* ---------------- trend line chart ---------------- */
+  function genSeries(points, volatility, driftStart){
+    let v = driftStart;
+    const out = [];
+    for(let i=0;i<points;i++){
+      v += (rnd()-0.5)*volatility;
+      v = Math.max(5, Math.min(95, v));
+      out.push(v);
+    }
+    return out;
+  }
+
+  function drawTrendChart(range){
+    const canvas = document.getElementById('trendCanvas');
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const displayW = canvas.clientWidth || 1000;
+    const displayH = 300;
+    canvas.width = displayW*dpr;
+    canvas.height = displayH*dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,displayW,displayH);
+
+    const points = range==='24h'?24:range==='7d'?7:30;
+    const series = CHANNELS.map((c,i)=>({ c, data: genSeries(points, 14, 60-i*3) }));
+
+    const padL=36, padR=10, padT=14, padB=26;
+    const plotW = displayW-padL-padR;
+    const plotH = displayH-padT-padB;
+
+    // grid
+    ctx.strokeStyle = getCss('--line-soft');
+    ctx.lineWidth = 1;
+    ctx.font = '10px var(--mono)';
+    ctx.fillStyle = getCss('--ink-faint');
+    [0,25,50,75,100].forEach(v=>{
+      const y = padT + plotH*(1-v/100);
+      ctx.beginPath();
+      ctx.moveTo(padL,y); ctx.lineTo(displayW-padR,y);
+      ctx.stroke();
+      ctx.fillText(v, 4, y+3);
+    });
+
+    series.forEach(s=>{
+      ctx.beginPath();
+      s.data.forEach((v,i)=>{
+        const x = padL + plotW*(i/(points-1));
+        const y = padT + plotH*(1-v/100);
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      });
+      ctx.strokeStyle = s.c.color;
+      ctx.lineWidth = 2;
+      ctx.lineJoin='round';
+      ctx.stroke();
+
+      // last point dot
+      const lastV = s.data[s.data.length-1];
+      const lx = padL+plotW;
+      const ly = padT + plotH*(1-lastV/100);
+      ctx.beginPath();
+      ctx.arc(lx,ly,3,0,Math.PI*2);
+      ctx.fillStyle = s.c.color;
+      ctx.fill();
+    });
+
+    // legend
+    const legend = document.getElementById('trendLegend');
+    legend.innerHTML = CHANNELS.map(c=>`<div class="leg-item"><span class="leg-swatch" style="background:${c.color}"></span>${c.name}</div>`).join('');
+  }
+  drawTrendChart('7d');
+  window.addEventListener('resize', ()=>{
+    const active = document.querySelector('.range-btn.active');
+    drawTrendChart(active? active.dataset.range : '7d');
+  });
+
+  /* ---------------- channel cards ---------------- */
+  function conicGradient(c){
+    const posEnd = c.pos;
+    const negEnd = c.pos+c.neg;
+    return `conic-gradient(${getCss('--calm')} 0% ${posEnd}%, ${getCss('--alert')} ${posEnd}% ${negEnd}%, ${getCss('--ink-faint')} ${negEnd}% 100%)`;
+  }
+  function renderChannels(){
+    const grid = document.getElementById('channelGrid');
+    grid.innerHTML = channelData.map(c=>{
+      const statusColor = c.neg>30? getCss('--alert') : c.neg>18? getCss('--watch') : getCss('--calm');
+      return `<div class="channel-card">
+        <div class="channel-card-head">
+          <span class="channel-name">${c.name}</span>
+          <span class="channel-status" style="background:${statusColor}"></span>
+        </div>
+        <div class="donut-row">
+          <div class="donut" style="background:${conicGradient(c)}"></div>
+          <div class="donut-stats">
+            <div class="dstat"><span class="dsw" style="background:${getCss('--calm')}"></span>긍정<b>${c.pos}%</b></div>
+            <div class="dstat"><span class="dsw" style="background:${getCss('--alert')}"></span>부정<b>${c.neg}%</b></div>
+            <div class="dstat"><span class="dsw" style="background:${getCss('--ink-faint')}"></span>중립<b>${c.neu}%</b></div>
+          </div>
+        </div>
+        <div class="channel-foot">
+          <span>수집 ${c.volume.toLocaleString()}건</span>
+          <span class="${c.volChange>=0?'vol-up':'vol-down'}">${c.volChange>=0?'▲':'▼'} ${Math.abs(c.volChange)}%</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  renderChannels();
+
+  /* ---------------- keywords ---------------- */
+  function renderKeywords(){
+    const max = kwData[0].count;
+    const list = document.getElementById('kwList');
+    list.innerHTML = kwData.map((k,i)=>`
+      <div class="kw-row">
+        <span class="kw-rank">${i+1}</span>
+        <span class="kw-name">${k.name}</span>
+        <span class="kw-bar-track"><span class="kw-bar-fill" style="width:${(k.count/max*100).toFixed(0)}%"></span></span>
+        <span class="kw-count">${k.count}건</span>
+      </div>`).join('');
+  }
+  renderKeywords();
+
+  /* ---------------- alerts ---------------- */
+  function renderAlerts(){
+    const list = document.getElementById('alertList');
+    document.getElementById('alertCount').textContent = ALERTS.length+' 건';
+    list.innerHTML = ALERTS.map(a=>`
+      <div class="alert-row sev-${a.sev}">
+        <span class="alert-icon">${a.sev==='alert'?'▲':a.sev==='watch'?'●':'ℹ'}</span>
+        <div class="alert-body">
+          <div class="atitle">${a.title}</div>
+          <div class="adesc">${a.desc}</div>
+          <div class="atime">${a.min}분 전</div>
+        </div>
+      </div>`).join('');
+  }
+  renderAlerts();
+
+})();
+</script>
+</body>
+</html>

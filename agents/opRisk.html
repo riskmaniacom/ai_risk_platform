@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>운영리스크 RCSA-손실데이터 정합성 검증 AI Agent</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  body{font-family:'Pretendard','Malgun Gothic',system-ui,-apple-system,sans-serif;}
+  .tab-active{background:#1e293b;color:#fff;}
+  .sev-상{background:#fee2e2;color:#991b1b;border-color:#fca5a5;}
+  .sev-중{background:#fef3c7;color:#92400e;border-color:#fcd34d;}
+  .sev-하{background:#e0f2fe;color:#075985;border-color:#7dd3fc;}
+  .grd-상{background:#fecaca;color:#7f1d1d;}
+  .grd-중{background:#fde68a;color:#78350f;}
+  .grd-하{background:#bbf7d0;color:#14532d;}
+  table.dense th,table.dense td{padding:6px 8px;font-size:12px;white-space:nowrap;}
+  .sticky-h th{position:sticky;top:0;background:#f1f5f9;z-index:5;}
+  .scroll-x{overflow:auto;}
+  tr.clickable:hover{background:#eff6ff;cursor:pointer;}
+  @media print{.no-print{display:none!important}.print-block{display:block!important}}
+  ::-webkit-scrollbar{height:8px;width:8px}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+
+<!-- ===== 실행 오버레이 ===== -->
+<div id="overlay" class="fixed inset-0 bg-slate-900/95 z-50 flex items-center justify-center no-print">
+  <div class="w-[560px] bg-slate-800 rounded-xl p-7 shadow-2xl border border-slate-700">
+    <div class="flex items-center gap-3 mb-5">
+      <div class="w-9 h-9 rounded-lg bg-indigo-500 flex items-center justify-center text-white font-bold">AI</div>
+      <div>
+        <div class="text-white font-semibold">OpRisk Consistency Agent</div>
+        <div class="text-slate-400 text-xs">RCSA ↔ 내부손실데이터 정합성 검증 에이전트 v0.9 (PoC)</div>
+      </div>
+    </div>
+    <div id="agentLog" class="space-y-2 text-sm"></div>
+    <div class="mt-5 h-1.5 bg-slate-700 rounded overflow-hidden"><div id="agentBar" class="h-full bg-indigo-500 w-0 transition-all duration-300"></div></div>
+  </div>
+</div>
+
+<!-- ===== 헤더 ===== -->
+<header class="bg-slate-900 text-white px-6 py-3 flex items-center justify-between shadow">
+  <div class="flex items-center gap-3">
+    <div class="w-8 h-8 rounded bg-indigo-500 flex items-center justify-center text-sm font-bold">OR</div>
+    <div>
+      <div class="font-semibold text-[15px]">운영리스크 RCSA · 손실데이터 정합성 검증 AI Agent</div>
+      <div class="text-[11px] text-slate-400">평가주기 2025-H1 &nbsp;|&nbsp; 기준일 2025-06-30 &nbsp;|&nbsp; 손실집계기간 2024-07-01~2025-06-30 &nbsp;|&nbsp; <span class="text-amber-400">Mock-up / 가상데이터</span></div>
+    </div>
+  </div>
+  <div class="flex gap-2 no-print">
+    <button onclick="window.print()" class="px-3 py-1.5 text-xs rounded bg-slate-700 hover:bg-slate-600">리포트 출력</button>
+    <button onclick="rerun()" class="px-3 py-1.5 text-xs rounded bg-indigo-600 hover:bg-indigo-500">Agent 재실행</button>
+  </div>
+</header>
+
+<!-- ===== 탭 ===== -->
+<nav class="bg-white border-b px-4 flex gap-1 text-sm no-print sticky top-0 z-20">
+  <button data-tab="dash" class="tab px-4 py-2.5 rounded-t tab-active">대시보드</button>
+  <button data-tab="map" class="tab px-4 py-2.5 rounded-t hover:bg-slate-100">매핑결과</button>
+  <button data-tab="issue" class="tab px-4 py-2.5 rounded-t hover:bg-slate-100">이슈리스트</button>
+  <button data-tab="detail" class="tab px-4 py-2.5 rounded-t hover:bg-slate-100">상세검증</button>
+  <button data-tab="chat" class="tab px-4 py-2.5 rounded-t hover:bg-slate-100">AI 질의</button>
+  <button data-tab="rule" class="tab px-4 py-2.5 rounded-t hover:bg-slate-100">검증룰 정의</button>
+  <button data-tab="data" class="tab px-4 py-2.5 rounded-t hover:bg-slate-100">원천데이터</button>
+</nav>
+
+<main class="p-5 max-w-[1600px] mx-auto">
+
+<!-- ============ 대시보드 ============ -->
+<section id="tab-dash" class="tabpage">
+  <div class="grid grid-cols-5 gap-4 mb-4" id="kpiRow"></div>
+
+  <div class="grid grid-cols-3 gap-4 mb-4">
+    <div class="bg-white rounded-lg p-4 shadow-sm border">
+      <div class="text-sm font-semibold mb-2">검증룰별 이슈 검출 건수</div>
+      <canvas id="chRule" height="190"></canvas>
+    </div>
+    <div class="bg-white rounded-lg p-4 shadow-sm border">
+      <div class="text-sm font-semibold mb-2">부서별 RCSA 예상손실 vs 실제손실 (12M, 백만원)</div>
+      <canvas id="chDept" height="190"></canvas>
+    </div>
+    <div class="bg-white rounded-lg p-4 shadow-sm border">
+      <div class="text-sm font-semibold mb-2">Basel 사건유형(L1)별 손실금액 (12M)</div>
+      <canvas id="chL1" height="190"></canvas>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-3 gap-4 mb-4">
+    <div class="bg-white rounded-lg p-4 shadow-sm border col-span-2">
+      <div class="text-sm font-semibold mb-2">월별 손실 발생 추이 (순손실, 백만원)</div>
+      <canvas id="chTrend" height="120"></canvas>
+    </div>
+    <div class="bg-white rounded-lg p-4 shadow-sm border">
+      <div class="text-sm font-semibold mb-2">이슈 심각도 분포</div>
+      <canvas id="chSev" height="120"></canvas>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-2 gap-4">
+    <div class="bg-white rounded-lg p-4 shadow-sm border">
+      <div class="text-sm font-semibold mb-3">부서별 정합성 현황</div>
+      <div class="scroll-x max-h-[380px]"><table class="dense w-full text-left" id="tblDept"></table></div>
+    </div>
+    <div class="bg-white rounded-lg p-4 shadow-sm border">
+      <div class="text-sm font-semibold mb-3">핵심 이슈 Top 8 <span class="text-xs font-normal text-slate-500">(클릭 → 상세검증)</span></div>
+      <div class="space-y-2 max-h-[380px] overflow-auto pr-1" id="topIssues"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 매핑결과 ============ -->
+<section id="tab-map" class="tabpage hidden">
+  <div class="bg-white rounded-lg p-4 shadow-sm border mb-3">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <div class="text-sm font-semibold">손실사건 ↔ RCSA 리스크 매핑 결과</div>
+        <div class="text-xs text-slate-500 mt-1">매칭 기준: ① 손실DB 연계리스크ID(연계키) → ② 부서·프로세스·Basel L2 완전일치 추정 → ③ 유사도 기반 후보 제시</div>
+      </div>
+      <div class="flex gap-1.5 text-xs" id="mapFilter"></div>
+    </div>
+    <div id="mapSummary" class="grid grid-cols-4 gap-3 text-center mb-3"></div>
+    <div class="scroll-x max-h-[560px]"><table class="dense w-full text-left sticky-h" id="tblMap"></table></div>
+  </div>
+</section>
+
+<!-- ============ 이슈리스트 ============ -->
+<section id="tab-issue" class="tabpage hidden">
+  <div class="bg-white rounded-lg p-4 shadow-sm border">
+    <div class="flex items-end justify-between mb-3 gap-4 flex-wrap">
+      <div class="text-sm font-semibold">정합성 검증 이슈 <span id="issueCnt" class="text-slate-500 font-normal"></span></div>
+      <div class="flex gap-3 text-xs items-center">
+        <label>룰 <select id="fRule" class="border rounded px-2 py-1 ml-1"></select></label>
+        <label>심각도 <select id="fSev" class="border rounded px-2 py-1 ml-1"><option value="">전체</option><option>상</option><option>중</option><option>하</option></select></label>
+        <label>부서 <select id="fDept" class="border rounded px-2 py-1 ml-1"></select></label>
+        <button onclick="exportCsv()" class="px-2.5 py-1 bg-slate-700 text-white rounded">CSV</button>
+      </div>
+    </div>
+    <div class="scroll-x max-h-[640px]"><table class="dense w-full text-left sticky-h" id="tblIssue"></table></div>
+  </div>
+</section>
+
+<!-- ============ 상세검증 ============ -->
+<section id="tab-detail" class="tabpage hidden">
+  <div class="flex gap-4">
+    <div class="w-[260px] bg-white rounded-lg border shadow-sm p-3 shrink-0">
+      <div class="text-xs font-semibold mb-2 text-slate-500">이슈 목록</div>
+      <div id="detailNav" class="space-y-1 max-h-[720px] overflow-auto"></div>
+    </div>
+    <div class="flex-1" id="detailBody"></div>
+  </div>
+</section>
+
+<!-- ============ AI 질의 ============ -->
+<section id="tab-chat" class="tabpage hidden">
+  <div class="bg-white rounded-lg border shadow-sm p-4 max-w-[1000px]">
+    <div class="text-sm font-semibold mb-1">검증결과 질의응답</div>
+    <div class="text-xs text-slate-500 mb-3">※ Mock-up: 사전 정의된 질의 패턴에 대해 실제 계산된 검증결과를 기반으로 응답합니다.</div>
+    <div id="chatBox" class="h-[420px] overflow-auto border rounded p-3 bg-slate-50 space-y-3 text-sm"></div>
+    <div class="flex gap-2 mt-3">
+      <input id="chatIn" class="flex-1 border rounded px-3 py-2 text-sm" placeholder="예) IT운영부가 왜 과소평가로 나왔어?" onkeydown="if(event.key==='Enter')sendChat()">
+      <button onclick="sendChat()" class="px-4 py-2 bg-indigo-600 text-white rounded text-sm">전송</button>
+    </div>
+    <div class="flex gap-2 mt-2 flex-wrap text-xs" id="quickQ"></div>
+  </div>
+</section>
+
+<!-- ============ 검증룰 ============ -->
+<section id="tab-rule" class="tabpage hidden">
+  <div class="bg-white rounded-lg border shadow-sm p-4">
+    <div class="text-sm font-semibold mb-3">정합성 검증룰 정의서</div>
+    <div class="scroll-x"><table class="dense w-full text-left" id="tblRule"></table></div>
+    <div class="mt-4 text-xs text-slate-500 leading-relaxed border-t pt-3">
+      · 임계값(손실 100백만원, 편차 50%, 건수 3건 등)은 PoC 가정치이며, 실제 적용 시 운영리스크 관리기준·업무별 중요성 기준과 연계하여 재설정 필요<br>
+      · R10(회계-손실DB 대조)은 총계정원장 연동이 선행되어야 하므로 본 PoC 범위 제외
+    </div>
+  </div>
+</section>
+
+<!-- ============ 원천데이터 ============ -->
+<section id="tab-data" class="tabpage hidden">
+  <div class="flex gap-2 mb-3 text-xs no-print">
+    <button onclick="showData('rcsa')" id="btnRcsa" class="px-3 py-1.5 rounded bg-slate-900 text-white">RCSA 평가결과</button>
+    <button onclick="showData('loss')" id="btnLoss" class="px-3 py-1.5 rounded bg-white border">내부손실 사건</button>
+  </div>
+  <div class="bg-white rounded-lg border shadow-sm p-4">
+    <div class="scroll-x max-h-[680px]"><table class="dense w-full text-left sticky-h" id="tblData"></table></div>
+  </div>
+</section>
+
+</main>
+<footer class="text-center text-xs text-slate-400 py-6">Operational Risk Consistency Verification Agent · Mock-up (가상데이터) · 대외 배포 금지</footer>
+
+<script>
+/* =========================================================
+   1. 기준 파라미터
+   ========================================================= */
+const BASE = new Date('2025-06-30');
+const PREV_FROM = new Date('2024-07-01'), PREV_TO = new Date('2024-12-31'); // 이전 평가주기(2024-H2)
+const TH = { lossAmt:100, lossCnt:3, elDev:0.5, bigLoss:500, months:12, zeroMonths:36 };
+
+/* =========================================================
+   2. 샘플 데이터  ※ 전부 가상. 실데이터 절대 사용 금지
+   ========================================================= */
+const R_COLS=['riskId','dept','process','riskName','l1','l2','lk','im','inh','ctlId','ctlName','ctlType','ctlEff','res','el','kri','prevRes','prevEff'];
+const RCSA_RAW=[
+['OR-P-001','개인영업부','창구 입출금 거래처리','창구 거래처리 오류로 인한 고객 손실 보상','집행·전달 및 프로세스 관리','거래처리·관리 오류','중','중','중','CTL-101','거래 이중확인 및 책임자 승인','예방','부분효과적','하',30,'설정','하','부분효과적'],
+['OR-P-002','개인영업부','예금 지급·이체','보이스피싱 등 금융사기로 인한 부당지급','외부사기','절도 및 사기','상','중','상','CTL-102','고액이체 본인확인 강화','예방','효과적','중',250,'설정','중','부분효과적'],
+['OR-P-003','디지털채널부','비대면 계좌개설','비대면 실명확인 우회에 따른 부정계좌 개설','외부사기','시스템 보안','중','중','중','CTL-103','이상거래탐지(FDS) 모니터링','발견','부분효과적','중',150,'설정','하','부분효과적'],
+['OR-P-004','IT운영부','코어뱅킹 시스템 운영','코어뱅킹 하드웨어 장애로 인한 영업중단','영업중단 및 시스템장애','하드웨어','중','상','상','CTL-104','주요 설비 이중화 및 예비기 운영','예방','효과적','하',50,'미설정','하','효과적'],
+['OR-P-005','IT운영부','야간 배치 운영','배치 처리 오류로 인한 이자·수수료 오산정','영업중단 및 시스템장애','소프트웨어','중','중','중','CTL-105','배치 결과 검증 체크리스트','발견','부분효과적','중',80,'설정','중','미흡'],
+['OR-P-006','자금운용부','파생상품 거래 실행','파생상품 거래 입력 오류에 따른 평가손실','집행·전달 및 프로세스 관리','거래처리·관리 오류','중','상','상','CTL-106','프론트-백 대조 및 확인서 교환','발견','부분효과적','상',400,'설정','상','부분효과적'],
+['OR-P-007','여신심사부','담보 평가·등록','담보 평가 오류 및 근저당 설정 누락','집행·전달 및 프로세스 관리','문서관리 미비','중','중','중','CTL-107','담보 등기 완료 확인 절차','발견','부분효과적','중',120,'설정','중','미흡'],
+['OR-P-008','기업영업부','기업여신 취급','위·변조 서류에 의한 여신 사기','외부사기','절도 및 사기','하','상','중','CTL-108','원본 대조 및 외부기관 진위확인','예방','부분효과적','중',200,'설정','하','부분효과적'],
+['OR-P-009','신탁부','신탁상품 판매','투자상품 불완전판매로 인한 손해배상','고객·상품 및 영업관행','적합성·공시·신뢰의무','중','상','상','CTL-109','판매과정 녹취 및 설명확인서 징구','예방','효과적','중',300,'설정','중','효과적'],
+['OR-P-010','자산관리부','투자상품 권유','고객 성향 대비 부적합 상품 권유','고객·상품 및 영업관행','적합성·공시·신뢰의무','중','중','중','CTL-110','적합성 진단 시스템 통제','예방','부분효과적','하',60,'미설정','하','부분효과적'],
+['OR-P-011','외환업무부','해외송금 처리','송금 전문 입력 오류','집행·전달 및 프로세스 관리','거래처리·관리 오류','중','하','중','CTL-111','SWIFT 전문 이중입력 검증','예방','부분효과적','중',90,'설정','중','미흡'],
+['OR-P-012','수신업무부','계좌 개설 심사','계좌 개설 서류·실명확인 미비','집행·전달 및 프로세스 관리','문서관리 미비','중','하','하','CTL-112','개설서류 사후점검','발견','부분효과적','하',20,'설정','하','부분효과적'],
+['OR-P-013','준법감시부','의심거래보고(STR)','AML 보고 지연·누락에 따른 제재','집행·전달 및 프로세스 관리','규제보고·공시 위반','하','상','중','CTL-113','STR 기한 관리 대시보드','발견','부분효과적','중',150,'설정','중','미흡'],
+['OR-P-014','인사부','채용·인사관리','채용·인사 관련 소송 및 분쟁','인사관행 및 직장안전','노사관계','하','중','중','CTL-114','인사규정 준수 점검 및 법률검토','예방','효과적','상',100,'설정','상','효과적'],
+['OR-P-015','총무부','점포 시설 관리','화재·침수 등 재해로 인한 자산 손상','유형자산 손상','자연재해 및 기타','하','상','중','CTL-115','재해예방 점검 및 보험 가입','예방','부분효과적','중',200,'설정','중','미흡'],
+['OR-P-016','개인영업부','대출 실행·관리','대출 금리·수수료 산정 오류','집행·전달 및 프로세스 관리','거래처리·관리 오류','중','중','중','CTL-116','금리 산정 시스템 자동검증','예방','부분효과적','중',100,'설정','하','부분효과적'],
+['OR-P-017','기업영업부','자금 집행·정산','내부직원의 고객자금 횡령','내부사기','무허가 행위 및 절도','하','상','중','CTL-117','직무분리 및 자금집행 이중승인','예방','효과적','하',50,'미설정','하','효과적'],
+['OR-P-018','자금운용부','자기자본 운용','승인한도 초과 및 미승인 거래','내부사기','무허가 행위 및 절도','하','상','중','CTL-118','한도 실시간 모니터링 및 초과 차단','예방','효과적','중',250,'설정','중','효과적'],
+['OR-P-019','IT운영부','정보보호 운영','외부 해킹에 의한 고객정보 유출','외부사기','시스템 보안','하','상','상','CTL-119','침입탐지·모의해킹 및 접근통제','예방','효과적','상',500,'설정','상','효과적'],
+['OR-P-020','디지털채널부','모바일앱 운영','앱 서비스 중단으로 인한 거래 실패','영업중단 및 시스템장애','소프트웨어','상','중','상','CTL-120','배포 전 QA 및 롤백 절차','예방','부분효과적','중',120,'설정','중','미흡'],
+['OR-P-021','수신업무부','예금상품 관리','상품 약관 오적용에 따른 이자 과소지급','고객·상품 및 영업관행','상품 결함','중','중','중','CTL-121','상품 등록정보 교차검증','발견','부분효과적','하',40,'미설정','하','미흡'],
+['OR-P-022','여신심사부','여신 심사','여신 심사 프로세스 미준수','집행·전달 및 프로세스 관리','프로세스 관리 미준수','중','중','중','CTL-122','심사 체크리스트 및 사후심사','발견','부분효과적','중',180,'설정','중','미흡'],
+['OR-P-023','외환업무부','제재대상 거래 필터링','제재대상 거래 차단 실패','집행·전달 및 프로세스 관리','규제보고·공시 위반','하','상','중','CTL-123','제재리스트 자동 스크리닝','예방','효과적','중',250,'설정','중','효과적'],
+['OR-P-024','총무부','문서 보관·폐기','중요문서 분실 및 폐기 관리 미비','집행·전달 및 프로세스 관리','문서관리 미비','중','하','하','CTL-124','문서 대출·반납 이력 관리','발견','효과적','하',10,'설정','하','효과적'],
+['OR-P-025','기업영업부','담보 관리','담보 관리 소홀에 따른 회수 손실','집행·전달 및 프로세스 관리','담보·거래상대방 관리','중','중','중','CTL-125','담보 정기 재평가 및 실사','발견','부분효과적','중',130,'설정','중','미흡'],
+['OR-P-026','개인영업부','ATM 운영','ATM 현금 시재 차이','집행·전달 및 프로세스 관리','거래처리·관리 오류','상','하','중','CTL-126','시재 일일 정산 및 CCTV 확인','발견','부분효과적','하',15,'설정','하','미흡']
+];
+const L_COLS=['lossId','occur','lag','dept','process','desc','l1','l2','gross','recovery','cause','failedCtl','riskId'];
+const LOSS_RAW=[
+['L-001','2024-09-12',5,'개인영업부','창구 입출금 거래처리','이중지급 오류에 따른 고객 보상','집행·전달 및 프로세스 관리','거래처리·관리 오류',60,0,'인적오류','CTL-101',''],
+['L-002','2024-12-05',12,'개인영업부','창구 입출금 거래처리','타행 이체 계좌번호 오입력','집행·전달 및 프로세스 관리','거래처리·관리 오류',45,5,'인적오류','CTL-101',''],
+['L-003','2025-03-18',3,'개인영업부','창구 입출금 거래처리','수표 결제 처리 지연 배상','집행·전달 및 프로세스 관리','거래처리·관리 오류',55,0,'통제 미작동','CTL-101',''],
+['L-004','2025-05-22',8,'개인영업부','창구 입출금 거래처리','입금 처리 누락 및 지연이자','집행·전달 및 프로세스 관리','거래처리·관리 오류',30,0,'인적오류','CTL-101',''],
+['L-005','2024-08-20',2,'개인영업부','예금 지급·이체','보이스피싱 피해 부당지급 배상','외부사기','절도 및 사기',150,40,'외부 공격','CTL-102','OR-P-002'],
+['L-006','2025-01-14',1,'개인영업부','예금 지급·이체','메신저피싱 부당지급 배상','외부사기','절도 및 사기',120,20,'외부 공격','CTL-102','OR-P-002'],
+['L-007','2025-04-09',4,'개인영업부','예금 지급·이체','대면편취형 금융사기 배상','외부사기','절도 및 사기',130,25,'외부 공격','CTL-102','OR-P-002'],
+['L-008','2024-10-02',15,'디지털채널부','비대면 계좌개설','타인명의 비대면 개설계좌 사기 이용','외부사기','시스템 보안',80,10,'외부 공격','CTL-103','OR-P-003'],
+['L-009','2025-02-27',9,'디지털채널부','비대면 계좌개설','신분증 사본 도용 개설','외부사기','시스템 보안',75,10,'외부 공격','CTL-103','OR-P-003'],
+['L-010','2024-11-08',0,'IT운영부','코어뱅킹 시스템 운영','스토리지 장애로 4시간 거래중단, 고객 보상','영업중단 및 시스템장애','하드웨어',90,0,'시스템 결함','CTL-104','OR-P-004'],
+['L-011','2025-02-11',0,'IT운영부','코어뱅킹 시스템 운영','서버 이중화 전환 실패로 거래 지연','영업중단 및 시스템장애','하드웨어',70,0,'시스템 결함','CTL-104','OR-P-004'],
+['L-012','2025-06-03',0,'IT운영부','코어뱅킹 시스템 운영','네트워크 장비 장애로 ATM 전면 중단','영업중단 및 시스템장애','하드웨어',55,0,'시스템 결함','CTL-104','OR-P-004'],
+['L-013','2024-09-25',20,'IT운영부','야간 배치 운영','예금이자 계산 배치 오류 환급','영업중단 및 시스템장애','소프트웨어',30,0,'시스템 결함','CTL-105','OR-P-005'],
+['L-014','2025-05-06',18,'IT운영부','야간 배치 운영','수수료 이중부과 환급','영업중단 및 시스템장애','소프트웨어',45,0,'시스템 결함','CTL-105','OR-P-005'],
+['L-015','2024-08-14',30,'여신심사부','담보 평가·등록','근저당 설정 누락으로 회수 실패','집행·전달 및 프로세스 관리','문서관리 미비',60,0,'프로세스 미비','CTL-107','OR-P-007'],
+['L-016','2025-01-30',25,'여신심사부','담보 평가·등록','담보 감정평가 오류','집행·전달 및 프로세스 관리','문서관리 미비',55,5,'인적오류','CTL-107','OR-P-007'],
+['L-017','2024-12-19',40,'기업영업부','기업여신 취급','위조 재무제표 기반 여신 부실화','외부사기','절도 및 사기',200,30,'외부 공격','CTL-108','OR-P-008'],
+['L-018','2024-07-25',60,'신탁부','신탁상품 판매','불완전판매 분쟁조정 배상','고객·상품 및 영업관행','적합성·공시·신뢰의무',180,0,'법규 위반','CTL-109','OR-P-009'],
+['L-019','2024-10-16',45,'신탁부','신탁상품 판매','설명의무 위반 배상','고객·상품 및 영업관행','적합성·공시·신뢰의무',150,0,'법규 위반','CTL-109','OR-P-009'],
+['L-020','2025-03-05',38,'신탁부','신탁상품 판매','부적합 상품 판매 배상','고객·상품 및 영업관행','적합성·공시·신뢰의무',120,0,'법규 위반','CTL-109','OR-P-009'],
+['L-021','2025-06-12',20,'신탁부','신탁상품 판매','녹취 미비 관련 민원 배상','고객·상품 및 영업관행','적합성·공시·신뢰의무',90,0,'법규 위반','CTL-109','OR-P-009'],
+['L-022','2024-09-03',35,'자산관리부','투자상품 권유','고위험 상품 부적합 권유 배상','고객·상품 및 영업관행','적합성·공시·신뢰의무',90,0,'법규 위반','CTL-110','OR-P-010'],
+['L-023','2025-01-22',28,'자산관리부','투자상품 권유','투자성향 진단 우회 권유 배상','고객·상품 및 영업관행','적합성·공시·신뢰의무',70,0,'통제 미작동','CTL-110','OR-P-010'],
+['L-024','2025-04-28',22,'자산관리부','투자상품 권유','손실보전 약정 관련 배상','고객·상품 및 영업관행','적합성·공시·신뢰의무',60,0,'법규 위반','CTL-110','OR-P-010'],
+['L-025','2024-11-27',6,'외환업무부','해외송금 처리','수취인 계좌 오입력 반환지연 비용','집행·전달 및 프로세스 관리','거래처리·관리 오류',50,5,'인적오류','CTL-111','OR-P-011'],
+['L-026','2025-04-15',4,'외환업무부','해외송금 처리','통화 오지정 환차손 보상','집행·전달 및 프로세스 관리','거래처리·관리 오류',45,5,'인적오류','CTL-111','OR-P-011'],
+['L-027','2025-02-06',50,'수신업무부','계좌 개설 심사','실명확인 서류 미비 과태료','집행·전달 및 프로세스 관리','문서관리 미비',15,0,'프로세스 미비','CTL-112','OR-P-012'],
+['L-028','2025-03-27',90,'준법감시부','의심거래보고(STR)','STR 보고 지연 관련 과징금','집행·전달 및 프로세스 관리','규제보고·공시 위반',300,0,'법규 위반','CTL-113','OR-P-013'],
+['L-029','2024-08-08',0,'총무부','점포 시설 관리','집중호우 침수로 점포 설비 손상','유형자산 손상','자연재해 및 기타',180,60,'자연재해','CTL-115','OR-P-015'],
+['L-030','2024-10-24',33,'개인영업부','대출 실행·관리','가산금리 오적용 이자 환급','집행·전달 및 프로세스 관리','거래처리·관리 오류',50,0,'시스템 결함','CTL-116','OR-P-016'],
+['L-031','2025-05-13',27,'개인영업부','대출 실행·관리','대출서류 위조 사건 (사건유형 분류 상이)','외부사기','절도 및 사기',40,0,'외부 공격','CTL-116','OR-P-016'],
+['L-032','2025-01-09',120,'기업영업부','자금 집행·정산','직원의 고객자금 횡령 (형사고발)','내부사기','무허가 행위 및 절도',850,150,'통제 미작동','CTL-117','OR-P-017'],
+['L-033','2024-09-17',0,'디지털채널부','모바일앱 운영','앱 배포 오류로 6시간 서비스 중단','영업중단 및 시스템장애','소프트웨어',50,0,'시스템 결함','CTL-120','OR-P-020'],
+['L-034','2025-01-28',0,'디지털채널부','모바일앱 운영','인증모듈 오류로 로그인 장애','영업중단 및 시스템장애','소프트웨어',45,0,'시스템 결함','CTL-120','OR-P-020'],
+['L-035','2025-05-30',0,'디지털채널부','모바일앱 운영','간편이체 오류 보상','영업중단 및 시스템장애','소프트웨어',40,0,'시스템 결함','CTL-120','OR-P-020'],
+['L-036','2024-12-11',40,'수신업무부','예금상품 관리','약관 오적용 이자 과소지급 환급','고객·상품 및 영업관행','상품 결함',90,0,'시스템 결함','CTL-121','OR-P-021'],
+['L-037','2025-04-02',35,'수신업무부','예금상품 관리','우대금리 미적용 환급','고객·상품 및 영업관행','상품 결함',70,0,'시스템 결함','CTL-121','OR-P-021'],
+['L-038','2024-11-19',55,'여신심사부','여신 심사','심사 절차 미준수 여신의 부실화','집행·전달 및 프로세스 관리','프로세스 관리 미준수',200,0,'프로세스 미비','CTL-122','OR-P-022'],
+['L-039','2025-02-18',44,'기업영업부','담보 관리','담보 재평가 지연으로 회수 손실','집행·전달 및 프로세스 관리','담보·거래상대방 관리',120,0,'프로세스 미비','CTL-125','OR-P-025'],
+['L-040','2024-10-09',1,'개인영업부','ATM 운영','ATM 시재 부족','집행·전달 및 프로세스 관리','거래처리·관리 오류',10,0,'인적오류','CTL-126','OR-P-026'],
+['L-041','2025-03-11',1,'개인영업부','ATM 운영','ATM 시재 부족','집행·전달 및 프로세스 관리','거래처리·관리 오류',8,0,'인적오류','CTL-126','OR-P-026'],
+['L-042','2025-01-16',25,'디지털채널부','앱 마케팅 운영','앱 푸시 광고 관련 민원 배상','고객·상품 및 영업관행','부적절한 영업·시장관행',65,0,'법규 위반','',''],
+['L-043','2024-12-03',10,'자산관리부','펀드 주문 처리','펀드 매수 주문 오류 보상','집행·전달 및 프로세스 관리','거래처리·관리 오류',55,0,'인적오류','',''],
+['L-044','2025-04-21',7,'인사부','영업점 근무환경','영업점 직원 산업재해 보상','인사관행 및 직장안전','직장 안전',30,0,'프로세스 미비','',''],
+['L-045','2025-05-08',3,'카드사업부','카드 부정사용 대응','해외 카드 부정사용 보상','외부사기','절도 및 사기',140,20,'외부 공격','',''],
+['L-046','2025-03-04',12,'자금운용부','결제·정산','결제 실패로 인한 지연이자 부담','집행·전달 및 프로세스 관리','담보·거래상대방 관리',45,0,'프로세스 미비','',''],
+['L-047','2025-02-25',33,'기업영업부','담보 평가·등록','담보 등기 누락 (여신심사부 리스크로 연계)','집행·전달 및 프로세스 관리','문서관리 미비',40,0,'프로세스 미비','CTL-107','OR-P-007'],
+['L-048','2025-05-19',20,'수신업무부','계좌 개설 심사','개설서류 미비 과태료','집행·전달 및 프로세스 관리','문서관리 미비',25,0,'프로세스 미비','CTL-112','OR-P-012'],
+['L-049','2024-10-30',14,'IT운영부','야간 배치 운영','배치서버 디스크 장애 (사건유형 분류 상이)','영업중단 및 시스템장애','하드웨어',35,0,'시스템 결함','CTL-105','OR-P-005'],
+['L-050','2023-05-12',10,'개인영업부','창구 입출금 거래처리','창구 거래처리 오류 보상','집행·전달 및 프로세스 관리','거래처리·관리 오류',40,0,'인적오류','CTL-101','OR-P-001'],
+['L-051','2023-09-08',0,'IT운영부','코어뱅킹 시스템 운영','DB 장애로 거래 지연','영업중단 및 시스템장애','하드웨어',60,0,'시스템 결함','CTL-104','OR-P-004'],
+['L-052','2022-11-22',70,'신탁부','신탁상품 판매','불완전판매 배상','고객·상품 및 영업관행','적합성·공시·신뢰의무',100,0,'법규 위반','CTL-109','OR-P-009'],
+['L-053','2023-07-19',0,'총무부','점포 시설 관리','태풍 피해 시설 손상','유형자산 손상','자연재해 및 기타',70,20,'자연재해','CTL-115','OR-P-015'],
+['L-054','2024-02-14',5,'외환업무부','해외송금 처리','송금 전문 오류 비용','집행·전달 및 프로세스 관리','거래처리·관리 오류',35,0,'인적오류','CTL-111','OR-P-011'],
+['L-055','2024-04-05',20,'여신심사부','담보 평가·등록','담보 서류 미비 회수손실','집행·전달 및 프로세스 관리','문서관리 미비',45,0,'프로세스 미비','CTL-107','OR-P-007']
+];
+const RCSA = RCSA_RAW.map(r=>{const o={};R_COLS.forEach((c,i)=>o[c]=r[i]);o.cycle='2025-H1';o.assessor='자체평가 담당자';return o;});
+const LOSS = LOSS_RAW.map(r=>{const o={};L_COLS.forEach((c,i)=>o[c]=r[i]);o.net=o.gross-o.recovery;
+  const dt=new Date(o.occur); dt.setDate(dt.getDate()+o.lag); o.detect=dt.toISOString().slice(0,10);
+  o.boundary = (o.l1==='외부사기'&&o.gross>=150)?'Y':'N'; return o;});
+
+const RULES=[
+ {id:'R1',name:'미등록 리스크',desc:'손실사건의 (부서 × Basel L2) 조합에 대응하는 RCSA 리스크가 식별되지 않음',logic:'연계리스크ID 부재 AND 동일 부서·사건유형 RCSA 미존재',type:'리스크 식별 누락',on:true},
+ {id:'R2',name:'리스크 과소평가',desc:'잔여리스크를 「하」로 평가했으나 최근 12개월 실제손실이 임계 초과',logic:"잔여='하' AND (12M 순손실 ≥ 100백만원 OR 12M 건수 ≥ 3건)",type:'평가 적정성',on:true},
+ {id:'R3',name:'리스크 과대평가',desc:'잔여리스크를 「상」으로 평가했으나 최근 36개월 손실실적 없음',logic:"잔여='상' AND 36M 손실 0건",type:'평가 적정성',on:true},
+ {id:'R4',name:'통제평가 모순',desc:'통제유효성을 「효과적」으로 평가했으나 해당 통제의 실패가 손실 원인으로 기록됨',logic:"통제유효성='효과적' AND 실패통제ID = 해당 통제ID인 손실 존재",type:'통제평가 오류',on:true},
+ {id:'R5',name:'정량추정 편차',desc:'RCSA 예상손실액과 실제 발생손실 간 편차가 임계 초과',logic:'|예상손실 − 12M 실제손실| / 예상손실 > 50% (실제손실>0)',type:'EL 추정 부정확',on:true},
+ {id:'R6',name:'사건유형 분류 불일치',desc:'손실사건의 Basel L2와 연계된 RCSA 리스크의 Basel L2가 상이',logic:'연계리스크ID 존재 AND 손실 L2 ≠ RCSA L2',type:'택소노미 불일치',on:true},
+ {id:'R7',name:'환류(Feedback) 미작동',desc:'이전 평가주기 중 손실이 발생했음에도 잔여리스크 등급·통제유효성 평가가 무변동',logic:'이전주기 손실 존재 AND 잔여등급 무변동 AND 통제유효성 무변동',type:'환류 미작동',on:true},
+ {id:'R8',name:'귀속부서 불일치',desc:'손실 귀속부서와 연계 RCSA 리스크의 수행부서가 상이',logic:'연계리스크ID 존재 AND 손실 부서 ≠ RCSA 부서',type:'프로세스 오너 불명확',on:true},
+ {id:'R9',name:'KRI 모니터링 공백',desc:'손실이 반복 발생한 리스크에 KRI가 설정되지 않음',logic:'12M 손실 ≥ 2건 AND KRI 미설정',type:'KRI 연계 부재',on:true},
+ {id:'R10',name:'손실 미집계(회계 대조)',desc:'총계정원장 잡손실 계정 잔액과 손실DB 집계액 간 차이 검증',logic:'회계 계정잔액 − 손실DB 합계 > 임계 (※ GL 연동 필요)',type:'미보고 사건',on:false}
+];
+
+/* =========================================================
+   3. 유틸
+   ========================================================= */
+const fmt=n=>Number(n||0).toLocaleString();
+const rMap=Object.fromEntries(RCSA.map(r=>[r.riskId,r]));
+const within=(s,m)=>{const dt=new Date(s);const f=new Date(BASE);f.setMonth(f.getMonth()-m);return dt>f&&dt<=BASE;};
+const inPrev=s=>{const dt=new Date(s);return dt>=PREV_FROM&&dt<=PREV_TO;};
+function sim(a,b){if(!a||!b)return 0;const A=new Set(),B=new Set();for(let i=0;i<a.length-1;i++)A.add(a.substr(i,2));for(let i=0;i<b.length-1;i++)B.add(b.substr(i,2));let x=0;A.forEach(v=>{if(B.has(v))x++});return x/Math.max(1,Math.min(A.size,B.size));}
+
+/* =========================================================
+   4. 매핑 엔진
+   ========================================================= */
+function runMapping(){
+  LOSS.forEach(l=>{
+    if(l.riskId && rMap[l.riskId]){ l.map={riskId:l.riskId,status:'자동매칭(연계키)',conf:100,cand:[]}; return; }
+    const exact=RCSA.filter(r=>r.dept===l.dept&&r.process===l.process&&r.l2===l.l2);
+    if(exact.length===1){ l.map={riskId:exact[0].riskId,status:'자동매칭(추정)',conf:95,cand:[]}; return; }
+    const scored=RCSA.map(r=>{
+      let s=(r.dept===l.dept?45:0);
+      s += (r.l2===l.l2?40:(r.l1===l.l1?15:0));
+      s += Math.round(15*sim(r.process,l.process));
+      return {riskId:r.riskId,score:s};
+    }).sort((a,b)=>b.score-a.score).slice(0,3);
+    const best=scored[0];
+    if(best.score>=80) l.map={riskId:best.riskId,status:'자동매칭(추정)',conf:best.score,cand:scored};
+    else if(best.score>=45) l.map={riskId:null,status:'후보제시',conf:best.score,cand:scored};
+    else l.map={riskId:null,status:'미매칭',conf:best.score,cand:scored};
+  });
+}
+
+/* =========================================================
+   5. 룰 엔진
+   ========================================================= */
+let ISSUES=[], AGG={};
+function agg(){
+  AGG={};
+  RCSA.forEach(r=>AGG[r.riskId]={l12:[],l36:[],prev:[],n12:0,s12:0,n36:0,s36:0});
+  LOSS.forEach(l=>{
+    const rid = l.map.riskId; if(!rid||!AGG[rid]) return;
+    if(within(l.occur,36)){AGG[rid].l36.push(l);AGG[rid].n36++;AGG[rid].s36+=l.net;}
+    if(within(l.occur,12)){AGG[rid].l12.push(l);AGG[rid].n12++;AGG[rid].s12+=l.net;}
+    if(inPrev(l.occur))AGG[rid].prev.push(l);
+  });
+}
+function add(rule,sev,dept,title,evidence,rec,rid,lids){
+  const R=RULES.find(x=>x.id===rule);
+  ISSUES.push({no:0,rule,ruleName:R.name,type:R.type,sev,dept,title,evidence,rec,riskId:rid||null,lossIds:lids||[],status:'미조치'});
+}
+function runRules(){
+  ISSUES=[]; agg();
+  // R1
+  LOSS.filter(l=>within(l.occur,12)).forEach(l=>{
+    if(l.riskId) return;
+    if(RCSA.some(r=>r.dept===l.dept&&r.l2===l.l2)) return;
+    const sev = l.net>=100?'상':(l.net>=50?'중':'하');
+    add('R1',sev,l.dept,`[${l.dept}] ${l.l2} 유형 손실 발생 — 대응 RCSA 리스크 미식별`,
+      `손실사건 ${l.lossId}(${l.occur}, 순손실 ${fmt(l.net)}백만원)은 사건유형 「${l.l1} > ${l.l2}」에 해당하나, ${l.dept}의 2025-H1 RCSA 리스크목록에 동일 사건유형 리스크가 등록되어 있지 않음. 프로세스「${l.process}」는 RCSA 평가 대상 프로세스에서도 누락됨. AI 유사도 매칭 결과 최고 신뢰도 ${l.map.conf}%로 자동 연계 불가.`,
+      `차기 RCSA 시 ${l.dept}의 「${l.process}」 프로세스를 평가 대상에 추가하고, 「${l.l2}」 리스크를 신규 식별·등록. 리스크 프로파일 및 통제 설계 여부 확인 필요.`,null,[l.lossId]);
+  });
+  RCSA.forEach(r=>{
+    const a=AGG[r.riskId];
+    // R2
+    if(r.res==='하' && (a.s12>=TH.lossAmt || a.n12>=TH.lossCnt)){
+      const sev = a.s12>=TH.bigLoss?'상':(a.s12>=TH.lossAmt?'중':'하');
+      add('R2',sev,r.dept,`[${r.dept}] ${r.riskName} — 잔여리스크 '하' 평가 대비 손실실적 과다`,
+        `잔여리스크를 「하」(발생가능성 ${r.lk}/영향도 ${r.im}, 통제유효성 ${r.ctlEff})로 평가하였으나, 최근 12개월 ${a.n12}건·순손실 ${fmt(a.s12)}백만원이 실제 발생. 판정임계(${fmt(TH.lossAmt)}백만원 또는 ${TH.lossCnt}건) 초과. 최대 단일사건 ${fmt(Math.max(...a.l12.map(x=>x.net)))}백만원.`,
+        `발생가능성 및 영향도를 손실실적 기반으로 재평가(최소 '중' 이상 검토). 잔여리스크 '하' 유지 시 근거자료 및 통제 테스트 결과를 RCSA에 명시.`,r.riskId,a.l12.map(x=>x.lossId));
+    }
+    // R3
+    if(r.res==='상' && a.n36===0){
+      add('R3',r.el>=300?'중':'하',r.dept,`[${r.dept}] ${r.riskName} — 잔여리스크 '상' 평가 대비 손실실적 부재`,
+        `잔여리스크를 「상」(예상손실 ${fmt(r.el)}백만원)으로 평가하였으나 최근 ${TH.zeroMonths}개월간 관련 손실사건 0건. 통제유효성은 「${r.ctlEff}」로 평가되어 잔여등급과 논리적 정합성이 낮음.`,
+        `보수적 평가 근거(시나리오 분석·외부손실·규제 이슈 등)를 RCSA 평가서에 문서화. 근거 부재 시 잔여등급 하향 조정 검토하여 자본배분·관리자원 왜곡 방지.`,r.riskId,[]);
+    }
+    // R4
+    if(r.ctlEff==='효과적'){
+      const f=a.l12.filter(l=>l.failedCtl===r.ctlId);
+      if(f.length){
+        const s=f.reduce((t,x)=>t+x.net,0);
+        add('R4',s>=300?'상':'중',r.dept,`[${r.dept}] ${r.ctlName} — 통제 '효과적' 평가와 통제실패 손실 상충`,
+          `통제 ${r.ctlId}「${r.ctlName}」(${r.ctlType}통제)을 「효과적」으로 평가하였으나, 최근 12개월 해당 통제의 미작동이 원인으로 기록된 손실 ${f.length}건·${fmt(s)}백만원 발생. 손실원인 구분: ${[...new Set(f.map(x=>x.cause))].join(', ')}.`,
+          `통제 운영테스트(Test of Operating Effectiveness) 재실시 및 표본 확대. 통제 설계 자체의 한계인지 운영상 이탈인지 구분하여 유효성 등급 재조정, 필요 시 보완통제 신설.`,r.riskId,f.map(x=>x.lossId));
+      }
+    }
+    // R5
+    if(r.el>0 && a.s12>0){
+      const dev=(a.s12-r.el)/r.el;
+      if(Math.abs(dev)>TH.elDev){
+        const ad=Math.abs(dev);
+        add('R5',ad>=2?'상':(ad>=1?'중':'하'),r.dept,`[${r.dept}] ${r.riskName} — 예상손실 추정 편차 ${(dev*100).toFixed(0)}%`,
+          `RCSA 예상손실액 ${fmt(r.el)}백만원 대비 실제 12개월 순손실 ${fmt(a.s12)}백만원(${a.n12}건)으로 편차 ${(dev*100).toFixed(0)}% 발생. ${dev>0?'과소':'과대'} 추정 경향이며, 운영리스크 자본 및 리스크 한도 산출의 기초자료 신뢰도에 영향.`,
+          `예상손실 산출근거(발생빈도 × 평균손실강도) 재산정. 최근 3년 내부손실데이터 및 유사 프로세스 벤치마크를 반영한 정량 추정 가이드 적용.`,r.riskId,a.l12.map(x=>x.lossId));
+      }
+    }
+    // R7
+    if(a.prev.length && r.res===r.prevRes && r.ctlEff===r.prevEff){
+      const s=a.prev.reduce((t,x)=>t+x.net,0);
+      add('R7','중',r.dept,`[${r.dept}] ${r.riskName} — 손실 발생 후 RCSA 평가 무변동`,
+        `이전 평가주기(2024-H2) 중 손실 ${a.prev.length}건·${fmt(s)}백만원이 발생하였음에도, 2025-H1 RCSA에서 잔여리스크(${r.prevRes}→${r.res}) 및 통제유효성(${r.prevEff}→${r.ctlEff}) 평가가 모두 동일하게 유지됨. 손실데이터가 자가평가에 환류되지 않은 것으로 판단.`,
+        `RCSA 작성 시 해당 리스크의 직전 주기 손실이력을 필수 참고항목으로 제시하고, 무변동 시 사유 기재를 의무화. 손실↔RCSA 연계 화면(양방향 조회) 구축 검토.`,r.riskId,a.prev.map(x=>x.lossId));
+    }
+    // R9
+    if(r.kri==='미설정' && a.n12>=2){
+      add('R9',a.s12>=100?'중':'하',r.dept,`[${r.dept}] ${r.riskName} — 반복 손실 발생 리스크에 KRI 미설정`,
+        `최근 12개월 ${a.n12}건·${fmt(a.s12)}백만원의 손실이 반복 발생하였으나 해당 리스크에 KRI가 설정되어 있지 않아 선행 모니터링 체계 부재.`,
+        `손실 원인(${[...new Set(a.l12.map(x=>x.cause))].join(', ')})과 연동되는 KRI를 신설하고 임계치(Trigger/Escalation) 설정. 월별 모니터링 및 RCSA 등급 연동 규칙 수립.`,r.riskId,a.l12.map(x=>x.lossId));
+    }
+  });
+  // R6 / R8
+  LOSS.filter(l=>l.riskId&&rMap[l.riskId]&&within(l.occur,12)).forEach(l=>{
+    const r=rMap[l.riskId];
+    if(r.l2!==l.l2){
+      add('R6','하',l.dept,`[${l.dept}] 손실 ${l.lossId} — 사건유형 분류 불일치`,
+        `손실사건 ${l.lossId}은 Basel 사건유형 「${l.l1} > ${l.l2}」로 등록되었으나, 연계된 RCSA 리스크 ${r.riskId}「${r.riskName}」의 사건유형은 「${r.l1} > ${r.l2}」로 상이. 사건유형별 손실집계 및 자본배분 왜곡 가능.`,
+        `손실DB 사건유형 재분류 또는 연계 리스크ID 정정. Basel L2 판정기준(분류 결정트리)을 손실 등록화면에 내재화하여 등록 시점 오분류 차단.`,r.riskId,[l.lossId]);
+    }
+    if(r.dept!==l.dept){
+      add('R8','하',l.dept,`[${l.dept}] 손실 ${l.lossId} — 손실 귀속부서와 RCSA 수행부서 불일치`,
+        `손실 귀속부서는 「${l.dept}」이나 연계 RCSA 리스크 ${r.riskId}의 평가 수행부서는 「${r.dept}」로 상이. 프로세스 오너십이 불명확하여 손실 원인부서와 리스크 관리부서 간 책임 경계가 모호.`,
+        `프로세스 오너 정의를 명확화하고, 손실 귀속기준(원인부서/발생부서/비용부담부서)을 운영리스크 관리기준에 반영. 필요 시 양 부서 공동 RCSA 항목으로 등록.`,r.riskId,[l.lossId]);
+    }
+  });
+  const ord={'상':0,'중':1,'하':2};
+  ISSUES.sort((a,b)=>ord[a.sev]-ord[b.sev]||a.rule.localeCompare(b.rule));
+  ISSUES.forEach((x,i)=>x.no=i+1);
+}
+
+/* =========================================================
+   6. 스코어
+   ========================================================= */
+const pen=s=>s==='상'?2:(s==='중'?1:0.3);
+function score(list){ return Math.max(0,Math.round(100 - list.reduce((t,i)=>t+pen(i.sev),0))); }
+function grade(s){ return s>=90?['우수','text-emerald-600']:s>=75?['양호','text-lime-600']:s>=60?['보통','text-amber-600']:s>=40?['미흡','text-orange-600']:['취약','text-rose-600']; }
+
+/* =========================================================
+   7. 렌더링
+   ========================================================= */
+let charts={};
+function render(){
+  runMapping(); runRules();
+  const loss12=LOSS.filter(l=>within(l.occur,12));
+  const sum12=loss12.reduce((t,l)=>t+l.net,0);
+  const cov=(loss12.filter(l=>l.map.status.startsWith('자동매칭')).length/loss12.length*100);
+  const sc=score(ISSUES), g=grade(sc);
+  const unreg=ISSUES.filter(i=>i.rule==='R1');
+  const unregAmt=unreg.reduce((t,i)=>t+i.lossIds.reduce((s,id)=>s+LOSS.find(l=>l.lossId===id).net,0),0);
+
+  // KPI
+  document.getElementById('kpiRow').innerHTML=[
+    ['정합성 종합스코어',`<span class="${g[1]}">${sc}<span class="text-base">/100</span></span>`,`${g[0]} · 심각도 상 ${ISSUES.filter(i=>i.sev==='상').length}건 반영`],
+    ['검출 이슈',`${ISSUES.length}<span class="text-base">건</span>`,`상 ${ISSUES.filter(i=>i.sev==='상').length} / 중 ${ISSUES.filter(i=>i.sev==='중').length} / 하 ${ISSUES.filter(i=>i.sev==='하').length}`],
+    ['손실-RCSA 매핑 커버리지',`${cov.toFixed(1)}<span class="text-base">%</span>`,`12M 손실 ${loss12.length}건 중 ${loss12.filter(l=>l.map.status.startsWith('자동매칭')).length}건 자동연계`],
+    ['12M 내부손실 (순)',`${fmt(sum12)}<span class="text-base">백만</span>`,`${loss12.length}건 · RCSA 예상손실 합계 ${fmt(RCSA.reduce((t,r)=>t+r.el,0))}백만`],
+    ['미등록 리스크 손실',`${fmt(unregAmt)}<span class="text-base">백만</span>`,`${unreg.length}개 부서·사건유형 조합 (RCSA 누락)`]
+  ].map(([t,v,s])=>`<div class="bg-white rounded-lg p-4 border shadow-sm">
+      <div class="text-[11px] text-slate-500">${t}</div>
+      <div class="text-2xl font-bold mt-1">${v}</div>
+      <div class="text-[11px] text-slate-400 mt-1.5 leading-snug">${s}</div></div>`).join('');
+
+  // 차트
+  Object.values(charts).forEach(c=>c&&c.destroy()); charts={};
+  const used=RULES.filter(r=>r.on);
+  charts.r=new Chart(document.getElementById('chRule'),{type:'bar',
+    data:{labels:used.map(r=>r.id),datasets:[{label:'검출건수',data:used.map(r=>ISSUES.filter(i=>i.rule===r.id).length),backgroundColor:'#6366f1'}]},
+    options:{plugins:{legend:{display:false},tooltip:{callbacks:{title:c=>{const r=used[c[0].dataIndex];return r.id+' '+r.name;}}}},scales:{y:{beginAtZero:true,ticks:{precision:0}}}}});
+
+  const depts=[...new Set([...RCSA.map(r=>r.dept),...LOSS.map(l=>l.dept)])];
+  const dStat=depts.map(d=>{
+    const rs=RCSA.filter(r=>r.dept===d), ls=loss12.filter(l=>l.dept===d);
+    const iss=ISSUES.filter(i=>i.dept===d);
+    return {d,el:rs.reduce((t,r)=>t+r.el,0),act:ls.reduce((t,l)=>t+l.net,0),nR:rs.length,nL:ls.length,iss,sc:score(iss)};
+  }).sort((a,b)=>b.act-a.act);
+  charts.d=new Chart(document.getElementById('chDept'),{type:'bar',
+    data:{labels:dStat.map(x=>x.d),datasets:[
+      {label:'RCSA 예상손실',data:dStat.map(x=>x.el),backgroundColor:'#94a3b8'},
+      {label:'실제손실(12M)',data:dStat.map(x=>x.act),backgroundColor:'#f43f5e'}]},
+    options:{plugins:{legend:{labels:{boxWidth:10,font:{size:10}}}},scales:{x:{ticks:{font:{size:9}}}}}});
+
+  const l1s=[...new Set(loss12.map(l=>l.l1))];
+  charts.l1=new Chart(document.getElementById('chL1'),{type:'doughnut',
+    data:{labels:l1s,datasets:[{data:l1s.map(k=>loss12.filter(l=>l.l1===k).reduce((t,l)=>t+l.net,0)),
+      backgroundColor:['#4f46e5','#0ea5e9','#f59e0b','#ef4444','#10b981','#8b5cf6','#64748b']}]},
+    options:{plugins:{legend:{position:'right',labels:{boxWidth:10,font:{size:9}}}}}});
+
+  const mons=[];for(let i=11;i>=0;i--){const dt=new Date(BASE);dt.setDate(1);dt.setMonth(dt.getMonth()-i);mons.push(dt.toISOString().slice(0,7));}
+  charts.t=new Chart(document.getElementById('chTrend'),{type:'line',
+    data:{labels:mons,datasets:[{label:'순손실',data:mons.map(m=>loss12.filter(l=>l.occur.slice(0,7)===m).reduce((t,l)=>t+l.net,0)),
+      borderColor:'#4f46e5',backgroundColor:'rgba(79,70,229,.12)',fill:true,tension:.3}]},
+    options:{plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:9}}}}}});
+  charts.s=new Chart(document.getElementById('chSev'),{type:'bar',
+    data:{labels:['상','중','하'],datasets:[{data:['상','중','하'].map(s=>ISSUES.filter(i=>i.sev===s).length),backgroundColor:['#ef4444','#f59e0b','#0ea5e9']}]},
+    options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{precision:0}}}}});
+
+  // 부서 테이블
+  document.getElementById('tblDept').innerHTML=
+   `<thead class="bg-slate-100"><tr><th>부서</th><th>RCSA</th><th>손실건수</th><th class="text-right">예상손실</th><th class="text-right">실제손실</th><th class="text-right">괴리</th><th class="text-center">이슈</th><th class="text-center">스코어</th></tr></thead><tbody>`+
+   dStat.map(x=>{const gp=x.el?((x.act-x.el)/x.el*100).toFixed(0):'-';const gg=grade(x.sc);
+    return `<tr class="border-b"><td class="font-medium">${x.d}</td><td>${x.nR}</td><td>${x.nL}</td>
+    <td class="text-right">${fmt(x.el)}</td><td class="text-right">${fmt(x.act)}</td>
+    <td class="text-right ${gp!=='-'&&Math.abs(gp)>50?'text-rose-600 font-semibold':''}">${gp==='-'?'-':gp+'%'}</td>
+    <td class="text-center">${x.iss.length?`<span class="px-1.5 rounded bg-slate-200">${x.iss.length}</span>`:'-'}</td>
+    <td class="text-center font-semibold ${gg[1]}">${x.sc}</td></tr>`}).join('')+'</tbody>';
+
+  // Top 이슈
+  document.getElementById('topIssues').innerHTML=ISSUES.slice(0,8).map(i=>
+   `<div onclick="openDetail(${i.no})" class="border rounded p-2.5 hover:bg-slate-50 cursor-pointer">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="text-[10px] px-1.5 py-0.5 rounded border sev-${i.sev}">${i.sev}</span>
+        <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-white">${i.rule}</span>
+        <span class="text-[11px] text-slate-500">${i.ruleName}</span>
+      </div>
+      <div class="text-[12px] font-medium leading-snug">${i.title}</div>
+    </div>`).join('');
+
+  renderMap(); renderIssues(); renderDetailNav(); openDetail(ISSUES[0].no,true); renderRules(); showData('rcsa'); initChat();
+}
+
+/* ---- 매핑 탭 ---- */
+let mapF='전체';
+function renderMap(){
+  const cats=['전체','자동매칭(연계키)','자동매칭(추정)','후보제시','미매칭'];
+  document.getElementById('mapFilter').innerHTML=cats.map(c=>
+   `<button onclick="mapF='${c}';renderMap()" class="px-2.5 py-1 rounded border ${mapF===c?'bg-slate-900 text-white':'bg-white'}">${c}</button>`).join('');
+  const cnt=s=>LOSS.filter(l=>l.map.status===s).length;
+  document.getElementById('mapSummary').innerHTML=[
+    ['자동매칭(연계키)',cnt('자동매칭(연계키)'),'bg-emerald-50 text-emerald-700'],
+    ['자동매칭(추정)',cnt('자동매칭(추정)'),'bg-sky-50 text-sky-700'],
+    ['후보제시(검토필요)',cnt('후보제시'),'bg-amber-50 text-amber-700'],
+    ['미매칭',cnt('미매칭'),'bg-rose-50 text-rose-700']
+  ].map(([t,v,c])=>`<div class="rounded p-2 ${c}"><div class="text-[11px]">${t}</div><div class="text-lg font-bold">${v}건</div></div>`).join('');
+  const rows=LOSS.filter(l=>mapF==='전체'||l.map.status===mapF)
+    .sort((a,b)=>a.map.conf-b.map.conf);
+  document.getElementById('tblMap').innerHTML=
+   `<thead><tr><th>손실ID</th><th>발생일</th><th>부서</th><th>프로세스</th><th>사건내용</th><th>Basel L2</th><th class="text-right">순손실</th><th>매칭상태</th><th>연계 리스크</th><th>신뢰도</th><th>후보(2·3순위)</th></tr></thead><tbody>`+
+   rows.map(l=>{const m=l.map;const r=m.riskId?rMap[m.riskId]:null;
+    const col=m.status==='미매칭'?'text-rose-600':m.status==='후보제시'?'text-amber-600':'text-emerald-700';
+    return `<tr class="border-b hover:bg-slate-50"><td class="font-mono">${l.lossId}</td><td>${l.occur}</td><td>${l.dept}</td><td>${l.process}</td>
+    <td class="max-w-[240px] truncate" title="${l.desc}">${l.desc}</td><td>${l.l2}</td><td class="text-right">${fmt(l.net)}</td>
+    <td class="${col} font-medium">${m.status}</td>
+    <td>${r?`<span class="font-mono">${r.riskId}</span> ${r.riskName.slice(0,16)}`:'<span class="text-slate-400">-</span>'}</td>
+    <td><div class="flex items-center gap-1"><div class="w-12 h-1.5 bg-slate-200 rounded"><div class="h-full rounded ${m.conf>=80?'bg-emerald-500':m.conf>=45?'bg-amber-500':'bg-rose-500'}" style="width:${Math.min(100,m.conf)}%"></div></div><span>${m.conf}%</span></div></td>
+    <td class="text-slate-500">${m.cand.slice(1).map(c=>c.riskId+'('+c.score+')').join(', ')||'-'}</td></tr>`}).join('')+'</tbody>';
+}
+
+/* ---- 이슈 탭 ---- */
+function renderIssues(){
+  const fR=document.getElementById('fRule'), fD=document.getElementById('fDept');
+  if(!fR.options.length){
+    fR.innerHTML='<option value="">전체</option>'+RULES.filter(r=>r.on).map(r=>`<option value="${r.id}">${r.id} ${r.name}</option>`).join('');
+    fD.innerHTML='<option value="">전체</option>'+[...new Set(ISSUES.map(i=>i.dept))].sort().map(d=>`<option>${d}</option>`).join('');
+    [fR,fD,document.getElementById('fSev')].forEach(e=>e.onchange=renderIssues);
+  }
+  const list=ISSUES.filter(i=>(!fR.value||i.rule===fR.value)&&(!fD.value||i.dept===fD.value)&&(!document.getElementById('fSev').value||i.sev===document.getElementById('fSev').value));
+  document.getElementById('issueCnt').textContent=`(${list.length} / 전체 ${ISSUES.length}건)`;
+  document.getElementById('tblIssue').innerHTML=
+   `<thead><tr><th>No</th><th>룰</th><th>이슈유형</th><th>심각도</th><th>부서</th><th>대상</th><th>이슈 내용</th><th>조치상태</th></tr></thead><tbody>`+
+   list.map(i=>`<tr class="border-b clickable" onclick="openDetail(${i.no})">
+    <td>${i.no}</td><td><span class="px-1.5 py-0.5 rounded bg-slate-800 text-white">${i.rule}</span></td>
+    <td>${i.type}</td><td><span class="px-1.5 py-0.5 rounded border sev-${i.sev}">${i.sev}</span></td>
+    <td>${i.dept}</td><td class="font-mono">${i.riskId||i.lossIds[0]||'-'}</td>
+    <td class="max-w-[560px] truncate" title="${i.title}">${i.title}</td>
+    <td class="text-slate-500">${i.status}</td></tr>`).join('')+'</tbody>';
+}
+function exportCsv(){
+  const h=['No','룰','룰명','이슈유형','심각도','부서','대상리스크','관련손실','이슈','판단근거','권고조치'];
+  const rows=ISSUES.map(i=>[i.no,i.rule,i.ruleName,i.type,i.sev,i.dept,i.riskId||'',i.lossIds.join(' '),i.title,i.evidence,i.rec]
+    .map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(','));
+  const bl=new Blob(['\uFEFF'+h.join(',')+'\n'+rows.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(bl);a.download='정합성검증_이슈리스트.csv';a.click();
+}
+
+/* ---- 상세검증 ---- */
+function renderDetailNav(){
+  document.getElementById('detailNav').innerHTML=ISSUES.map(i=>
+   `<div id="nav-${i.no}" onclick="openDetail(${i.no})" class="p-2 rounded cursor-pointer hover:bg-slate-100 text-[11px] leading-tight border-l-2 border-transparent">
+      <div class="flex gap-1 mb-0.5"><span class="px-1 rounded border sev-${i.sev}">${i.sev}</span><span class="text-slate-500">${i.rule}</span></div>
+      <div class="truncate">${i.title.replace(/^\[.*?\]\s*/,'')}</div></div>`).join('');
+}
+function openDetail(no,silent){
+  const i=ISSUES.find(x=>x.no===no); if(!i)return;
+  document.querySelectorAll('#detailNav>div').forEach(e=>e.className=e.className.replace(' bg-indigo-50 border-indigo-500','')); 
+  const nv=document.getElementById('nav-'+no); if(nv)nv.className+=' bg-indigo-50 border-indigo-500';
+  const r=i.riskId?rMap[i.riskId]:null;
+  const ls=i.lossIds.map(id=>LOSS.find(l=>l.lossId===id));
+  const a=r?AGG[r.riskId]:null;
+  const gbadge=(v)=>`<span class="px-1.5 py-0.5 rounded grd-${v} text-[11px] font-semibold">${v}</span>`;
+  document.getElementById('detailBody').innerHTML=`
+  <div class="bg-white rounded-lg border shadow-sm p-4 mb-3">
+    <div class="flex items-start justify-between">
+      <div>
+        <div class="flex items-center gap-2 mb-1">
+          <span class="px-2 py-0.5 rounded bg-slate-800 text-white text-xs">${i.rule} ${i.ruleName}</span>
+          <span class="px-2 py-0.5 rounded border text-xs sev-${i.sev}">심각도 ${i.sev}</span>
+          <span class="text-xs text-slate-500">${i.type}</span>
+        </div>
+        <div class="text-[15px] font-semibold">${i.title}</div>
+      </div>
+      <div class="text-right text-xs text-slate-500">이슈 No.${i.no} / 총 ${ISSUES.length}<br>소관 ${i.dept}</div>
+    </div>
+  </div>
+  <div class="grid grid-cols-2 gap-3 mb-3">
+    <div class="bg-white rounded-lg border shadow-sm p-4">
+      <div class="text-xs font-semibold text-slate-500 mb-2">◀ RCSA 자가평가 결과 (2025-H1)</div>
+      ${r?`
+      <table class="dense w-full">
+        <tr class="border-b"><td class="text-slate-500 w-28">리스크</td><td><span class="font-mono">${r.riskId}</span> ${r.riskName}</td></tr>
+        <tr class="border-b"><td class="text-slate-500">부서·프로세스</td><td>${r.dept} / ${r.process}</td></tr>
+        <tr class="border-b"><td class="text-slate-500">Basel 사건유형</td><td>${r.l1} &gt; <b>${r.l2}</b></td></tr>
+        <tr class="border-b"><td class="text-slate-500">고유리스크</td><td>발생가능성 ${gbadge(r.lk)} × 영향도 ${gbadge(r.im)} = ${gbadge(r.inh)}</td></tr>
+        <tr class="border-b"><td class="text-slate-500">통제</td><td><span class="font-mono">${r.ctlId}</span> ${r.ctlName} <span class="text-slate-400">(${r.ctlType})</span></td></tr>
+        <tr class="border-b"><td class="text-slate-500">통제유효성</td><td><b class="${r.ctlEff==='효과적'?'text-rose-600':''}">${r.ctlEff}</b> <span class="text-slate-400">(전주기 ${r.prevEff})</span></td></tr>
+        <tr class="border-b"><td class="text-slate-500">잔여리스크</td><td>${gbadge(r.res)} <span class="text-slate-400">(전주기 ${r.prevRes})</span></td></tr>
+        <tr class="border-b"><td class="text-slate-500">예상손실(EL)</td><td>${fmt(r.el)} 백만원</td></tr>
+        <tr><td class="text-slate-500">KRI</td><td class="${r.kri==='미설정'?'text-rose-600 font-semibold':''}">${r.kri}</td></tr>
+      </table>`:`<div class="text-sm text-slate-400 py-8 text-center">연계된 RCSA 리스크 없음<br><span class="text-xs">(미등록 리스크 — RCSA 신규 식별 대상)</span></div>`}
+    </div>
+    <div class="bg-white rounded-lg border shadow-sm p-4">
+      <div class="text-xs font-semibold text-slate-500 mb-2">▶ 내부손실 데이터</div>
+      <table class="dense w-full">
+        <thead class="bg-slate-100"><tr><th>손실ID</th><th>발생일</th><th>인지일</th><th>사건내용</th><th>Basel L2</th><th class="text-right">총손실</th><th class="text-right">순손실</th><th>원인</th></tr></thead>
+        <tbody>${ls.length?ls.map(l=>`<tr class="border-b"><td class="font-mono">${l.lossId}</td><td>${l.occur}</td><td>${l.detect}</td>
+          <td class="max-w-[180px] truncate" title="${l.desc}">${l.desc}</td>
+          <td class="${r&&r.l2!==l.l2?'text-rose-600 font-semibold':''}">${l.l2}</td>
+          <td class="text-right">${fmt(l.gross)}</td><td class="text-right font-semibold">${fmt(l.net)}</td><td>${l.cause}</td></tr>`).join('')
+          :'<tr><td colspan="8" class="text-center text-slate-400 py-6">최근 36개월 관련 손실사건 없음</td></tr>'}</tbody>
+        ${ls.length?`<tfoot><tr class="bg-slate-50 font-semibold"><td colspan="5">합계 ${ls.length}건</td><td class="text-right">${fmt(ls.reduce((t,l)=>t+l.gross,0))}</td><td class="text-right">${fmt(ls.reduce((t,l)=>t+l.net,0))}</td><td></td></tr></tfoot>`:''}
+      </table>
+      ${a?`<div class="mt-3 grid grid-cols-3 gap-2 text-center text-[11px]">
+        <div class="bg-slate-50 rounded p-2"><div class="text-slate-500">12M 건수/금액</div><div class="font-bold">${a.n12}건 / ${fmt(a.s12)}</div></div>
+        <div class="bg-slate-50 rounded p-2"><div class="text-slate-500">36M 건수/금액</div><div class="font-bold">${a.n36}건 / ${fmt(a.s36)}</div></div>
+        <div class="bg-slate-50 rounded p-2"><div class="text-slate-500">EL 대비 편차</div><div class="font-bold ${r.el&&Math.abs((a.s12-r.el)/r.el)>.5?'text-rose-600':''}">${r.el?(((a.s12-r.el)/r.el)*100).toFixed(0)+'%':'-'}</div></div>
+      </div>`:''}
+    </div>
+  </div>
+  <div class="grid grid-cols-3 gap-3">
+    <div class="bg-white rounded-lg border shadow-sm p-4 col-span-2">
+      <div class="text-xs font-semibold text-indigo-600 mb-2">AI 판단근거</div>
+      <div class="text-[13px] leading-relaxed text-slate-700">${i.evidence}</div>
+      <div class="mt-3 pt-3 border-t">
+        <div class="text-xs font-semibold text-indigo-600 mb-2">권고 조치</div>
+        <div class="text-[13px] leading-relaxed text-slate-700">${i.rec}</div>
+      </div>
+      <div class="mt-3 pt-3 border-t text-[11px] text-slate-400">적용 룰 로직: <span class="font-mono">${RULES.find(x=>x.id===i.rule).logic}</span></div>
+    </div>
+    <div class="bg-white rounded-lg border shadow-sm p-4">
+      <div class="text-xs font-semibold text-slate-500 mb-2">조치 관리 <span class="text-[10px] font-normal">(Mock-up)</span></div>
+      <div class="space-y-2 text-xs">
+        <div><div class="text-slate-500 mb-1">소관부서</div><input class="w-full border rounded px-2 py-1" value="${i.dept}"></div>
+        <div><div class="text-slate-500 mb-1">조치유형</div><select class="w-full border rounded px-2 py-1"><option>RCSA 재평가</option><option>손실DB 정정</option><option>통제 개선</option><option>리스크 신규등록</option><option>KRI 신설</option><option>이슈 종결(소명)</option></select></div>
+        <div><div class="text-slate-500 mb-1">조치기한</div><input type="date" class="w-full border rounded px-2 py-1" value="2025-09-30"></div>
+        <div><div class="text-slate-500 mb-1">담당자 의견</div><textarea class="w-full border rounded px-2 py-1 h-16" placeholder="소명 또는 조치계획 입력"></textarea></div>
+        <button class="w-full py-1.5 bg-indigo-600 text-white rounded">조치계획 등록</button>
+      </div>
+    </div>
+  </div>`;
+  if(!silent) switchTab('detail');
+}
+
+/* ---- 룰 탭 ---- */
+function renderRules(){
+  document.getElementById('tblRule').innerHTML=
+   `<thead class="bg-slate-100"><tr><th>ID</th><th>룰명</th><th>이슈유형</th><th>검증 내용</th><th>판정 로직</th><th class="text-center">적용</th><th class="text-center">검출</th></tr></thead><tbody>`+
+   RULES.map(r=>`<tr class="border-b ${r.on?'':'text-slate-400 bg-slate-50'}">
+    <td class="font-mono font-semibold">${r.id}</td><td class="font-medium">${r.name}</td><td>${r.type}</td>
+    <td class="whitespace-normal max-w-[380px]">${r.desc}</td>
+    <td class="whitespace-normal max-w-[300px] font-mono text-[11px]">${r.logic}</td>
+    <td class="text-center">${r.on?'<span class="text-emerald-600">●</span>':'<span>○ 예정</span>'}</td>
+    <td class="text-center font-semibold">${r.on?ISSUES.filter(i=>i.rule===r.id).length+'건':'-'}</td></tr>`).join('')+'</tbody>';
+}
+
+/* ---- 원천데이터 ---- */
+function showData(k){
+  document.getElementById('btnRcsa').className=k==='rcsa'?'px-3 py-1.5 rounded bg-slate-900 text-white':'px-3 py-1.5 rounded bg-white border';
+  document.getElementById('btnLoss').className=k==='loss'?'px-3 py-1.5 rounded bg-slate-900 text-white':'px-3 py-1.5 rounded bg-white border';
+  const t=document.getElementById('tblData');
+  if(k==='rcsa'){
+    t.innerHTML=`<thead><tr><th>리스크ID</th><th>주기</th><th>부서</th><th>프로세스</th><th>리스크명</th><th>Basel L1</th><th>Basel L2</th><th>발생</th><th>영향</th><th>고유</th><th>통제ID</th><th>통제명</th><th>유형</th><th>유효성</th><th>잔여</th><th class="text-right">예상손실</th><th>KRI</th><th>전주기잔여</th><th>전주기유효성</th></tr></thead><tbody>`+
+    RCSA.map(r=>`<tr class="border-b hover:bg-slate-50"><td class="font-mono">${r.riskId}</td><td>${r.cycle}</td><td>${r.dept}</td><td>${r.process}</td><td>${r.riskName}</td><td>${r.l1}</td><td>${r.l2}</td><td>${r.lk}</td><td>${r.im}</td><td>${r.inh}</td><td class="font-mono">${r.ctlId}</td><td>${r.ctlName}</td><td>${r.ctlType}</td><td>${r.ctlEff}</td><td><span class="px-1.5 rounded grd-${r.res}">${r.res}</span></td><td class="text-right">${fmt(r.el)}</td><td>${r.kri}</td><td>${r.prevRes}</td><td>${r.prevEff}</td></tr>`).join('')+'</tbody>';
+  }else{
+    t.innerHTML=`<thead><tr><th>손실ID</th><th>발생일</th><th>인지일</th><th>부서</th><th>프로세스</th><th>사건내용</th><th>Basel L1</th><th>Basel L2</th><th class="text-right">총손실</th><th class="text-right">회수</th><th class="text-right">순손실</th><th>원인구분</th><th>실패통제</th><th>연계리스크</th><th>경계사건</th></tr></thead><tbody>`+
+    LOSS.slice().sort((a,b)=>a.occur<b.occur?1:-1).map(l=>`<tr class="border-b hover:bg-slate-50"><td class="font-mono">${l.lossId}</td><td>${l.occur}</td><td>${l.detect}</td><td>${l.dept}</td><td>${l.process}</td><td>${l.desc}</td><td>${l.l1}</td><td>${l.l2}</td><td class="text-right">${fmt(l.gross)}</td><td class="text-right">${fmt(l.recovery)}</td><td class="text-right font-semibold">${fmt(l.net)}</td><td>${l.cause}</td><td class="font-mono">${l.failedCtl||'-'}</td><td class="font-mono ${l.riskId?'':'text-rose-500'}">${l.riskId||'미연계'}</td><td>${l.boundary}</td></tr>`).join('')+'</tbody>';
+  }
+}
+
+/* ---- 챗 ---- */
+function initChat(){
+  document.getElementById('chatBox').innerHTML='';
+  bot(`정합성 검증이 완료되었습니다. 총 <b>${ISSUES.length}건</b>의 이슈가 검출되었고 종합 정합성 스코어는 <b>${score(ISSUES)}점</b>입니다. 궁금한 사항을 질문해 주세요.`);
+  const qs=['종합 결과 요약해줘','IT운영부는 왜 과소평가로 나왔어?','미등록 리스크가 뭐야?','가장 심각한 이슈 3개','매핑 커버리지가 낮은 이유','경영진 보고용 3줄 요약'];
+  document.getElementById('quickQ').innerHTML=qs.map(q=>`<button onclick="ask('${q}')" class="px-2 py-1 border rounded bg-slate-50 hover:bg-slate-100">${q}</button>`).join('');
+}
+function bot(h){const b=document.getElementById('chatBox');b.innerHTML+=`<div class="flex gap-2"><div class="w-6 h-6 rounded bg-indigo-600 text-white text-[10px] flex items-center justify-center shrink-0">AI</div><div class="bg-white border rounded-lg p-2.5 leading-relaxed max-w-[85%]">${h}</div></div>`;b.scrollTop=b.scrollHeight;}
+function me(t){const b=document.getElementById('chatBox');b.innerHTML+=`<div class="flex justify-end"><div class="bg-indigo-600 text-white rounded-lg p-2.5 max-w-[75%]">${t}</div></div>`;b.scrollTop=b.scrollHeight;}
+function ask(q){document.getElementById('chatIn').value=q;sendChat();}
+function sendChat(){
+  const el=document.getElementById('chatIn'),q=el.value.trim();if(!q)return;me(q);el.value='';
+  setTimeout(()=>bot(answer(q)),350);
+}
+function answer(q){
+  const s=score(ISSUES), top=ISSUES.slice(0,3);
+  const dept=[...new Set([...RCSA.map(r=>r.dept)])].find(d=>q.includes(d));
+  if(dept){
+    const iss=ISSUES.filter(i=>i.dept===dept);
+    if(!iss.length) return `<b>${dept}</b>는 검출된 정합성 이슈가 없습니다.`;
+    return `<b>${dept}</b> 관련 이슈 <b>${iss.length}건</b>입니다.<br><br>`+iss.map(i=>`• <b>[${i.rule}] ${i.ruleName}</b> (심각도 ${i.sev})<br><span class="text-slate-600 text-[12px]">${i.evidence}</span>`).join('<br><br>')+
+      `<br><br>부서 정합성 스코어는 <b>${score(iss)}점</b>입니다.`;
+  }
+  if(/미등록|누락|R1/.test(q)){
+    const l=ISSUES.filter(i=>i.rule==='R1');
+    return `<b>R1 미등록 리스크</b>는 손실은 실제로 발생했는데 RCSA 리스크목록에 대응 항목이 없는 경우입니다. 현재 <b>${l.length}건</b> 검출되었습니다.<br><br>`+
+      l.map(i=>`• ${i.title}`).join('<br>')+`<br><br>RCSA의 완전성(Completeness) 문제로, 리스크 식별 단계에서 프로세스 범위가 누락된 것으로 판단됩니다.`;
+  }
+  if(/심각|top|중대|우선/i.test(q)){
+    return `심각도 기준 상위 3건입니다.<br><br>`+top.map((i,n)=>`<b>${n+1}. [${i.rule}] ${i.title}</b><br><span class="text-slate-600 text-[12px]">${i.evidence}</span><br><span class="text-indigo-600 text-[12px]">→ ${i.rec}</span>`).join('<br><br>');
+  }
+  if(/커버리지|매핑|매칭/.test(q)){
+    const l12=LOSS.filter(l=>within(l.occur,12));
+    const un=l12.filter(l=>!l.map.status.startsWith('자동매칭'));
+    return `12개월 손실 ${l12.length}건 중 <b>${l12.length-un.length}건(${((l12.length-un.length)/l12.length*100).toFixed(1)}%)</b>이 자동 연계되었습니다.<br><br>미연계 ${un.length}건의 원인:<br>• 손실DB에 연계리스크ID가 입력되지 않음 (필수값 미관리)<br>• 손실 귀속부서·프로세스 명칭이 RCSA 프로세스 체계와 불일치<br>• RCSA에 해당 사건유형 리스크 자체가 미등록 (R1)<br><br>근본 개선책은 <b>손실 등록 시 RCSA 리스크ID 필수 선택</b> 및 <b>프로세스 마스터 통합</b>입니다.`;
+  }
+  if(/3줄|경영진|보고|요약/.test(q)){
+    return `<b>[경영진 보고용 요약]</b><br>① 2025-H1 RCSA와 최근 12개월 내부손실데이터 대조 결과 <b>${ISSUES.length}건</b>의 정합성 이슈 검출, 종합 스코어 <b>${s}점(${grade(s)[0]})</b>.<br>② 주요 원인은 <b>손실실적 대비 잔여리스크 과소평가(${ISSUES.filter(i=>i.rule==='R2').length}건)</b>, <b>통제유효성 평가 모순(${ISSUES.filter(i=>i.rule==='R4').length}건)</b>, <b>손실 환류 미작동(${ISSUES.filter(i=>i.rule==='R7').length}건)</b>으로, 자가평가의 객관성 확보 장치가 미흡.<br>③ 개선방향: 손실데이터 기반 <b>RCSA 사전검증 룰 상시화</b>, 손실 등록 시 리스크ID 필수화, 반복손실 리스크에 KRI 신설 의무화.`;
+  }
+  if(/스코어|점수|산정/.test(q)){
+    return `종합 정합성 스코어는 <b>${s}점</b>(${grade(s)[0]})입니다.<br><br>산정식: 100 − Σ(심각도 가중치)<br>• 상 ${ISSUES.filter(i=>i.sev==='상').length}건 × 2.0<br>• 중 ${ISSUES.filter(i=>i.sev==='중').length}건 × 1.0<br>• 하 ${ISSUES.filter(i=>i.sev==='하').length}건 × 0.3<br><br>※ PoC 가정 가중치이며, 실제 적용 시 부서 규모·리스크 중요도 가중을 반영해야 합니다.`;
+  }
+  if(/과소|R2/.test(q)){
+    const l=ISSUES.filter(i=>i.rule==='R2');
+    return `<b>R2 과소평가</b> ${l.length}건입니다. 잔여리스크를 「하」로 평가했으나 실제 손실이 임계(100백만원 또는 3건)를 초과한 경우입니다.<br><br>`+l.map(i=>`• ${i.title}`).join('<br>');
+  }
+  return `현재 답변 가능한 범위입니다.<br>• 부서명 질의 (예: "신탁부") — 해당 부서 이슈 및 근거<br>• 룰 질의 (예: "R2", "미등록 리스크")<br>• "가장 심각한 이슈 3개"<br>• "매핑 커버리지가 낮은 이유"<br>• "경영진 보고용 3줄 요약"<br>• "스코어 산정 방식"<br><br><span class="text-slate-500 text-[12px]">※ Mock-up 단계로 자유 질의는 지원하지 않습니다. 실제 구현 시 LLM 연동 예정.</span>`;
+}
+
+/* ---- 탭 ---- */
+function switchTab(t){
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('tab-active',b.dataset.tab===t));
+  document.querySelectorAll('.tabpage').forEach(p=>p.classList.toggle('hidden',p.id!=='tab-'+t));
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
+
+/* ---- Agent 실행 연출 ---- */
+const STEPS=[
+ ['데이터 수집','RCSA 26건 · 내부손실 55건 로드 (2025-H1 / 2022.07~2025.06)'],
+ ['택소노미 정규화','Basel 사건유형 L1·L2 표준화, 부서·프로세스 명칭 매핑'],
+ ['리스크-손실 매칭','연계키 검증 → 부서·프로세스·L2 완전일치 → 유사도 기반 후보 추천'],
+ ['정합성 룰 검증','R1~R9 룰 실행 (R10은 GL 연동 필요, 제외)'],
+ ['판단근거 생성','이슈별 정량근거 문장 및 권고조치 자동 작성'],
+ ['리포트 작성','대시보드·이슈리스트·상세검증 화면 생성']
+];
+function rerun(){
+  document.getElementById('overlay').classList.remove('hidden');
+  const log=document.getElementById('agentLog'); log.innerHTML='';
+  STEPS.forEach(([t,d],i)=>{
+    log.innerHTML+=`<div id="st${i}" class="flex gap-2.5 items-start opacity-30 transition-opacity">
+      <span id="ic${i}" class="w-4 h-4 mt-0.5 rounded-full border-2 border-slate-500 shrink-0"></span>
+      <div><div class="text-slate-100">${t}</div><div class="text-[11px] text-slate-400">${d}</div></div></div>`;
+  });
+  let i=0;
+  const tk=setInterval(()=>{
+    if(i>0){document.getElementById('ic'+(i-1)).outerHTML=`<span class="w-4 h-4 mt-0.5 rounded-full bg-emerald-500 text-white text-[10px] flex items-center justify-center shrink-0">✓</span>`;}
+    if(i<STEPS.length){
+      document.getElementById('st'+i).classList.replace('opacity-30','opacity-100');
+      document.getElementById('agentBar').style.width=((i+1)/STEPS.length*100)+'%';
+      i++;
+    }else{
+      clearInterval(tk);
+      setTimeout(()=>document.getElementById('overlay').classList.add('hidden'),400);
+    }
+  },550);
+  render();
+}
+rerun();
+</script>
+</body>
+</html>

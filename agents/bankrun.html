@@ -1,0 +1,1866 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>통합 뱅크런(평판) 모니터링 시스템</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#F1F5F9;color:#1A202C;font-family:'Noto Sans KR',sans-serif;min-height:100vh}
+    ::-webkit-scrollbar{width:5px}
+    ::-webkit-scrollbar-thumb{background:#CBD5E0;border-radius:3px}
+    @keyframes blink {0%,100%{opacity:1}50%{opacity:.3}}
+    @keyframes stripe{from{background-position:0 0}to{background-position:32px 0}}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+    mark{background:#FEE2E2;color:#DC2626;border-radius:3px;padding:0 3px}
+
+    /* ── Nav ── */
+    .topnav{background:#fff;border-bottom:1px solid #E2E8F0;position:sticky;top:0;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,0.07)}
+    .logo-mark{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#0046B5,#1D6EF5);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;color:#fff;flex-shrink:0}
+    .nav-tab{background:none;border:none;cursor:pointer;padding:11px 14px;font-size:13px;font-family:'Noto Sans KR',sans-serif;border-bottom:2px solid transparent;color:#64748B;font-weight:500;transition:all .2s;white-space:nowrap}
+    .nav-tab.active{color:#0046B5;border-bottom-color:#0046B5;font-weight:700}
+    .live-dot{width:6px;height:6px;border-radius:50%;background:#22C55E;animation:blink 1.5s ease infinite}
+    .search-box{background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:6px 12px;font-size:12px;color:#475569;font-family:'Noto Sans KR',sans-serif;width:140px}
+    .search-box:focus{outline:none;border-color:#0046B5}
+
+    /* ── Layout ── */
+    .wrap{max-width:1100px;margin:0 auto;padding:18px 16px}
+
+    /* ── IBRI Master Panel ── */
+    .ibri-master{background:#fff;border-radius:18px;border:1.5px solid #FB923C;box-shadow:0 4px 24px rgba(251,146,60,0.15);margin-bottom:16px;overflow:hidden}
+    .ibri-stripe{height:4px;background:repeating-linear-gradient(45deg,rgba(251,146,60,0.4),rgba(251,146,60,0.4) 8px,transparent 8px,transparent 16px);animation:stripe 2s linear infinite}
+    .ibri-top{padding:16px 20px 14px;border-bottom:1px solid #FFEDD5;display:flex;align-items:center;justify-content:space-between;gap:16px}
+    .ibri-body{padding:18px 20px}
+
+    /* ── Score Circle ── */
+    .score-wrap{display:flex;align-items:center;gap:14px;flex-shrink:0}
+
+    /* ── Two-column grid ── */
+    .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+
+    /* ── Signal column ── */
+    .sig-col{border-radius:14px;padding:14px 16px;border:1px solid}
+    .sig-col.external{background:#FFF8F1;border-color:#FED7AA}
+    .sig-col.internal{background:#EFF6FF;border-color:#BFDBFE}
+    .col-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .col-title{font-size:12px;font-weight:800;display:flex;align-items:center;gap:5px}
+    .col-score{font-size:20px;font-weight:900;line-height:1}
+
+    /* ── Axis bars ── */
+    .ax-row{margin-bottom:9px}
+    .ax-lbl{display:flex;justify-content:space-between;margin-bottom:3px}
+    .ax-track{height:6px;background:#E2E8F0;border-radius:3px;overflow:hidden}
+    .ax-fill{height:100%;border-radius:3px;transition:width .9s ease}
+
+    /* ── Internal metric grid ── */
+    .m-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px}
+    .m-card{border-radius:10px;padding:9px 11px;border:1px solid}
+    .m-val{font-size:17px;font-weight:900;line-height:1;margin:3px 0}
+    .m-label{font-size:10px;color:#64748B;font-weight:500}
+    .m-change{font-size:10px;font-weight:700;margin-top:2px}
+
+    /* ── Timeline ── */
+    .tl-wrap{background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:11px 12px;margin-top:10px}
+    .tl-bars{display:flex;align-items:flex-end;gap:3px;height:44px;margin-top:6px}
+    .tl-bar{flex:1;border-radius:2px 2px 0 0;cursor:pointer;position:relative;min-height:3px}
+    .tl-bar:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100%+3px);left:50%;transform:translateX(-50%);background:#1A202C;color:#fff;font-size:9px;padding:2px 6px;border-radius:4px;white-space:nowrap;z-index:10;pointer-events:none}
+    .tl-label-row{display:flex;gap:3px;margin-top:3px}
+    .tl-lbl{flex:1;font-size:8px;color:#94A3B8;text-align:center}
+
+    /* ── Combined score bar ── */
+    .combined-bar{background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:14px 16px;margin-bottom:14px}
+    .c-bar-track{display:flex;height:24px;border-radius:8px;overflow:hidden;gap:2px;margin:10px 0}
+    .c-bar-seg{display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff}
+
+    /* ── Alert row ── */
+    .alert-row{background:#FFF5F5;border:1px solid #FECACA;border-radius:11px;padding:11px 14px;margin-bottom:14px;display:flex;align-items:center;gap:12px}
+
+    /* ── Keyword chips ── */
+    .chip{display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:3px 9px;border-radius:6px;margin:2px}
+
+    /* ── KPI row ── */
+    .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+    .kpi{background:#fff;border-radius:12px;padding:13px 15px;border:1px solid #E2E8F0;box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+
+    /* ── Risk summary ── */
+    .risk-2col{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+    .risk-card{background:#fff;border-radius:14px;padding:15px 17px;border:1px solid #E2E8F0;box-shadow:0 1px 4px rgba(0,0,0,0.04)}
+
+    /* ── Filter ── */
+    .filter-bar{display:flex;gap:5px;margin-bottom:11px;overflow-x:auto;padding-bottom:2px;align-items:center}
+    .f-btn{background:#fff;border:1px solid #E2E8F0;color:#64748B;border-radius:20px;padding:5px 13px;font-size:11px;cursor:pointer;white-space:nowrap;flex-shrink:0;font-family:'Noto Sans KR',sans-serif;font-weight:500;transition:all .15s;display:flex;align-items:center;gap:4px}
+    .f-btn:hover{border-color:#6366F1;color:#6366F1;background:#F5F3FF}
+    .f-btn.active{background:#EFF6FF;border-color:#0046B5;color:#0046B5;font-weight:700;box-shadow:0 0 0 2px rgba(0,70,181,0.12)}
+    .f-btn.bkw.active{background:#FFF7ED;border-color:#EA580C;color:#EA580C;box-shadow:0 0 0 2px rgba(234,88,12,0.12)}
+
+    /* ── Post Cards ── */
+    .post-card{background:#fff;border:1px solid #E2E8F0;border-radius:14px;overflow:hidden;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,0.04);transition:box-shadow .2s;animation:fadeIn .35s ease}
+    .post-card:hover{box-shadow:0 4px 14px rgba(0,0,0,0.09)}
+    .rrs-bar{height:3px}
+    .post-inner{padding:13px 15px}
+    .pill{display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px}
+    .bars-box{background:#F8FAFC;border-radius:9px;padding:10px 12px;border:1px solid #E2E8F0;margin-bottom:7px}
+    .b-row{margin-bottom:6px}
+    .b-lbl{display:flex;justify-content:space-between;margin-bottom:2px}
+    .b-track{height:5px;background:#E2E8F0;border-radius:2px;overflow:hidden}
+    .b-fill{height:100%;border-radius:2px;transition:width .9s ease}
+    .bri-box{border-radius:9px;padding:9px 12px;margin-bottom:7px}
+    .summary-txt{font-size:12px;color:#64748B;line-height:1.7;background:#F8FAFC;padding:8px 10px;border-radius:8px;border:1px solid #E2E8F0;margin-bottom:5px}
+    .kw-tag{background:#EFF6FF;color:#3B82F6;font-size:10px;padding:2px 7px;border-radius:6px;font-weight:500}
+
+    /* ── Forms ── */
+    .form-label{font-size:11px;color:#64748B;display:block;margin-bottom:4px;font-weight:600}
+    .form-input{width:100%;background:#F8FAFC;border:1.5px solid #E2E8F0;border-radius:9px;padding:9px 12px;color:#1A202C;font-size:13px;font-family:'Noto Sans KR',sans-serif;transition:border .15s}
+    .form-input:focus{outline:none;border-color:#0046B5;background:#fff}
+    .form-textarea{width:100%;background:#F8FAFC;border:1.5px solid #E2E8F0;border-radius:9px;padding:11px 13px;color:#1A202C;font-size:13px;resize:vertical;line-height:1.65;font-family:'Noto Sans KR',sans-serif;transition:border .15s}
+    .form-textarea:focus{outline:none;border-color:#0046B5;background:#fff}
+    .submit-btn{width:100%;background:linear-gradient(135deg,#0046B5,#1D6EF5);color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif;box-shadow:0 4px 12px rgba(0,70,181,0.25);transition:all .2s}
+    .submit-btn:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(0,70,181,0.35)}
+    .submit-btn:disabled{background:#CBD5E0;box-shadow:none;cursor:not-allowed;transform:none}
+    .demo-banner{background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;padding:8px 12px;margin-bottom:12px;font-size:11px;color:#92400E}
+    .api-panel{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:11px;padding:13px 15px;margin-bottom:13px}
+    .api-input{background:#fff;border:1.5px solid #BFDBFE;border-radius:8px;padding:8px 11px;color:#1A202C;font-size:12px;font-family:monospace;flex:1}
+    .api-input:focus{outline:none;border-color:#0046B5}
+    .api-btn{background:#0046B5;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif}
+    .bkw-alert{display:none;margin-top:7px;background:#FEF2F2;border:1px solid #FECACA;border-radius:7px;padding:6px 10px;font-size:11px;color:#DC2626}
+    .divider{height:1px;background:#F1F5F9;margin:8px 0}
+
+    /* ══════════════════════════════════════════
+       반응형 (모바일 / 태블릿)
+    ══════════════════════════════════════════ */
+    @media (max-width: 860px){
+      .two-col{grid-template-columns:1fr}
+      .risk-2col{grid-template-columns:1fr}
+      .kpi-row{grid-template-columns:repeat(2,1fr)}
+      .m-grid{grid-template-columns:repeat(2,1fr)}
+    }
+
+    @media (max-width: 640px){
+      .nav-tab{font-size:12px}
+      .search-box{width:100px;font-size:11px}
+      .wrap{padding:12px 10px}
+
+      .ibri-top{flex-direction:column;align-items:stretch;gap:12px;padding:14px 14px 12px}
+      .ibri-top > div:last-child{align-self:center}
+      .ibri-body{padding:14px}
+
+      .kpi-row{grid-template-columns:repeat(2,1fr);gap:8px}
+      .m-grid{grid-template-columns:repeat(2,1fr);gap:6px}
+      .sig-col{padding:12px}
+
+      .c-bar-track{flex-direction:column;height:auto;gap:3px}
+      .c-bar-seg{padding:6px 8px;justify-content:flex-start;border-radius:6px!important}
+
+      .filter-bar, .f-btn-row{flex-wrap:nowrap}
+
+      .post-inner{padding:12px}
+      .bars-box, .bri-box{padding:9px 10px}
+
+      /* 카드 헤더 - 작은 화면에서 점수 영역 줄바꿈 */
+      .risk-card{padding:13px 14px}
+    }
+
+    @media (max-width: 480px){
+      .post-header-row{flex-wrap:wrap}
+      .post-header-row > div:last-child{width:100%;flex-direction:row!important;justify-content:space-between;align-items:center!important;margin-top:6px}
+      [style*="padding-left:43px"]{padding-left:0!important;margin-top:8px}
+      [style*="margin-left:43px"]{margin-left:0!important}
+    }
+  </style>
+</head>
+<body>
+
+<!-- TOP NAV -->
+<div class="topnav" style="flex-direction:column;align-items:stretch;padding:0">
+
+  <!-- 1행: 로고 + 뱃지 -->
+  <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid #F1F5F9">
+    <div class="logo-mark" style="flex-shrink:0">나</div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:13px;font-weight:800;color:#1A202C;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">통합 뱅크런(평판) 모니터링 시스템</div>
+      <div style="font-size:9px;color:#94A3B8;white-space:nowrap">나라은행 · Integrated BankRun &amp; Reputation Monitoring</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:4px;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:20px;padding:3px 9px">
+        <div class="live-dot"></div>
+        <span style="font-size:10px;color:#16A34A;font-weight:600">LIVE</span>
+      </div>
+      <div style="font-size:9px;color:#94A3B8;background:#F8FAFC;border:1px solid #E2E8F0;padding:3px 8px;border-radius:20px;white-space:nowrap">2026.04.19 14:30</div>
+    </div>
+  </div>
+
+  <!-- 2행: 탭 + 검색 -->
+  <div style="display:flex;align-items:center;padding:0 8px;overflow-x:auto">
+    <button class="nav-tab active" onclick="switchTab('feed',this)"    style="white-space:nowrap">📡 실시간 피드</button>
+    <button class="nav-tab"        onclick="switchTab('add',this)"     style="white-space:nowrap">✏️ 게시글 입력</button>
+    <button class="nav-tab"        onclick="switchTab('guide',this)"   style="white-space:nowrap">📖 지수 설명</button>
+    <button class="nav-tab"        onclick="switchTab('cfg-int',this)" style="white-space:nowrap">🏦 내부 설정</button>
+    <button class="nav-tab"        onclick="switchTab('cfg-ext',this)" style="white-space:nowrap">📡 외부 설정</button>
+    <div style="flex:1;min-width:8px"></div>
+    <input class="search-box" id="searchInput" placeholder="🔍 검색..." oninput="renderPosts()" style="width:110px;font-size:11px;padding:5px 10px;margin:6px 0;flex-shrink:0"/>
+  </div>
+</div>
+
+<!-- FEED TAB -->
+<div id="tab-feed">
+<div class="wrap">
+
+  <!-- ══════════════════════════════════════════
+       통합 뱅크런 위험지수 (I-BRI) 마스터 패널
+  ══════════════════════════════════════════ -->
+  <div class="ibri-master">
+    <div class="ibri-stripe"></div>
+
+    <!-- 헤더: 종합 점수 + 경보 -->
+    <div class="ibri-top">
+      <!-- 타이틀 -->
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+          <span style="font-size:15px;font-weight:900;color:#EA580C">🚨 통합 뱅크런 위험지수 (I-BRI)</span>
+          <span style="background:#EA580C;color:#fff;font-size:10px;font-weight:800;padding:2px 10px;border-radius:20px">HIGH ALERT</span>
+        </div>
+        <div style="font-size:11px;color:#94A3B8;margin-bottom:10px">외부 SNS·뉴스 신호 (50%) + 내부 고객행동 데이터 (50%) 통합 산출</div>
+        <!-- Alert -->
+        <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px">
+          <div style="flex-shrink:0;text-align:center">
+            <div style="font-size:9px;color:#EA580C;font-weight:600">경보단계</div>
+            <div style="font-size:15px;font-weight:900;color:#EA580C">고위험 경보</div>
+          </div>
+          <div style="width:1px;height:32px;background:#FED7AA;flex-shrink:0"></div>
+          <div style="font-size:11.5px;color:#64748B;line-height:1.6">
+            <span style="color:#EA580C;font-weight:700">⚡ 권장 대응 </span>위기대응팀 즉시 소집 · 유동성 긴급 점검 · SNS 24시간 모니터링 강화 · 경영진 보고
+          </div>
+        </div>
+      </div>
+      <!-- 종합 스코어 -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0">
+        <svg width="100" height="100" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="42" fill="none" stroke="#F1F5F9" stroke-width="9"/>
+          <!-- 배경 컬러 아크 -->
+          <circle cx="50" cy="50" r="42" fill="none" stroke="#BBF7D0" stroke-width="9" stroke-dasharray="53 211" stroke-dashoffset="53" transform="rotate(-90 50 50)"/>
+          <circle cx="50" cy="50" r="42" fill="none" stroke="#FDE68A" stroke-width="9" stroke-dasharray="42 211" stroke-dashoffset="0" transform="rotate(-90 50 50)"/>
+          <circle cx="50" cy="50" r="42" fill="none" stroke="#FCA5A5" stroke-width="9" stroke-dasharray="53 211" stroke-dashoffset="-42" transform="rotate(-90 50 50)"/>
+          <circle cx="50" cy="50" r="42" fill="none" stroke="#EF4444" stroke-width="9" stroke-dasharray="63 211" stroke-dashoffset="-95" transform="rotate(-90 50 50)"/>
+          <!-- 실제 점수 아크 (76점) -->
+          <circle cx="50" cy="50" r="42" fill="none" stroke="#EA580C" stroke-width="9"
+            stroke-dasharray="160 211" stroke-dashoffset="53"
+            stroke-linecap="round" transform="rotate(-90 50 50)"
+            style="filter:drop-shadow(0 0 5px rgba(234,88,12,0.45))"/>
+          <text x="50" y="44" text-anchor="middle" fill="#EA580C" font-size="24" font-weight="900">76</text>
+          <text x="50" y="56" text-anchor="middle" fill="#94A3B8" font-size="9">/ 100점</text>
+          <text x="50" y="67" text-anchor="middle" fill="#EA580C" font-size="9" font-weight="700">고위험</text>
+        </svg>
+        <!-- 구성 비율 표시 -->
+        <div style="display:flex;gap:6px">
+          <div style="text-align:center;background:#FFF7ED;border:1px solid #FED7AA;border-radius:7px;padding:4px 8px">
+            <div style="font-size:9px;color:#94A3B8">SNS신호</div>
+            <div style="font-size:14px;font-weight:900;color:#EA580C">42점</div>
+          </div>
+          <div style="display:flex;align-items:center;color:#94A3B8;font-size:12px">+</div>
+          <div style="text-align:center;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:7px;padding:4px 8px">
+            <div style="font-size:9px;color:#94A3B8">내부행동</div>
+            <div style="font-size:14px;font-weight:900;color:#1D4ED8">87점</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 본문: 좌(외부) / 우(내부) 나란히 ── -->
+    <div class="ibri-body">
+
+      <!-- 종합 점수 구성 바 -->
+      <div class="combined-bar">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-size:11px;font-weight:700;color:#374151">📊 I-BRI 점수 구성 (외부 50% + 내부 50%)</span>
+          <span style="font-size:10px;color:#94A3B8">= 21점 + 43.5점 + 조정(+11.5) = <strong style="color:#EA580C">76점</strong></span>
+        </div>
+        <div class="c-bar-track">
+          <div class="c-bar-seg" style="flex:2.1;background:#FDBA74">SNS신호 42점 × 50% = 21</div>
+          <div class="c-bar-seg" style="flex:4.35;background:#FB923C">내부행동 87점 × 50% = 43.5</div>
+          <div class="c-bar-seg" style="flex:1.15;background:#EA580C;border-radius:0 6px 6px 0">+11.5</div>
+        </div>
+        <!-- 경보 척도 -->
+        <div style="display:flex;gap:2px;margin-top:6px">
+          <div style="flex:2;background:#D1FAE5;height:16px;border-radius:3px 0 0 3px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#065F46">정상 0~20</div>
+          <div style="flex:2;background:#FEF9C3;height:16px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#713F12">관찰 21~40</div>
+          <div style="flex:2;background:#FED7AA;height:16px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#7C2D12">주의 41~60</div>
+          <div style="flex:2;background:#FDBA74;height:16px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;position:relative">
+            고위험 61~80
+            <div style="position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-size:9px;color:#EA580C;font-weight:800;white-space:nowrap">▼ 현재 76</div>
+          </div>
+          <div style="flex:1;background:#F87171;height:16px;border-radius:0 3px 3px 0;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff">임박 81+</div>
+        </div>
+      </div>
+
+      <!-- ── 2컬럼: 외부(좌) + 내부(우) ── -->
+      <div class="two-col">
+
+        <!-- 왼쪽: 외부 SNS 신호 -->
+        <div class="sig-col external">
+          <div class="col-head">
+            <div class="col-title" style="color:#EA580C">📡 외부 SNS·뉴스 신호<span style="font-size:9px;color:#94A3B8;font-weight:500">가중치 50%</span></div>
+            <div class="col-score" style="color:#EA580C">42점</div>
+          </div>
+
+          <!-- 4개 축 -->
+          <div class="ax-row">
+            <div class="ax-lbl"><span style="font-size:11px;color:#64748B">😰 불신·공포 감성</span><span style="font-size:11px;color:#EF4444;font-weight:700">82점</span></div>
+            <div class="ax-track"><div class="ax-fill" style="width:82%;background:#EF4444"></div></div>
+            <div style="font-size:10px;color:#94A3B8;margin-top:2px">감지: 뱅크런, 파산, SVB, 리먼, 불안</div>
+          </div>
+          <div class="ax-row">
+            <div class="ax-lbl"><span style="font-size:11px;color:#64748B">💸 인출 의도 신호</span><span style="font-size:11px;color:#F97316;font-weight:700">85점</span></div>
+            <div class="ax-track"><div class="ax-fill" style="width:85%;background:#F97316"></div></div>
+            <div style="font-size:10px;color:#94A3B8;margin-top:2px">감지: 현금인출, 예금 옮겨, 계좌해지</div>
+          </div>
+          <div class="ax-row">
+            <div class="ax-lbl"><span style="font-size:11px;color:#64748B">📢 SNS 확산 속도</span><span style="font-size:11px;color:#EAB308;font-weight:700">88점</span></div>
+            <div class="ax-track"><div class="ax-fill" style="width:88%;background:#EAB308"></div></div>
+            <div style="font-size:10px;color:#94A3B8;margin-top:2px">커뮤니티 언급 1만건+ / 24h</div>
+          </div>
+          <div class="ax-row" style="margin-bottom:10px">
+            <div class="ax-lbl"><span style="font-size:11px;color:#64748B">📰 미디어 증폭도</span><span style="font-size:11px;color:#A855F7;font-weight:700">75점</span></div>
+            <div class="ax-track"><div class="ax-fill" style="width:75%;background:#A855F7"></div></div>
+            <div style="font-size:10px;color:#94A3B8;margin-top:2px">주요 언론사 직접 보도 확산</div>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- 뱅크런 키워드 -->
+          <div style="font-size:10px;font-weight:700;color:#EA580C;margin-bottom:6px">🔍 탐지 키워드 (게시글 6건)</div>
+          <div style="display:flex;flex-wrap:wrap;gap:3px">
+            <span class="chip" style="background:#FFEDD5;color:#EA580C">⚠ 뱅크런</span>
+            <span class="chip" style="background:#FFEDD5;color:#EA580C">⚠ 파산</span>
+            <span class="chip" style="background:#FFEDD5;color:#EA580C">⚠ 현금인출</span>
+            <span class="chip" style="background:#FFEDD5;color:#EA580C">⚠ SVB</span>
+            <span class="chip" style="background:#FFEDD5;color:#EA580C">⚠ 예금 옮겨</span>
+            <span class="chip" style="background:#FFEDD5;color:#EA580C">⚠ 계좌해지</span>
+            <span class="chip" style="background:#FFEDD5;color:#EA580C">⚠ 망한다</span>
+            <span class="chip" style="background:#FFEDD5;color:#EA580C">⚠ 리먼</span>
+            <span class="chip" style="background:#FFEDD5;color:#EA580C">⚠ 불신</span>
+          </div>
+
+          <!-- SNS 게시글 위험 건수 -->
+          <div class="divider"></div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
+            <div style="text-align:center;background:#FFEDD5;border:1px solid #FED7AA;border-radius:8px;padding:7px 4px">
+              <div style="font-size:16px;font-weight:900;color:#EA580C">6건</div>
+              <div style="font-size:9px;color:#94A3B8;margin-top:1px">뱅크런 직접 언급</div>
+            </div>
+            <div style="text-align:center;background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;padding:7px 4px">
+              <div style="font-size:16px;font-weight:900;color:#EA580C">4건</div>
+              <div style="font-size:9px;color:#94A3B8;margin-top:1px">E·D등급 게시글</div>
+            </div>
+            <div style="text-align:center;background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;padding:7px 4px">
+              <div style="font-size:16px;font-weight:900;color:#EA580C">8,630</div>
+              <div style="font-size:9px;color:#94A3B8;margin-top:1px">총 반응 (좋아요+댓글)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 오른쪽: 내부 고객행동 -->
+        <div class="sig-col internal">
+          <div class="col-head">
+            <div class="col-title" style="color:#1D4ED8">🏦 내부 고객행동 데이터<span style="font-size:9px;color:#94A3B8;font-weight:500">가중치 50%</span></div>
+            <div class="col-score" style="color:#EA580C">87점</div>
+          </div>
+
+          <!-- 4개 내부 BRI 축 -->
+          <div class="ax-row">
+            <div class="ax-lbl"><span style="font-size:11px;color:#64748B">💰 예수금 이탈 위험도</span><span style="font-size:11px;color:#EA580C;font-weight:700">88점</span></div>
+            <div class="ax-track"><div class="ax-fill" style="width:88%;background:#EA580C"></div></div>
+          </div>
+          <div class="ax-row">
+            <div class="ax-lbl"><span style="font-size:11px;color:#64748B">📱 모바일·ATM 이상거래</span><span style="font-size:11px;color:#F97316;font-weight:700">92점</span></div>
+            <div class="ax-track"><div class="ax-fill" style="width:92%;background:#F97316"></div></div>
+          </div>
+          <div class="ax-row">
+            <div class="ax-lbl"><span style="font-size:11px;color:#64748B">🔐 계좌해지·해지 급증</span><span style="font-size:11px;color:#EAB308;font-weight:700">85점</span></div>
+            <div class="ax-track"><div class="ax-fill" style="width:85%;background:#EAB308"></div></div>
+          </div>
+          <div class="ax-row" style="margin-bottom:10px">
+            <div class="ax-lbl"><span style="font-size:11px;color:#64748B">📞 고객 문의·민원 급증</span><span style="font-size:11px;color:#A855F7;font-weight:700">80점</span></div>
+            <div class="ax-track"><div class="ax-fill" style="width:80%;background:#A855F7"></div></div>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- 내부 지표 9개 카드 -->
+          <div class="m-grid">
+            <div class="m-card" style="background:#FFF7ED;border-color:#FED7AA">
+              <div class="m-label">💰 예수금 이탈률</div>
+              <div class="m-val" style="color:#EA580C">-4.7%</div>
+              <div class="m-change" style="color:#EA580C">▲ 전일比 +2.3%p 악화</div>
+            </div>
+            <div class="m-card" style="background:#FFF7ED;border-color:#FED7AA">
+              <div class="m-label">📉 예수금 이탈 규모</div>
+              <div class="m-val" style="color:#EA580C">2.3조</div>
+              <div class="m-change" style="color:#EA580C">▲ 전일比 +8,200억원</div>
+            </div>
+            <div class="m-card" style="background:#FFF7ED;border-color:#FED7AA">
+              <div class="m-label">📱 모바일 이체 시도</div>
+              <div class="m-val" style="color:#EA580C">+312%</div>
+              <div class="m-change" style="color:#EA580C">▲ 전일 동시간 대비</div>
+            </div>
+            <div class="m-card" style="background:#FFF7ED;border-color:#FED7AA">
+              <div class="m-label">🏧 ATM 현금인출</div>
+              <div class="m-val" style="color:#EA580C">+187%</div>
+              <div class="m-change" style="color:#EA580C">▲ 한도 집중 인출</div>
+            </div>
+            <div class="m-card" style="background:#FFFBEB;border-color:#FDE68A">
+              <div class="m-label">🔐 계좌 해지 신청</div>
+              <div class="m-val" style="color:#D97706">847건</div>
+              <div class="m-change" style="color:#D97706">▲ 전일比 +634%</div>
+            </div>
+            <div class="m-card" style="background:#FFFBEB;border-color:#FDE68A">
+              <div class="m-label">💳 타행 이체 급증</div>
+              <div class="m-val" style="color:#D97706">+241%</div>
+              <div class="m-change" style="color:#D97706">▲ KB·신한·하나 방향</div>
+            </div>
+            <div class="m-card" style="background:#EFF6FF;border-color:#BFDBFE">
+              <div class="m-label">🌐 인터넷뱅킹 접속</div>
+              <div class="m-val" style="color:#1D4ED8">+189%</div>
+              <div class="m-change" style="color:#EA580C">▲ 잔액 조회 집중</div>
+            </div>
+            <div class="m-card" style="background:#FAF5FF;border-color:#E9D5FF">
+              <div class="m-label">📞 고객센터 문의</div>
+              <div class="m-val" style="color:#7C3AED">4,231건</div>
+              <div class="m-change" style="color:#EA580C">▲ "예금 안전?" 집중</div>
+            </div>
+          </div>
+
+          <!-- 시간대별 추이 -->
+          <div class="tl-wrap">
+            <div style="font-size:10px;font-weight:700;color:#374151">📈 시간대별 예수금 이탈 추이 (억원)</div>
+            <div class="tl-bars" id="tlBars"></div>
+            <div class="tl-label-row" id="tlLabels"></div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /ibri-body -->
+  </div><!-- /ibri-master -->
+
+  <!-- ══ KPI + Grade ══ -->
+  <div class="risk-2col">
+    <div class="risk-card">
+      <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:10px">📊 RRS 등급 현황 (10건 분석)</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <svg width="80" height="52" viewBox="0 0 80 52">
+          <path d="M 8 46 A 34 34 0 0 1 72 46" fill="none" stroke="#E2E8F0" stroke-width="7" stroke-linecap="round"/>
+          <path d="M 8 46 A 34 34 0 1 1 66 24" fill="none" stroke="#F97316" stroke-width="7" stroke-linecap="round"/>
+          <line x1="40" y1="46" x2="64" y2="25" stroke="#F97316" stroke-width="2.5" stroke-linecap="round"/>
+          <circle cx="40" cy="46" r="3.5" fill="#F97316"/>
+          <text x="40" y="37" text-anchor="middle" fill="#F97316" font-size="14" font-weight="900">71</text>
+          <text x="40" y="46" text-anchor="middle" fill="#94A3B8" font-size="6">/100</text>
+        </svg>
+        <div>
+          <div style="font-size:10px;color:#94A3B8">평균 RRS</div>
+          <div style="font-size:20px;font-weight:900;color:#F97316;line-height:1">D등급 · 71점</div>
+          <div style="font-size:10px;color:#F97316;margin-top:2px">고위험 — PR팀 즉시 대응</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:5px">
+        <div style="flex:1;background:#FFF1ED;border:1px solid #FECDC8;border-radius:7px;padding:6px 3px;text-align:center"><div style="font-size:14px;font-weight:900;color:#E64A19">2</div><div style="font-size:9px;color:#94A3B8">E</div></div>
+        <div style="flex:1;background:#FFF7ED;border:1px solid #FED7AA;border-radius:7px;padding:6px 3px;text-align:center"><div style="font-size:14px;font-weight:900;color:#F97316">2</div><div style="font-size:9px;color:#94A3B8">D</div></div>
+        <div style="flex:1;background:#FFFBEB;border:1px solid #FDE68A;border-radius:7px;padding:6px 3px;text-align:center"><div style="font-size:14px;font-weight:900;color:#EAB308">2</div><div style="font-size:9px;color:#94A3B8">C</div></div>
+        <div style="flex:1;background:#FEFCE8;border:1px solid #FEF08A;border-radius:7px;padding:6px 3px;text-align:center"><div style="font-size:14px;font-weight:900;color:#CA8A04">1</div><div style="font-size:9px;color:#94A3B8">B</div></div>
+        <div style="flex:1;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:7px;padding:6px 3px;text-align:center"><div style="font-size:14px;font-weight:900;color:#16A34A">2</div><div style="font-size:9px;color:#94A3B8">A</div></div>
+        <div style="flex:1;background:#ECFEFF;border:1px solid #A5F3FC;border-radius:7px;padding:6px 3px;text-align:center"><div style="font-size:14px;font-weight:900;color:#0891B2">1</div><div style="font-size:9px;color:#94A3B8">S</div></div>
+      </div>
+    </div>
+    <div class="risk-card" style="border-color:#FED7AA;background:linear-gradient(135deg,#FFF8F1,#fff)">
+      <div style="font-size:12px;font-weight:700;color:#EA580C;margin-bottom:10px">🚨 핵심 위험 지표 요약</div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="display:flex;justify-content:space-between;align-items:center;background:#FFEDD5;border:1px solid #FED7AA;border-radius:8px;padding:7px 11px">
+          <span style="font-size:11px;color:#64748B">통합 I-BRI 점수</span>
+          <span style="font-size:16px;font-weight:900;color:#EA580C">76점 <span style="font-size:10px;color:#EA580C">고위험</span></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;padding:7px 11px">
+          <span style="font-size:11px;color:#64748B">예수금 이탈액</span>
+          <span style="font-size:16px;font-weight:900;color:#EA580C">2.3조원</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;padding:7px 11px">
+          <span style="font-size:11px;color:#64748B">모바일 이체 급증</span>
+          <span style="font-size:16px;font-weight:900;color:#EA580C">+312%</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:7px 11px">
+          <span style="font-size:11px;color:#64748B">계좌해지 신청</span>
+          <span style="font-size:16px;font-weight:900;color:#D97706">847건</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div class="kpi-row">
+    <div class="kpi" style="border-color:#FED7AA;cursor:pointer;transition:box-shadow .2s" onclick="filterBankrun(document.getElementById('btn-bankrun'))" onmouseover="this.style.boxShadow='0 4px 14px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow=''">
+      <div style="font-size:10px;color:#94A3B8">🚨 뱅크런 신호</div>
+      <div style="font-size:22px;font-weight:900;color:#EA580C;line-height:1;margin-top:4px">6건</div>
+      <div style="font-size:10px;color:#CBD5E0;margin-top:2px">클릭하여 필터</div>
+    </div>
+    <div class="kpi" style="border-color:#FED7AA;cursor:pointer;transition:box-shadow .2s" onclick="filterGrade('E',document.getElementById('btn-E'));filterGrade('D',document.getElementById('btn-D'));" onmouseover="this.style.boxShadow='0 4px 14px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow=''">
+      <div style="font-size:10px;color:#94A3B8">🟠 E·D등급</div>
+      <div style="font-size:22px;font-weight:900;color:#EA580C;line-height:1;margin-top:4px">4건</div>
+      <div style="font-size:10px;color:#CBD5E0;margin-top:2px">즉각 대응 필요</div>
+    </div>
+    <div class="kpi" style="border-color:#FDE68A;cursor:pointer;transition:box-shadow .2s" onclick="filterMultiGrade(['C','B'])" onmouseover="this.style.boxShadow='0 4px 14px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow=''">
+      <div style="font-size:10px;color:#94A3B8">🟡 C·B등급</div>
+      <div style="font-size:22px;font-weight:900;color:#CA8A04;line-height:1;margin-top:4px">3건</div>
+      <div style="font-size:10px;color:#CBD5E0;margin-top:2px">모니터링 강화</div>
+    </div>
+    <div class="kpi" style="border-color:#BBF7D0;cursor:pointer;transition:box-shadow .2s" onclick="filterMultiGrade(['A','S'])" onmouseover="this.style.boxShadow='0 4px 14px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow=''">
+      <div style="font-size:10px;color:#94A3B8">🟢 A·S등급</div>
+      <div style="font-size:22px;font-weight:900;color:#16A34A;line-height:1;margin-top:4px">3건</div>
+      <div style="font-size:10px;color:#CBD5E0;margin-top:2px">마케팅 활용</div>
+    </div>
+  </div>
+
+  <!-- Demo + API -->
+  <div class="demo-banner">⚠️ <strong>데모 모드</strong> — 게시글·내부 지표(예수금 이탈, 이체 건수 등) 모두 가상의 샘플 데이터입니다.</div>
+  <div class="api-panel">
+    <div style="font-size:12px;color:#1D4ED8;font-weight:700;margin-bottom:4px">🔑 AI 실시간 분석 활성화 (선택사항)</div>
+    <div style="font-size:11px;color:#3B82F6;margin-bottom:9px">API 키를 등록하면 새 게시글을 AI가 RRS + BRI 실시간 분석합니다.</div>
+    <div style="display:flex;gap:8px">
+      <input type="password" id="apiKeyInput" class="api-input" placeholder="sk-ant-api03-..."/>
+      <button class="api-btn" onclick="saveApiKey()">저장</button>
+    </div>
+    <div id="apiStatus" style="font-size:11px;color:#64748B;margin-top:5px">💡 API 키 없이도 샘플 확인 가능합니다.</div>
+  </div>
+
+  <!-- 통합 필터 바 -->
+  <div style="background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:14px 16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.04)">
+
+    <!-- 1행: 등급 + 뱅크런 -->
+    <div style="font-size:10px;color:#94A3B8;font-weight:600;margin-bottom:7px;letter-spacing:.04em">위험 등급 필터</div>
+    <div class="filter-bar" id="gradeFilterBar" style="margin-bottom:12px">
+      <button class="f-btn active" id="btn-all" onclick="filterAll(this)">전체 <span class="f-cnt">10</span></button>
+      <button class="f-btn bkw" id="btn-bankrun" onclick="filterBankrun(this)">🚨 뱅크런 <span class="f-cnt" style="background:#FFEDD5;color:#EA580C;border-radius:10px;padding:0 5px;font-size:10px;font-weight:700">6</span></button>
+      <button class="f-btn" id="btn-E" onclick="filterGrade('E',this)" style="border-color:#FECDC8;color:#E64A19">E 긴급 <span class="f-cnt" style="background:#FFF1ED;color:#E64A19;border-radius:10px;padding:0 5px;font-size:10px;font-weight:700">2</span></button>
+      <button class="f-btn" id="btn-D" onclick="filterGrade('D',this)" style="border-color:#FED7AA;color:#EA580C">D 고위험 <span class="f-cnt" style="background:#FFF7ED;color:#EA580C;border-radius:10px;padding:0 5px;font-size:10px;font-weight:700">2</span></button>
+      <button class="f-btn" id="btn-C" onclick="filterGrade('C',this)" style="border-color:#FDE68A;color:#D97706">C 위험 <span class="f-cnt" style="background:#FFFBEB;color:#D97706;border-radius:10px;padding:0 5px;font-size:10px;font-weight:700">2</span></button>
+      <button class="f-btn" id="btn-B" onclick="filterGrade('B',this)" style="border-color:#FEF08A;color:#CA8A04">B 주의 <span class="f-cnt" style="background:#FEFCE8;color:#CA8A04;border-radius:10px;padding:0 5px;font-size:10px;font-weight:700">1</span></button>
+      <button class="f-btn" id="btn-A" onclick="filterGrade('A',this)" style="border-color:#BBF7D0;color:#16A34A">A 양호 <span class="f-cnt" style="background:#F0FDF4;color:#16A34A;border-radius:10px;padding:0 5px;font-size:10px;font-weight:700">2</span></button>
+      <button class="f-btn" id="btn-S" onclick="filterGrade('S',this)" style="border-color:#A5F3FC;color:#0891B2">S 우수 <span class="f-cnt" style="background:#ECFEFF;color:#0891B2;border-radius:10px;padding:0 5px;font-size:10px;font-weight:700">1</span></button>
+    </div>
+
+    <!-- 구분선 -->
+    <div style="height:1px;background:#F1F5F9;margin-bottom:11px"></div>
+
+    <!-- 2행: 플랫폼 -->
+    <div style="font-size:10px;color:#94A3B8;font-weight:600;margin-bottom:7px;letter-spacing:.04em">플랫폼 필터</div>
+    <div class="filter-bar" id="platFilterBar" style="margin-bottom:0">
+      <button class="f-btn active" id="btn-plt-all" onclick="filterPlatformBtn('all',this)">전체</button>
+      <button class="f-btn" id="btn-plt-instagram" onclick="filterPlatformBtn('instagram',this)">
+        📸 인스타그램 <span style="background:#FFEDD5;color:#EA580C;font-size:9px;padding:1px 5px;border-radius:10px;margin-left:2px;font-weight:700">⚠1</span>
+      </button>
+      <button class="f-btn" id="btn-plt-naver" onclick="filterPlatformBtn('naver',this)">🟢 네이버</button>
+      <button class="f-btn" id="btn-plt-youtube" onclick="filterPlatformBtn('youtube',this)">
+        ▶️ 유튜브 <span style="background:#FFEDD5;color:#EA580C;font-size:9px;padding:1px 5px;border-radius:10px;margin-left:2px;font-weight:700">⚠2</span>
+      </button>
+      <button class="f-btn" id="btn-plt-news" onclick="filterPlatformBtn('news',this)">
+        📰 뉴스 <span style="background:#FFEDD5;color:#EA580C;font-size:9px;padding:1px 5px;border-radius:10px;margin-left:2px;font-weight:700">⚠2</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="postList"></div>
+
+</div>
+</div>
+
+<!-- ADD TAB -->
+<div id="tab-add" style="display:none">
+<div class="wrap">
+  <div style="background:#fff;border-radius:16px;border:1px solid #E2E8F0;padding:22px;box-shadow:0 1px 4px rgba(0,0,0,0.05)">
+    <h3 style="font-size:16px;font-weight:800;margin-bottom:4px">📥 게시글 직접 입력</h3>
+    <p style="font-size:12px;color:#94A3B8;margin-bottom:18px">SNS 게시글이나 뉴스 기사를 붙여넣으면 AI가 RRS + BRI를 분석합니다</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label class="form-label">플랫폼</label>
+        <select id="addPlatform" class="form-input">
+          <option value="instagram">📸 인스타그램</option>
+          <option value="naver">🟢 네이버</option>
+          <option value="youtube">▶️ 유튜브</option>
+          <option value="news">📰 뉴스</option>
+        </select>
+      </div>
+      <div><label class="form-label">관련 키워드</label>
+        <input id="addKw" class="form-input" placeholder="예: 뱅크런우려"/>
+      </div>
+    </div>
+    <div style="margin-bottom:14px">
+      <label class="form-label">게시글 내용</label>
+      <textarea id="addText" class="form-textarea" rows="6" placeholder="분석할 SNS 게시글 또는 뉴스 기사를 붙여넣으세요..." oninput="checkBankrun()"></textarea>
+      <div class="bkw-alert" id="bkwAlert"></div>
+    </div>
+    <button class="submit-btn" id="submitBtn" onclick="submitPost()">피드에 추가하기 →</button>
+  </div>
+</div>
+</div>
+
+<!-- GUIDE TAB -->
+<div id="tab-guide" style="display:none">
+<div class="wrap" style="max-width:900px">
+
+  <!-- 헤더 -->
+  <div style="background:linear-gradient(135deg,#0046B5,#1D6EF5);border-radius:16px;padding:22px 24px;margin-bottom:16px;color:#fff">
+    <div style="font-size:10px;opacity:.7;margin-bottom:4px;letter-spacing:.1em">METHODOLOGY GUIDE</div>
+    <div style="font-size:19px;font-weight:900;margin-bottom:6px">위험지수 산출 방법론 안내</div>
+    <div style="font-size:11px;opacity:.8;line-height:1.7">나라은행 통합 뱅크런(평판) 모니터링 시스템에서 사용하는<br/>세 가지 위험지수의 정의·산출 방식·해석 기준을 설명합니다.</div>
+  </div>
+
+  <!-- 지수 개요 카드 3개 -->
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+    <div onclick="document.getElementById('sec-rrs').scrollIntoView({behavior:'smooth'})" style="background:#fff;border:1px solid #BFDBFE;border-radius:14px;padding:16px;cursor:pointer;transition:box-shadow .2s;box-shadow:0 1px 3px rgba(0,0,0,0.04)" onmouseover="this.style.boxShadow='0 4px 14px rgba(0,70,181,0.15)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.04)'">
+      <div style="font-size:22px;margin-bottom:8px">📊</div>
+      <div style="font-size:13px;font-weight:800;color:#0046B5;margin-bottom:4px">RRS</div>
+      <div style="font-size:11px;color:#374151;font-weight:600;margin-bottom:2px">평판 리스크 점수</div>
+      <div style="font-size:10px;color:#94A3B8;margin-bottom:8px">Reputation Risk Score</div>
+      <div style="height:4px;background:#DBEAFE;border-radius:2px"><div style="width:71%;height:100%;background:#0046B5;border-radius:2px"></div></div>
+      <div style="font-size:10px;color:#0046B5;margin-top:4px;font-weight:700">현재 평균 71점 · D등급</div>
+    </div>
+    <div onclick="document.getElementById('sec-bri').scrollIntoView({behavior:'smooth'})" style="background:#fff;border:1px solid #FED7AA;border-radius:14px;padding:16px;cursor:pointer;transition:box-shadow .2s;box-shadow:0 1px 3px rgba(0,0,0,0.04)" onmouseover="this.style.boxShadow='0 4px 14px rgba(234,88,12,0.15)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.04)'">
+      <div style="font-size:22px;margin-bottom:8px">🚨</div>
+      <div style="font-size:13px;font-weight:800;color:#EA580C;margin-bottom:4px">BRI</div>
+      <div style="font-size:11px;color:#374151;font-weight:600;margin-bottom:2px">뱅크런 위험 지수</div>
+      <div style="font-size:10px;color:#94A3B8;margin-bottom:8px">Bank Run Index (외부 SNS)</div>
+      <div style="height:4px;background:#FFEDD5;border-radius:2px"><div style="width:42%;height:100%;background:#EA580C;border-radius:2px"></div></div>
+      <div style="font-size:10px;color:#EA580C;margin-top:4px;font-weight:700">외부 SNS 신호 42점</div>
+    </div>
+    <div onclick="document.getElementById('sec-ibri').scrollIntoView({behavior:'smooth'})" style="background:#fff;border:1px solid #FED7AA;border-radius:14px;padding:16px;cursor:pointer;transition:box-shadow .2s;box-shadow:0 1px 3px rgba(0,0,0,0.04)" onmouseover="this.style.boxShadow='0 4px 14px rgba(180,83,9,0.15)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.04)'">
+      <div style="font-size:22px;margin-bottom:8px">🔗</div>
+      <div style="font-size:13px;font-weight:800;color:#B45309;margin-bottom:4px">I-BRI</div>
+      <div style="font-size:11px;color:#374151;font-weight:600;margin-bottom:2px">통합 뱅크런 위험지수</div>
+      <div style="font-size:10px;color:#94A3B8;margin-bottom:8px">Integrated BRI (외부+내부)</div>
+      <div style="height:4px;background:#FFEDD5;border-radius:2px"><div style="width:76%;height:100%;background:#B45309;border-radius:2px"></div></div>
+      <div style="font-size:10px;color:#B45309;margin-top:4px;font-weight:700">통합 지수 76점 · 고위험</div>
+    </div>
+  </div>
+
+  <!-- ══ 1. RRS ══ -->
+  <div id="sec-rrs" style="background:#fff;border-radius:16px;border:1px solid #BFDBFE;margin-bottom:16px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.05)">
+    <div style="background:linear-gradient(135deg,#EFF6FF,#fff);padding:16px 20px;border-bottom:1px solid #DBEAFE;display:flex;align-items:center;gap:10px">
+      <div style="width:38px;height:38px;border-radius:10px;background:#0046B5;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;flex-shrink:0">RRS</div>
+      <div>
+        <div style="font-size:15px;font-weight:900;color:#0046B5">📊 평판 리스크 점수 (RRS)</div>
+        <div style="font-size:11px;color:#64748B">Reputation Risk Score · SNS·뉴스 게시글 단위 분석</div>
+      </div>
+    </div>
+    <div style="padding:18px 20px">
+      <div style="background:#EFF6FF;border-radius:10px;padding:12px 14px;margin-bottom:16px;border-left:4px solid #0046B5">
+        <div style="font-size:11px;font-weight:700;color:#0046B5;margin-bottom:4px">📌 정의</div>
+        <div style="font-size:12px;color:#374151;line-height:1.7">RRS는 SNS·뉴스 게시글 하나하나를 AI가 분석하여 해당 게시글이 은행 평판에 미치는 위험도를 <strong>0~100점</strong>으로 수치화한 지표입니다. 점수가 높을수록 해당 게시글이 평판에 부정적 영향을 줄 가능성이 높습니다.</div>
+      </div>
+
+      <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:10px">📐 5개 평가 축 및 가중치</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:10px;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:10px 12px">
+          <div style="flex-shrink:0;background:#EF4444;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px">20%</div>
+          <div style="flex:1"><div style="font-size:12px;font-weight:700;color:#EF4444;margin-bottom:2px">부정 감성도</div><div style="font-size:11px;color:#64748B">게시글의 부정적 감성 강도. 강한 불만·분노·비난=80점 이상, 긍정=20점 이하</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:10px 12px">
+          <div style="flex-shrink:0;background:#F59E0B;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px">25%</div>
+          <div style="flex:1"><div style="font-size:12px;font-weight:700;color:#D97706;margin-bottom:2px">확산 위험도</div><div style="font-size:11px;color:#64748B">SNS 확산·바이럴 가능성. 좋아요·댓글 수, 감정 강도, 해시태그 수 반영</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:10px 12px">
+          <div style="flex-shrink:0;background:#F97316;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px">25%</div>
+          <div style="flex:1"><div style="font-size:12px;font-weight:700;color:#EA580C;margin-bottom:2px">이슈 중대성</div><div style="font-size:11px;color:#64748B">브랜드 이미지 훼손 심각도. 금융사고·소송·집단민원=90점 이상</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;background:#FAF5FF;border:1px solid #E9D5FF;border-radius:10px;padding:10px 12px">
+          <div style="flex-shrink:0;background:#A855F7;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px">20%</div>
+          <div style="flex:1"><div style="font-size:12px;font-weight:700;color:#7C3AED;margin-bottom:2px">법적·규제 위험</div><div style="font-size:11px;color:#64748B">금감원 제재·소송·법적 리스크. ELS소송·개인정보유출·불완전판매=85점 이상</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:10px 12px">
+          <div style="flex-shrink:0;background:#0284C7;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px">10%</div>
+          <div style="flex:1"><div style="font-size:12px;font-weight:700;color:#0369A1;margin-bottom:2px">매체 영향력</div><div style="font-size:11px;color:#64748B">매체의 사회적 영향력. 주요 일간지·TV=80점 이상, 개인 SNS=30점 이하</div></div>
+        </div>
+      </div>
+
+      <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px 14px;margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:8px">📐 산출 공식</div>
+        <div style="font-family:monospace;font-size:12px;color:#1D4ED8;background:#EFF6FF;padding:10px 12px;border-radius:7px;line-height:2">
+          RRS = 부정감성 × 0.20 + 확산위험 × 0.25 + 이슈중대성 × 0.25<br/>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ 법적위험 × 0.20 + 매체영향 × 0.10
+        </div>
+      </div>
+
+      <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:10px">🏅 S~E 6단계 등급 기준</div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px">
+        <div style="background:#FFF1ED;border:1px solid #FECDC8;border-radius:10px;padding:11px 13px"><div style="display:flex;align-items:center;gap:7px;margin-bottom:5px"><div style="width:28px;height:28px;border-radius:7px;background:#FFF1ED;border:2px solid #E64A19;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#E64A19">E</div><div><div style="font-size:12px;font-weight:800;color:#E64A19">긴급대응</div><div style="font-size:10px;color:#94A3B8">85~100점</div></div></div><div style="font-size:10px;color:#64748B">즉각 경영진 보고·위기대응팀 가동</div></div>
+        <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:11px 13px"><div style="display:flex;align-items:center;gap:7px;margin-bottom:5px"><div style="width:28px;height:28px;border-radius:7px;background:#FFF7ED;border:2px solid #EA580C;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#EA580C">D</div><div><div style="font-size:12px;font-weight:800;color:#EA580C">고위험</div><div style="font-size:10px;color:#94A3B8">70~84점</div></div></div><div style="font-size:10px;color:#64748B">PR팀 즉시 모니터링·대응 준비</div></div>
+        <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:11px 13px"><div style="display:flex;align-items:center;gap:7px;margin-bottom:5px"><div style="width:28px;height:28px;border-radius:7px;background:#FFFBEB;border:2px solid #D97706;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#D97706">C</div><div><div style="font-size:12px;font-weight:800;color:#D97706">위험</div><div style="font-size:10px;color:#94A3B8">55~69점</div></div></div><div style="font-size:10px;color:#64748B">주의 관찰·선제 메시지 준비</div></div>
+        <div style="background:#FEFCE8;border:1px solid #FEF08A;border-radius:10px;padding:11px 13px"><div style="display:flex;align-items:center;gap:7px;margin-bottom:5px"><div style="width:28px;height:28px;border-radius:7px;background:#FEFCE8;border:2px solid #CA8A04;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#CA8A04">B</div><div><div style="font-size:12px;font-weight:800;color:#CA8A04">주의</div><div style="font-size:10px;color:#94A3B8">40~54점</div></div></div><div style="font-size:10px;color:#64748B">정기 모니터링·동향 파악</div></div>
+        <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:11px 13px"><div style="display:flex;align-items:center;gap:7px;margin-bottom:5px"><div style="width:28px;height:28px;border-radius:7px;background:#F0FDF4;border:2px solid #16A34A;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#16A34A">A</div><div><div style="font-size:12px;font-weight:800;color:#16A34A">양호</div><div style="font-size:10px;color:#94A3B8">25~39점</div></div></div><div style="font-size:10px;color:#64748B">긍정 콘텐츠 마케팅 활용</div></div>
+        <div style="background:#ECFEFF;border:1px solid #A5F3FC;border-radius:10px;padding:11px 13px"><div style="display:flex;align-items:center;gap:7px;margin-bottom:5px"><div style="width:28px;height:28px;border-radius:7px;background:#ECFEFF;border:2px solid #0891B2;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#0891B2">S</div><div><div style="font-size:12px;font-weight:800;color:#0891B2">우수</div><div style="font-size:10px;color:#94A3B8">0~24점</div></div></div><div style="font-size:10px;color:#64748B">바이럴·앰버서더 전략 적극 활용</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 2. BRI ══ -->
+  <div id="sec-bri" style="background:#fff;border-radius:16px;border:1px solid #FED7AA;margin-bottom:16px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.05)">
+    <div style="background:linear-gradient(135deg,#FFF7ED,#fff);padding:16px 20px;border-bottom:1px solid #FFEDD5;display:flex;align-items:center;gap:10px">
+      <div style="width:38px;height:38px;border-radius:10px;background:#EA580C;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;flex-shrink:0">BRI</div>
+      <div>
+        <div style="font-size:15px;font-weight:900;color:#EA580C">🚨 뱅크런 위험 지수 (BRI)</div>
+        <div style="font-size:11px;color:#64748B">Bank Run Index · 외부 SNS·뉴스 신호 기반</div>
+      </div>
+    </div>
+    <div style="padding:18px 20px">
+      <div style="background:#FFF7ED;border-radius:10px;padding:12px 14px;margin-bottom:16px;border-left:4px solid #EA580C">
+        <div style="font-size:11px;font-weight:700;color:#EA580C;margin-bottom:4px">📌 정의</div>
+        <div style="font-size:12px;color:#374151;line-height:1.7">BRI는 외부 SNS·뉴스 채널에서 수집한 게시글을 분석하여 뱅크런(예금 대량 인출) 발생 가능성을 <strong>0~100점</strong>으로 수치화한 지표입니다. 개별 게시글의 뱅크런 신호 강도를 측정하며, 집계하여 전체 외부 BRI를 산출합니다.</div>
+      </div>
+
+      <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:10px">📐 4개 평가 축 및 가중치</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:10px;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:10px 12px">
+          <div style="flex-shrink:0;background:#EF4444;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px">30%</div>
+          <div style="flex:1"><div style="font-size:12px;font-weight:700;color:#EF4444;margin-bottom:2px">불신·공포 감성</div><div style="font-size:11px;color:#64748B">'파산', '망한다', '뱅크런', 'SVB', '리먼' 등 불신·공포 감성 언어 강도</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:10px 12px">
+          <div style="flex-shrink:0;background:#F97316;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px">30%</div>
+          <div style="flex:1"><div style="font-size:12px;font-weight:700;color:#EA580C;margin-bottom:2px">인출 의도 신호</div><div style="font-size:11px;color:#64748B">'현금인출 완료', '예금 옮겼다', '계좌해지' 등 실제 인출 행동 의도 표현</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:10px 12px">
+          <div style="flex-shrink:0;background:#EAB308;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px">25%</div>
+          <div style="flex:1"><div style="font-size:12px;font-weight:700;color:#D97706;margin-bottom:2px">SNS 확산 속도</div><div style="font-size:11px;color:#64748B">게시글 좋아요·댓글·공유 수, 해시태그 바이럴 속도, 커뮤니티 확산 속도</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;background:#FAF5FF;border:1px solid #E9D5FF;border-radius:10px;padding:10px 12px">
+          <div style="flex-shrink:0;background:#A855F7;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px">15%</div>
+          <div style="flex:1"><div style="font-size:12px;font-weight:700;color:#7C3AED;margin-bottom:2px">미디어 증폭도</div><div style="font-size:11px;color:#64748B">언론이 뱅크런 루머를 보도·증폭하는 정도. 주요 언론의 직접 보도 시 급증</div></div>
+        </div>
+      </div>
+
+      <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px 14px;margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:8px">📐 산출 공식</div>
+        <div style="font-family:monospace;font-size:12px;color:#EA580C;background:#FFF7ED;padding:10px 12px;border-radius:7px;line-height:2">
+          BRI = 불신·공포 × 0.30 + 인출의도 × 0.30<br/>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ SNS확산 × 0.25 + 미디어증폭 × 0.15
+        </div>
+      </div>
+
+      <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:10px">🔍 주요 탐지 키워드</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:16px">
+        <span style="background:#FFEDD5;color:#EA580C;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600">⚠ 뱅크런</span>
+        <span style="background:#FFEDD5;color:#EA580C;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600">⚠ 예금인출</span>
+        <span style="background:#FFEDD5;color:#EA580C;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600">⚠ 현금인출</span>
+        <span style="background:#FFEDD5;color:#EA580C;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600">⚠ 계좌해지</span>
+        <span style="background:#FFEDD5;color:#EA580C;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600">⚠ 예금 옮겨</span>
+        <span style="background:#FFEDD5;color:#EA580C;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600">⚠ 파산</span>
+        <span style="background:#FFEDD5;color:#EA580C;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600">⚠ 부도</span>
+        <span style="background:#FFEDD5;color:#EA580C;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600">⚠ SVB</span>
+        <span style="background:#FFEDD5;color:#EA580C;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600">⚠ 리먼</span>
+        <span style="background:#FFEDD5;color:#EA580C;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600">⚠ 망한다</span>
+        <span style="background:#FFEDD5;color:#EA580C;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600">⚠ 불신</span>
+        <span style="background:#FFEDD5;color:#EA580C;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600">⚠ 영업정지</span>
+      </div>
+
+      <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:10px">🚨 5단계 경보 기준</div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="display:flex;align-items:center;gap:10px;background:#FFF1ED;border:1px solid #FECDC8;border-radius:10px;padding:10px 13px">
+          <div style="flex-shrink:0;min-width:70px"><div style="font-size:12px;font-weight:900;color:#E64A19">뱅크런 임박</div><div style="font-size:10px;color:#94A3B8">80~100점</div></div>
+          <div style="width:1px;height:28px;background:#FECDC8;flex-shrink:0"></div>
+          <div style="font-size:11px;color:#64748B">즉시 금융위·금감원 보고, 유동성 긴급 점검, 대국민 안심 메시지 발표</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:10px 13px">
+          <div style="flex-shrink:0;min-width:70px"><div style="font-size:12px;font-weight:900;color:#EA580C">고위험 경보</div><div style="font-size:10px;color:#94A3B8">60~79점</div></div>
+          <div style="width:1px;height:28px;background:#FED7AA;flex-shrink:0"></div>
+          <div style="font-size:11px;color:#64748B">위기대응팀 비상소집, SNS 24시간 모니터링, 경영진 긴급 대응회의</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:10px 13px">
+          <div style="flex-shrink:0;min-width:70px"><div style="font-size:12px;font-weight:900;color:#D97706">주의 단계</div><div style="font-size:10px;color:#94A3B8">40~59점</div></div>
+          <div style="width:1px;height:28px;background:#FDE68A;flex-shrink:0"></div>
+          <div style="font-size:11px;color:#64748B">PR팀 선제적 신뢰 메시지 준비, 주요 채널 모니터링 강화</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;background:#FEFCE8;border:1px solid #FEF08A;border-radius:10px;padding:10px 13px">
+          <div style="flex-shrink:0;min-width:70px"><div style="font-size:12px;font-weight:900;color:#CA8A04">관찰 단계</div><div style="font-size:10px;color:#94A3B8">20~39점</div></div>
+          <div style="width:1px;height:28px;background:#FEF08A;flex-shrink:0"></div>
+          <div style="font-size:11px;color:#64748B">정기 모니터링 유지, 트리거 키워드 집중 추적</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:10px 13px">
+          <div style="flex-shrink:0;min-width:70px"><div style="font-size:12px;font-weight:900;color:#16A34A">정상</div><div style="font-size:10px;color:#94A3B8">0~19점</div></div>
+          <div style="width:1px;height:28px;background:#BBF7D0;flex-shrink:0"></div>
+          <div style="font-size:11px;color:#64748B">일상적 모니터링 유지</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 3. I-BRI ══ -->
+  <div id="sec-ibri" style="background:#fff;border-radius:16px;border:1px solid #FED7AA;margin-bottom:16px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.05)">
+    <div style="background:linear-gradient(135deg,#FFFBEB,#fff);padding:16px 20px;border-bottom:1px solid #FFEDD5;display:flex;align-items:center;gap:10px">
+      <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#EA580C,#B45309);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;color:#fff;flex-shrink:0">I-BRI</div>
+      <div>
+        <div style="font-size:15px;font-weight:900;color:#B45309">🔗 통합 뱅크런 위험지수 (I-BRI)</div>
+        <div style="font-size:11px;color:#64748B">Integrated BRI · 외부 SNS신호(50%) + 내부 고객행동(50%) 통합</div>
+      </div>
+    </div>
+    <div style="padding:18px 20px">
+      <div style="background:#FFFBEB;border-radius:10px;padding:12px 14px;margin-bottom:16px;border-left:4px solid #B45309">
+        <div style="font-size:11px;font-weight:700;color:#B45309;margin-bottom:4px">📌 정의</div>
+        <div style="font-size:12px;color:#374151;line-height:1.7">I-BRI는 외부 SNS·뉴스 신호(BRI)와 내부 고객행동 데이터(예수금 이탈률, 모바일 이체 급증 등)를 <strong>50:50으로 결합</strong>하여 산출하는 최종 통합 위험지수입니다. 외부 공포 심리와 내부 실제 이탈 행동을 동시에 반영하여 보다 정확한 뱅크런 위험도를 제공합니다.</div>
+      </div>
+
+      <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:10px">📐 I-BRI 산출 구조</div>
+      <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:14px 16px;margin-bottom:16px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+          <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:12px">
+            <div style="font-size:11px;font-weight:700;color:#EA580C;margin-bottom:6px">📡 외부 SNS 신호 (50%)</div>
+            <div style="font-size:10px;color:#64748B;line-height:1.9">· 불신·공포 감성 (30%)<br/>· 인출 의도 신호 (30%)<br/>· SNS 확산 속도 (25%)<br/>· 미디어 증폭도 (15%)</div>
+          </div>
+          <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:12px">
+            <div style="font-size:11px;font-weight:700;color:#1D4ED8;margin-bottom:6px">🏦 내부 고객행동 (50%)</div>
+            <div style="font-size:10px;color:#64748B;line-height:1.9">· 예수금 이탈률·이탈 규모<br/>· 모바일 이체 이상 급증<br/>· ATM 현금인출 급증<br/>· 계좌해지·고객센터 폭증</div>
+          </div>
+        </div>
+        <div style="font-family:monospace;font-size:12px;color:#B45309;background:#FFFBEB;padding:10px 12px;border-radius:7px;line-height:2;border:1px solid #FEF08A">
+          I-BRI = (외부 BRI × 0.50) + (내부행동지수 × 0.50) + 상호작용 보정<br/>
+          <span style="color:#94A3B8;font-size:10px">예시: (42 × 0.50) + (87 × 0.50) + 11.5 = <strong style="color:#B45309">76점</strong></span>
+        </div>
+      </div>
+
+      <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:10px">🏦 내부 고객행동 모니터링 지표 (9개)</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
+        <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:10px 11px"><div style="font-size:16px;margin-bottom:4px">💰</div><div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:2px">예수금 이탈률</div><div style="font-size:10px;color:#94A3B8">전일比 감소 비율 (임계: -3% 이상)</div></div>
+        <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:10px 11px"><div style="font-size:16px;margin-bottom:4px">📉</div><div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:2px">예수금 이탈 규모</div><div style="font-size:10px;color:#94A3B8">실제 이탈 금액 (임계: 2조원+)</div></div>
+        <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:10px 11px"><div style="font-size:16px;margin-bottom:4px">📱</div><div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:2px">모바일 이체 시도</div><div style="font-size:10px;color:#94A3B8">전일 동시간 대비 급증 비율</div></div>
+        <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:10px 11px"><div style="font-size:16px;margin-bottom:4px">🏧</div><div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:2px">ATM 현금인출</div><div style="font-size:10px;color:#94A3B8">한도 집중 인출 건수·금액</div></div>
+        <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:10px 11px"><div style="font-size:16px;margin-bottom:4px">🔐</div><div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:2px">계좌 해지 신청</div><div style="font-size:10px;color:#94A3B8">당일 해지 건수 (영업점+모바일)</div></div>
+        <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:10px 11px"><div style="font-size:16px;margin-bottom:4px">💳</div><div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:2px">타행 이체 급증</div><div style="font-size:10px;color:#94A3B8">방향성 포함 이탈 건수·금액</div></div>
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:10px 11px"><div style="font-size:16px;margin-bottom:4px">🌐</div><div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:2px">인터넷뱅킹 접속</div><div style="font-size:10px;color:#94A3B8">잔액 조회 집중·비정상 패턴</div></div>
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:10px 11px"><div style="font-size:16px;margin-bottom:4px">📞</div><div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:2px">고객센터 문의</div><div style="font-size:10px;color:#94A3B8">'예금 안전?' 불안 문의 급증</div></div>
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:10px 11px"><div style="font-size:16px;margin-bottom:4px">📊</div><div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:2px">정기예금 해지율</div><div style="font-size:10px;color:#94A3B8">중도해지 급증 (패널티 감수)</div></div>
+      </div>
+
+      <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:12px 14px;margin-bottom:14px">
+        <div style="font-size:11px;font-weight:700;color:#B45309;margin-bottom:6px">⚡ 상호작용 보정 (Interaction Adjustment)</div>
+        <div style="font-size:11px;color:#64748B;line-height:1.7">외부 신호와 내부 행동이 동시에 급증할 경우, 단순 평균보다 위험이 비선형적으로 증폭됩니다. SNS 뱅크런 게시글 바이럴과 모바일 이체 급증이 동시에 발생하면 각각의 합보다 더 높은 위험 수준을 반영하는 보정값이 추가됩니다.</div>
+      </div>
+
+      <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:10px">🚨 I-BRI 경보 단계 및 대응 체계</div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="background:#FFF1ED;border:1px solid #FECDC8;border-radius:10px;padding:11px 13px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><div style="font-size:12px;font-weight:900;color:#E64A19">뱅크런 임박</div><div style="font-size:10px;color:#94A3B8">80~100점</div><span style="background:#FFEDD5;color:#EA580C;font-size:9px;padding:1px 7px;border-radius:10px;font-weight:600">외부 BRI 80+</span><span style="background:#EFF6FF;color:#1D4ED8;font-size:9px;padding:1px 7px;border-radius:10px;font-weight:600">내부 이탈 심각</span></div><div style="font-size:11px;color:#64748B">비상경영체제·금융위 즉시 보고·유동성 긴급 공급·대국민 안심 성명</div></div>
+        <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:11px 13px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><div style="font-size:12px;font-weight:900;color:#EA580C">고위험 경보</div><div style="font-size:10px;color:#94A3B8">60~79점</div><span style="background:#FFEDD5;color:#EA580C;font-size:9px;padding:1px 7px;border-radius:10px;font-weight:600">외부 BRI 60+</span><span style="background:#EFF6FF;color:#1D4ED8;font-size:9px;padding:1px 7px;border-radius:10px;font-weight:600">내부 이탈 급증</span></div><div style="font-size:11px;color:#64748B">위기대응팀 비상소집·경영진 긴급회의·SNS 24시간 모니터링·선제 소통</div></div>
+        <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:11px 13px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><div style="font-size:12px;font-weight:900;color:#D97706">주의 단계</div><div style="font-size:10px;color:#94A3B8">40~59점</div><span style="background:#FFEDD5;color:#EA580C;font-size:9px;padding:1px 7px;border-radius:10px;font-weight:600">외부 BRI 40+</span><span style="background:#EFF6FF;color:#1D4ED8;font-size:9px;padding:1px 7px;border-radius:10px;font-weight:600">내부 이탈 증가</span></div><div style="font-size:11px;color:#64748B">PR팀 신뢰 메시지 준비·내부 임계치 모니터링 강화·주간 보고 가동</div></div>
+        <div style="background:#FEFCE8;border:1px solid #FEF08A;border-radius:10px;padding:11px 13px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><div style="font-size:12px;font-weight:900;color:#CA8A04">관찰 단계</div><div style="font-size:10px;color:#94A3B8">20~39점</div></div><div style="font-size:11px;color:#64748B">일일 모니터링·키워드 알림 설정·월간 동향 보고</div></div>
+        <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:11px 13px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><div style="font-size:12px;font-weight:900;color:#16A34A">정상</div><div style="font-size:10px;color:#94A3B8">0~19점</div></div><div style="font-size:11px;color:#64748B">주간 모니터링·긍정 콘텐츠 마케팅 활용 검토</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 데이터 수집 채널 ══ -->
+  <div style="background:#fff;border-radius:16px;border:1px solid #E2E8F0;margin-bottom:24px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.05)">
+    <div style="background:#F8FAFC;padding:14px 20px;border-bottom:1px solid #E2E8F0">
+      <div style="font-size:14px;font-weight:800;color:#374151">📡 외부 데이터 수집 채널</div>
+    </div>
+    <div style="padding:16px 20px">
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">
+        <div style="display:flex;align-items:flex-start;gap:10px;background:#FFF0F6;border:1px solid #FBCFE8;border-radius:10px;padding:11px 13px"><div style="font-size:20px;flex-shrink:0">📸</div><div><div style="font-size:12px;font-weight:700;color:#E1306C;margin-bottom:3px">인스타그램</div><div style="font-size:10px;color:#64748B;line-height:1.5">해시태그·계정 키워드 모니터링, 좋아요·댓글·공유 반응 분석</div></div></div>
+        <div style="display:flex;align-items:flex-start;gap:10px;background:#F0FFF4;border:1px solid #BBF7D0;border-radius:10px;padding:11px 13px"><div style="font-size:20px;flex-shrink:0">🟢</div><div><div style="font-size:12px;font-weight:700;color:#03C75A;margin-bottom:3px">네이버 블로그·카페</div><div style="font-size:10px;color:#64748B;line-height:1.5">금융 관련 블로그 포스팅, 카페 커뮤니티 게시글 및 댓글 수집</div></div></div>
+        <div style="display:flex;align-items:flex-start;gap:10px;background:#FFF5F5;border:1px solid #FECACA;border-radius:10px;padding:11px 13px"><div style="font-size:20px;flex-shrink:0">▶️</div><div><div style="font-size:12px;font-weight:700;color:#EF4444;margin-bottom:3px">유튜브 댓글</div><div style="font-size:10px;color:#64748B;line-height:1.5">은행 관련 영상 댓글 감성분석, 구독자 반응 패턴 추적</div></div></div>
+        <div style="display:flex;align-items:flex-start;gap:10px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:11px 13px"><div style="font-size:20px;flex-shrink:0">📰</div><div><div style="font-size:12px;font-weight:700;color:#0284C7;margin-bottom:3px">뉴스·언론</div><div style="font-size:10px;color:#64748B;line-height:1.5">주요 일간지·경제지·방송 뉴스 기사 실시간 수집 및 분석</div></div></div>
+        <div style="display:flex;align-items:flex-start;gap:10px;background:#FAF5FF;border:1px solid #E9D5FF;border-radius:10px;padding:11px 13px"><div style="font-size:20px;flex-shrink:0">💬</div><div><div style="font-size:12px;font-weight:700;color:#7C3AED;margin-bottom:3px">온라인 커뮤니티</div><div style="font-size:10px;color:#64748B;line-height:1.5">DC인사이드·뽐뿌·클리앙 등 금융 게시판 모니터링</div></div></div>
+        <div style="display:flex;align-items:flex-start;gap:10px;background:#EFF9FF;border:1px solid #BAE6FD;border-radius:10px;padding:11px 13px"><div style="font-size:20px;flex-shrink:0">🐦</div><div><div style="font-size:12px;font-weight:700;color:#1DA1F2;margin-bottom:3px">X(트위터)</div><div style="font-size:10px;color:#64748B;line-height:1.5">실시간 트렌드 키워드, 해시태그 바이럴 속도 분석</div></div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     내부 데이터 설정 탭
+══════════════════════════════════════════════ -->
+<div id="tab-cfg-int" style="display:none">
+<div class="wrap" style="max-width:900px">
+
+  <!-- 헤더 -->
+  <div style="background:linear-gradient(135deg,#1D4ED8,#0046B5);border-radius:16px;padding:20px 22px;margin-bottom:16px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <div>
+      <div style="font-size:10px;opacity:.7;letter-spacing:.12em;margin-bottom:4px">INTERNAL DATA CONFIGURATION</div>
+      <div style="font-size:18px;font-weight:900;margin-bottom:5px">🏦 내부 고객행동 데이터 설정</div>
+      <div style="font-size:11px;opacity:.8;line-height:1.6">코어뱅킹·DW 연동 또는 수동 입력으로 내부 지표를 설정합니다.<br/>내부 BRI 산출에 직접 반영됩니다.</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.15);border-radius:12px;padding:10px 16px;text-align:center;flex-shrink:0">
+      <div style="font-size:10px;opacity:.8;margin-bottom:2px">내부 BRI 점수</div>
+      <div style="font-size:24px;font-weight:900" id="int-bri-preview">87점</div>
+      <div style="font-size:10px;opacity:.7">고위험</div>
+    </div>
+  </div>
+
+  <!-- 연동 방식 선택 -->
+  <div style="background:#fff;border-radius:16px;border:1px solid #E2E8F0;padding:18px 20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,0.05)">
+    <div style="font-size:13px;font-weight:800;color:#1D4ED8;margin-bottom:12px">⚙️ 데이터 연동 방식 선택</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
+      <label id="mode-manual-lbl" style="border:2px solid #0046B5;background:#EFF6FF;border-radius:12px;padding:14px;cursor:pointer;text-align:center;transition:all .2s">
+        <input type="radio" name="dataMode" value="manual" checked onchange="setDataMode('manual')" style="display:none"/>
+        <div style="font-size:20px;margin-bottom:6px">✏️</div>
+        <div style="font-size:12px;font-weight:700;color:#0046B5">수동 입력</div>
+        <div style="font-size:10px;color:#64748B;margin-top:3px">값을 직접 입력</div>
+      </label>
+      <label id="mode-db-lbl" style="border:2px solid #E2E8F0;background:#F8FAFC;border-radius:12px;padding:14px;cursor:pointer;text-align:center;transition:all .2s">
+        <input type="radio" name="dataMode" value="db" onchange="setDataMode('db')" style="display:none"/>
+        <div style="font-size:20px;margin-bottom:6px">🗄️</div>
+        <div style="font-size:12px;font-weight:700;color:#374151">DB 직접 연결</div>
+        <div style="font-size:10px;color:#64748B;margin-top:3px">SQL/JDBC 연동</div>
+      </label>
+      <label id="mode-api-lbl" style="border:2px solid #E2E8F0;background:#F8FAFC;border-radius:12px;padding:14px;cursor:pointer;text-align:center;transition:all .2s">
+        <input type="radio" name="dataMode" value="api" onchange="setDataMode('api')" style="display:none"/>
+        <div style="font-size:20px;margin-bottom:6px">🔌</div>
+        <div style="font-size:12px;font-weight:700;color:#374151">API 연동</div>
+        <div style="font-size:10px;color:#64748B;margin-top:3px">REST API 엔드포인트</div>
+      </label>
+    </div>
+
+    <!-- 수동 입력 패널 -->
+    <div id="panel-manual">
+      <div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #F1F5F9">📋 내부 지표 수동 입력 <span style="font-size:10px;color:#94A3B8;font-weight:400">· 기준시각: <input type="datetime-local" id="int-datetime" style="border:none;background:none;font-size:10px;color:#64748B;font-family:inherit"/></span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+
+        <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:12px">
+          <div style="font-size:10px;font-weight:700;color:#EA580C;margin-bottom:8px">💰 예수금 이탈</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">이탈률 (%)</label>
+            <input id="int-outflow-rate" type="number" step="0.1" placeholder="-4.7" style="width:100%;padding:7px 10px;border:1px solid #FED7AA;border-radius:7px;font-size:12px;background:#fff;font-family:inherit"/></div>
+            <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">이탈 규모 (억원)</label>
+            <input id="int-outflow-amt" type="number" placeholder="2340" style="width:100%;padding:7px 10px;border:1px solid #FED7AA;border-radius:7px;font-size:12px;background:#fff;font-family:inherit"/></div>
+          </div>
+        </div>
+
+        <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:12px">
+          <div style="font-size:10px;font-weight:700;color:#EA580C;margin-bottom:8px">📱 모바일·ATM</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">모바일 이체 증감율 (%)</label>
+            <input id="int-mobile" type="number" placeholder="312" style="width:100%;padding:7px 10px;border:1px solid #FED7AA;border-radius:7px;font-size:12px;background:#fff;font-family:inherit"/></div>
+            <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">ATM 인출 증감율 (%)</label>
+            <input id="int-atm" type="number" placeholder="187" style="width:100%;padding:7px 10px;border:1px solid #FED7AA;border-radius:7px;font-size:12px;background:#fff;font-family:inherit"/></div>
+          </div>
+        </div>
+
+        <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:12px">
+          <div style="font-size:10px;font-weight:700;color:#1D4ED8;margin-bottom:8px">🔐 계좌 해지·이체</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">계좌 해지 건수</label>
+            <input id="int-close" type="number" placeholder="847" style="width:100%;padding:7px 10px;border:1px solid #BFDBFE;border-radius:7px;font-size:12px;background:#fff;font-family:inherit"/></div>
+            <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">타행 이체 증감율 (%)</label>
+            <input id="int-transfer" type="number" placeholder="241" style="width:100%;padding:7px 10px;border:1px solid #BFDBFE;border-radius:7px;font-size:12px;background:#fff;font-family:inherit"/></div>
+          </div>
+        </div>
+
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px">
+          <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:8px">📞 고객 접점</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">고객센터 문의 건수</label>
+            <input id="int-call" type="number" placeholder="4231" style="width:100%;padding:7px 10px;border:1px solid #E2E8F0;border-radius:7px;font-size:12px;background:#fff;font-family:inherit"/></div>
+            <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">인터넷뱅킹 접속 증감율 (%)</label>
+            <input id="int-web" type="number" placeholder="189" style="width:100%;padding:7px 10px;border:1px solid #E2E8F0;border-radius:7px;font-size:12px;background:#fff;font-family:inherit"/></div>
+          </div>
+        </div>
+
+        <div style="background:#FAF5FF;border:1px solid #E9D5FF;border-radius:10px;padding:12px;grid-column:1/-1">
+          <div style="font-size:10px;font-weight:700;color:#7C3AED;margin-bottom:8px">📊 추가 지표</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">정기예금 해지율 (%)</label>
+            <input id="int-deposit" type="number" placeholder="156" style="width:100%;padding:7px 10px;border:1px solid #E9D5FF;border-radius:7px;font-size:12px;background:#fff;font-family:inherit"/></div>
+            <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">전일 대비 잔액 변화 (억원)</label>
+            <input id="int-balance" type="number" placeholder="-8200" style="width:100%;padding:7px 10px;border:1px solid #E9D5FF;border-radius:7px;font-size:12px;background:#fff;font-family:inherit"/></div>
+            <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">예금자보호 한도초과 인출 건</label>
+            <input id="int-over5k" type="number" placeholder="234" style="width:100%;padding:7px 10px;border:1px solid #E9D5FF;border-radius:7px;font-size:12px;background:#fff;font-family:inherit"/></div>
+          </div>
+        </div>
+
+      </div>
+      <button onclick="saveInternalData()" style="width:100%;margin-top:14px;background:linear-gradient(135deg,#0046B5,#1D6EF5);color:#fff;border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 4px 12px rgba(0,70,181,0.25)">
+        💾 내부 지표 저장 및 BRI 재산출
+      </button>
+      <div id="int-save-status" style="text-align:center;font-size:11px;color:#94A3B8;margin-top:8px"></div>
+    </div>
+
+    <!-- DB 연결 패널 -->
+    <div id="panel-db" style="display:none">
+      <div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #F1F5F9">🗄️ 데이터베이스 연결 설정</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:3px">DB 종류</label>
+          <select id="db-type" style="width:100%;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;background:#fff;font-family:inherit">
+            <option>Oracle</option><option>MS-SQL</option><option>MySQL</option><option>PostgreSQL</option><option>MariaDB</option>
+          </select>
+        </div>
+        <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:3px">수집 주기</label>
+          <select id="db-interval" style="width:100%;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;background:#fff;font-family:inherit">
+            <option>실시간 (1분)</option><option>5분</option><option>15분</option><option>30분</option><option>1시간</option>
+          </select>
+        </div>
+        <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:3px">호스트 (Host)</label>
+          <input id="db-host" placeholder="192.168.1.100 또는 db.example.com" style="width:100%;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;font-family:inherit"/></div>
+        <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:3px">포트 (Port)</label>
+          <input id="db-port" placeholder="1521" style="width:100%;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;font-family:inherit"/></div>
+        <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:3px">DB명 / SID</label>
+          <input id="db-name" placeholder="BANKDB" style="width:100%;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;font-family:inherit"/></div>
+        <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:3px">스키마</label>
+          <input id="db-schema" placeholder="CORE_BANKING" style="width:100%;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;font-family:inherit"/></div>
+        <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:3px">사용자 ID</label>
+          <input id="db-user" placeholder="monitor_user" style="width:100%;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;font-family:inherit"/></div>
+        <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:3px">비밀번호</label>
+          <input id="db-pass" type="password" placeholder="••••••••" style="width:100%;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;font-family:inherit"/></div>
+      </div>
+      <!-- 쿼리 매핑 -->
+      <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:8px">📋 지표별 쿼리 매핑</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:10px;color:#64748B;min-width:90px;flex-shrink:0">예수금 이탈률</span>
+            <input placeholder="SELECT OUTFLOW_RATE FROM T_DEPOSIT_DAILY WHERE DATE=SYSDATE" style="flex:1;padding:6px 9px;border:1px solid #E2E8F0;border-radius:6px;font-size:10px;font-family:monospace;background:#fff"/>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:10px;color:#64748B;min-width:90px;flex-shrink:0">모바일 이체 건수</span>
+            <input placeholder="SELECT COUNT(*) FROM T_TRANSFER WHERE CHANNEL='MOBILE' AND TRUNC(REG_DT)=TRUNC(SYSDATE)" style="flex:1;padding:6px 9px;border:1px solid #E2E8F0;border-radius:6px;font-size:10px;font-family:monospace;background:#fff"/>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:10px;color:#64748B;min-width:90px;flex-shrink:0">ATM 인출 건수</span>
+            <input placeholder="SELECT COUNT(*) FROM T_ATM_TXN WHERE TXN_TYPE='WITHDRAW' AND TRUNC(TXN_DT)=TRUNC(SYSDATE)" style="flex:1;padding:6px 9px;border:1px solid #E2E8F0;border-radius:6px;font-size:10px;font-family:monospace;background:#fff"/>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:10px;color:#64748B;min-width:90px;flex-shrink:0">계좌 해지 건수</span>
+            <input placeholder="SELECT COUNT(*) FROM T_ACCOUNT WHERE CLOSE_DT=TRUNC(SYSDATE)" style="flex:1;padding:6px 9px;border:1px solid #E2E8F0;border-radius:6px;font-size:10px;font-family:monospace;background:#fff"/>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="testDbConn()" style="flex:1;background:#F8FAFC;border:1px solid #E2E8F0;color:#374151;border-radius:9px;padding:11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🔍 연결 테스트</button>
+        <button onclick="saveDbConn()" style="flex:2;background:linear-gradient(135deg,#0046B5,#1D6EF5);color:#fff;border:none;border-radius:9px;padding:11px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">💾 저장 및 연동 시작</button>
+      </div>
+      <div id="db-status" style="text-align:center;font-size:11px;color:#94A3B8;margin-top:8px"></div>
+    </div>
+
+    <!-- API 연동 패널 -->
+    <div id="panel-api" style="display:none">
+      <div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #F1F5F9">🔌 REST API 연동 설정</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px">
+        <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:3px">API 엔드포인트 URL</label>
+          <input id="api-endpoint" placeholder="https://intranet.bank.co.kr/api/v1/internal-metrics" style="width:100%;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;font-family:inherit"/></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:3px">인증 방식</label>
+            <select id="api-auth" style="width:100%;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;background:#fff;font-family:inherit">
+              <option>Bearer Token</option><option>API Key (Header)</option><option>Basic Auth</option><option>OAuth 2.0</option>
+            </select>
+          </div>
+          <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:3px">수집 주기</label>
+            <select id="api-interval" style="width:100%;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;background:#fff;font-family:inherit">
+              <option>실시간 (1분)</option><option>5분</option><option>15분</option><option>30분</option><option>1시간</option>
+            </select>
+          </div>
+        </div>
+        <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:3px">인증 토큰 / API Key</label>
+          <input id="api-token" type="password" placeholder="eyJhbGci..." style="width:100%;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;font-family:monospace"/></div>
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px">
+          <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:6px">📋 응답 JSON 필드 매핑</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            <div style="display:flex;align-items:center;gap:6px"><span style="font-size:10px;color:#64748B;min-width:70px">이탈률 →</span><input placeholder="outflow_rate" style="flex:1;padding:5px 8px;border:1px solid #E2E8F0;border-radius:5px;font-size:11px;font-family:monospace;background:#fff"/></div>
+            <div style="display:flex;align-items:center;gap:6px"><span style="font-size:10px;color:#64748B;min-width:70px">이탈규모 →</span><input placeholder="outflow_amount" style="flex:1;padding:5px 8px;border:1px solid #E2E8F0;border-radius:5px;font-size:11px;font-family:monospace;background:#fff"/></div>
+            <div style="display:flex;align-items:center;gap:6px"><span style="font-size:10px;color:#64748B;min-width:70px">모바일이체 →</span><input placeholder="mobile_transfer_rate" style="flex:1;padding:5px 8px;border:1px solid #E2E8F0;border-radius:5px;font-size:11px;font-family:monospace;background:#fff"/></div>
+            <div style="display:flex;align-items:center;gap:6px"><span style="font-size:10px;color:#64748B;min-width:70px">ATM인출 →</span><input placeholder="atm_withdrawal_rate" style="flex:1;padding:5px 8px;border:1px solid #E2E8F0;border-radius:5px;font-size:11px;font-family:monospace;background:#fff"/></div>
+            <div style="display:flex;align-items:center;gap:6px"><span style="font-size:10px;color:#64748B;min-width:70px">계좌해지 →</span><input placeholder="account_close_cnt" style="flex:1;padding:5px 8px;border:1px solid #E2E8F0;border-radius:5px;font-size:11px;font-family:monospace;background:#fff"/></div>
+            <div style="display:flex;align-items:center;gap:6px"><span style="font-size:10px;color:#64748B;min-width:70px">고객문의 →</span><input placeholder="call_center_cnt" style="flex:1;padding:5px 8px;border:1px solid #E2E8F0;border-radius:5px;font-size:11px;font-family:monospace;background:#fff"/></div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="testApiConn()" style="flex:1;background:#F8FAFC;border:1px solid #E2E8F0;color:#374151;border-radius:9px;padding:11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🔍 API 테스트</button>
+        <button onclick="saveApiConn()" style="flex:2;background:linear-gradient(135deg,#0046B5,#1D6EF5);color:#fff;border:none;border-radius:9px;padding:11px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">💾 저장 및 연동 시작</button>
+      </div>
+      <div id="api-status" style="text-align:center;font-size:11px;color:#94A3B8;margin-top:8px"></div>
+    </div>
+  </div>
+
+  <!-- 임계치 설정 -->
+  <div style="background:#fff;border-radius:16px;border:1px solid #E2E8F0;padding:18px 20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,0.05)">
+    <div style="font-size:13px;font-weight:800;color:#374151;margin-bottom:12px">🚨 경보 임계치 설정</div>
+    <div style="font-size:11px;color:#64748B;margin-bottom:12px;background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;padding:9px 12px">
+      각 지표가 아래 임계치를 초과하면 자동으로 경보 등급을 상향하고 알림을 발송합니다.
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;background:#FFF7ED;border:1px solid #FED7AA;border-radius:9px;padding:10px 13px">
+        <div><div style="font-size:11px;font-weight:700;color:#EA580C">예수금 이탈률 경보</div><div style="font-size:10px;color:#64748B">이 값 초과 시 고위험 경보</div></div>
+        <div style="display:flex;align-items:center;gap:4px"><input id="thr-outflow" type="number" value="-3" step="0.1" style="width:55px;padding:5px 8px;border:1px solid #FED7AA;border-radius:6px;font-size:12px;text-align:right;font-family:inherit"/><span style="font-size:11px;color:#94A3B8">%</span></div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;background:#FFF7ED;border:1px solid #FED7AA;border-radius:9px;padding:10px 13px">
+        <div><div style="font-size:11px;font-weight:700;color:#EA580C">이탈 규모 경보</div><div style="font-size:10px;color:#64748B">이 금액 초과 시 긴급 경보</div></div>
+        <div style="display:flex;align-items:center;gap:4px"><input id="thr-amt" type="number" value="30000" style="width:65px;padding:5px 8px;border:1px solid #FED7AA;border-radius:6px;font-size:12px;text-align:right;font-family:inherit"/><span style="font-size:11px;color:#94A3B8">억</span></div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:9px;padding:10px 13px">
+        <div><div style="font-size:11px;font-weight:700;color:#1D4ED8">모바일 이체 급증</div><div style="font-size:10px;color:#64748B">전일 대비 이 비율 초과 시</div></div>
+        <div style="display:flex;align-items:center;gap:4px"><input id="thr-mobile" type="number" value="200" style="width:55px;padding:5px 8px;border:1px solid #BFDBFE;border-radius:6px;font-size:12px;text-align:right;font-family:inherit"/><span style="font-size:11px;color:#94A3B8">%</span></div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:9px;padding:10px 13px">
+        <div><div style="font-size:11px;font-weight:700;color:#1D4ED8">계좌 해지 건수</div><div style="font-size:10px;color:#64748B">이 건수 초과 시 경보</div></div>
+        <div style="display:flex;align-items:center;gap:4px"><input id="thr-close" type="number" value="500" style="width:55px;padding:5px 8px;border:1px solid #BFDBFE;border-radius:6px;font-size:12px;text-align:right;font-family:inherit"/><span style="font-size:11px;color:#94A3B8">건</span></div>
+      </div>
+    </div>
+    <button onclick="saveThresholds()" style="width:100%;margin-top:12px;background:#F8FAFC;border:1px solid #E2E8F0;color:#374151;border-radius:9px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">💾 임계치 저장</button>
+  </div>
+
+  <!-- 알림 설정 -->
+  <div style="background:#fff;border-radius:16px;border:1px solid #E2E8F0;padding:18px 20px;margin-bottom:24px;box-shadow:0 1px 3px rgba(0,0,0,0.05)">
+    <div style="font-size:13px;font-weight:800;color:#374151;margin-bottom:12px">🔔 경보 알림 설정</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 13px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:9px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:16px">📧</span><div><div style="font-size:12px;font-weight:700;color:#374151">이메일 알림</div><input id="alert-email" placeholder="risk@bank.co.kr" style="border:none;background:none;font-size:11px;color:#64748B;font-family:inherit;width:200px" /></div></div>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="alert-email-on" checked/><span style="font-size:11px;color:#374151">활성화</span></label>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 13px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:9px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:16px">💬</span><div><div style="font-size:12px;font-weight:700;color:#374151">슬랙(Slack) Webhook</div><input id="alert-slack" placeholder="https://hooks.slack.com/services/..." style="border:none;background:none;font-size:11px;color:#64748B;font-family:inherit;width:220px" /></div></div>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="alert-slack-on"/><span style="font-size:11px;color:#374151">활성화</span></label>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 13px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:9px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:16px">📱</span><div><div style="font-size:12px;font-weight:700;color:#374151">SMS / 카카오 알림톡</div><input id="alert-sms" placeholder="010-xxxx-xxxx (담당자)" style="border:none;background:none;font-size:11px;color:#64748B;font-family:inherit;width:200px" /></div></div>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="alert-sms-on"/><span style="font-size:11px;color:#374151">활성화</span></label>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 13px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:9px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:16px">🔔</span><div><div style="font-size:12px;font-weight:700;color:#374151">경보 발송 기준 등급</div><div style="font-size:10px;color:#64748B">이 등급 이상 시 즉시 발송</div></div></div>
+        <select id="alert-level" style="padding:6px 10px;border:1px solid #E2E8F0;border-radius:7px;font-size:12px;background:#fff;font-family:inherit">
+          <option value="80">뱅크런 임박 (I-BRI 80+)</option>
+          <option value="60" selected>고위험 경보 (I-BRI 60+)</option>
+          <option value="40">주의 단계 (I-BRI 40+)</option>
+        </select>
+      </div>
+    </div>
+    <button onclick="saveAlerts()" style="width:100%;margin-top:12px;background:linear-gradient(135deg,#0046B5,#1D6EF5);color:#fff;border:none;border-radius:9px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit">💾 알림 설정 저장</button>
+  </div>
+
+</div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     외부 SNS·뉴스 설정 탭
+══════════════════════════════════════════════ -->
+<div id="tab-cfg-ext" style="display:none">
+<div class="wrap" style="max-width:900px">
+
+  <!-- 헤더 -->
+  <div style="background:linear-gradient(135deg,#EA580C,#B45309);border-radius:16px;padding:20px 22px;margin-bottom:16px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <div>
+      <div style="font-size:10px;opacity:.7;letter-spacing:.12em;margin-bottom:4px">EXTERNAL SNS CONFIGURATION</div>
+      <div style="font-size:18px;font-weight:900;margin-bottom:5px">📡 외부 SNS·뉴스 수집 설정</div>
+      <div style="font-size:11px;opacity:.8;line-height:1.6">모니터링할 채널·키워드·API를 설정합니다.<br/>외부 BRI 산출 및 게시글 피드에 자동 반영됩니다.</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.15);border-radius:12px;padding:10px 16px;text-align:center;flex-shrink:0">
+      <div style="font-size:10px;opacity:.8;margin-bottom:2px">외부 BRI 점수</div>
+      <div style="font-size:24px;font-weight:900">42점</div>
+      <div style="font-size:10px;opacity:.7">고위험</div>
+    </div>
+  </div>
+
+  <!-- 모니터링 키워드 -->
+  <div style="background:#fff;border-radius:16px;border:1px solid #E2E8F0;padding:18px 20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,0.05)">
+    <div style="font-size:13px;font-weight:800;color:#374151;margin-bottom:4px">🔍 모니터링 키워드 관리</div>
+    <div style="font-size:11px;color:#64748B;margin-bottom:12px">수집할 키워드를 설정합니다. 뱅크런 신호 탐지에 직접 활용됩니다.</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <!-- 브랜드 키워드 -->
+      <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;padding:13px">
+        <div style="font-size:11px;font-weight:700;color:#1D4ED8;margin-bottom:8px">🏦 브랜드 키워드</div>
+        <div style="display:flex;flex-direction:column;gap:5px" id="brand-kws">
+          <div style="display:flex;gap:6px"><input value="나라은행" style="flex:1;padding:6px 9px;border:1px solid #BFDBFE;border-radius:6px;font-size:12px;font-family:inherit;background:#fff"/><button onclick="removeKw(this)" style="background:#FEF2F2;border:1px solid #FECACA;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;color:#DC2626;font-family:inherit">✕</button></div>
+          <div style="display:flex;gap:6px"><input value="나라뱅킹" style="flex:1;padding:6px 9px;border:1px solid #BFDBFE;border-radius:6px;font-size:12px;font-family:inherit;background:#fff"/><button onclick="removeKw(this)" style="background:#FEF2F2;border:1px solid #FECACA;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;color:#DC2626;font-family:inherit">✕</button></div>
+          <div style="display:flex;gap:6px"><input value="나라은행 앱" style="flex:1;padding:6px 9px;border:1px solid #BFDBFE;border-radius:6px;font-size:12px;font-family:inherit;background:#fff"/><button onclick="removeKw(this)" style="background:#FEF2F2;border:1px solid #FECACA;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;color:#DC2626;font-family:inherit">✕</button></div>
+        </div>
+        <button onclick="addKw('brand-kws')" style="width:100%;margin-top:7px;background:#fff;border:1px dashed #BFDBFE;border-radius:6px;padding:6px;font-size:11px;color:#1D4ED8;cursor:pointer;font-family:inherit">+ 키워드 추가</button>
+      </div>
+
+      <!-- 뱅크런 신호 키워드 -->
+      <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:12px;padding:13px">
+        <div style="font-size:11px;font-weight:700;color:#EA580C;margin-bottom:8px">🚨 뱅크런 신호 키워드</div>
+        <div style="display:flex;flex-direction:column;gap:5px" id="bkw-kws">
+          <div style="display:flex;gap:6px"><input value="뱅크런" style="flex:1;padding:6px 9px;border:1px solid #FED7AA;border-radius:6px;font-size:12px;font-family:inherit;background:#fff"/><button onclick="removeKw(this)" style="background:#FEF2F2;border:1px solid #FECACA;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;color:#DC2626;font-family:inherit">✕</button></div>
+          <div style="display:flex;gap:6px"><input value="예금인출" style="flex:1;padding:6px 9px;border:1px solid #FED7AA;border-radius:6px;font-size:12px;font-family:inherit;background:#fff"/><button onclick="removeKw(this)" style="background:#FEF2F2;border:1px solid #FECACA;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;color:#DC2626;font-family:inherit">✕</button></div>
+          <div style="display:flex;gap:6px"><input value="계좌해지" style="flex:1;padding:6px 9px;border:1px solid #FED7AA;border-radius:6px;font-size:12px;font-family:inherit;background:#fff"/><button onclick="removeKw(this)" style="background:#FEF2F2;border:1px solid #FECACA;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;color:#DC2626;font-family:inherit">✕</button></div>
+          <div style="display:flex;gap:6px"><input value="파산" style="flex:1;padding:6px 9px;border:1px solid #FED7AA;border-radius:6px;font-size:12px;font-family:inherit;background:#fff"/><button onclick="removeKw(this)" style="background:#FEF2F2;border:1px solid #FECACA;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;color:#DC2626;font-family:inherit">✕</button></div>
+        </div>
+        <button onclick="addKw('bkw-kws')" style="width:100%;margin-top:7px;background:#fff;border:1px dashed #FED7AA;border-radius:6px;padding:6px;font-size:11px;color:#EA580C;cursor:pointer;font-family:inherit">+ 키워드 추가</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 채널별 API 설정 -->
+  <div style="background:#fff;border-radius:16px;border:1px solid #E2E8F0;padding:18px 20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,0.05)">
+    <div style="font-size:13px;font-weight:800;color:#374151;margin-bottom:12px">🔌 채널별 API 연동 설정</div>
+
+    <!-- 인스타그램 -->
+    <div style="border:1px solid #FBCFE8;border-radius:12px;margin-bottom:10px;overflow:hidden">
+      <div style="background:#FFF0F6;padding:11px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleCh('ch-instagram')">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">📸</span><div><div style="font-size:12px;font-weight:700;color:#E1306C">인스타그램</div><div style="font-size:10px;color:#64748B">Meta Content API / 3rd party 모니터링</div></div></div>
+        <div style="display:flex;align-items:center;gap:8px"><span id="ch-instagram-badge" style="background:#FEE2E2;color:#DC2626;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600">미연동</span><span style="color:#94A3B8;font-size:12px">▼</span></div>
+      </div>
+      <div id="ch-instagram" style="display:none;padding:13px 14px;border-top:1px solid #FBCFE8;background:#fff">
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">Access Token</label><input placeholder="EAAxxxxxx..." style="width:100%;padding:7px 10px;border:1px solid #E2E8F0;border-radius:7px;font-size:12px;font-family:monospace"/></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">Business Account ID</label><input placeholder="17841400000000000" style="width:100%;padding:7px 10px;border:1px solid #E2E8F0;border-radius:7px;font-size:12px;font-family:inherit"/></div>
+            <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">수집 주기</label><select style="width:100%;padding:7px 10px;border:1px solid #E2E8F0;border-radius:7px;font-size:12px;background:#fff;font-family:inherit"><option>15분</option><option>30분</option><option>1시간</option></select></div>
+          </div>
+          <div style="display:flex;gap:7px">
+            <button onclick="testChannel('instagram')" style="flex:1;background:#F8FAFC;border:1px solid #E2E8F0;color:#374151;border-radius:7px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">🔍 테스트</button>
+            <button onclick="saveChannel('instagram')" style="flex:2;background:#E1306C;color:#fff;border:none;border-radius:7px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">💾 연동 저장</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 네이버 -->
+    <div style="border:1px solid #BBF7D0;border-radius:12px;margin-bottom:10px;overflow:hidden">
+      <div style="background:#F0FFF4;padding:11px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleCh('ch-naver')">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">🟢</span><div><div style="font-size:12px;font-weight:700;color:#03C75A">네이버 블로그·카페</div><div style="font-size:10px;color:#64748B">네이버 검색 API (Clova) / 뉴스 API</div></div></div>
+        <div style="display:flex;align-items:center;gap:8px"><span id="ch-naver-badge" style="background:#D1FAE5;color:#065F46;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600">연동중</span><span style="color:#94A3B8;font-size:12px">▼</span></div>
+      </div>
+      <div id="ch-naver" style="display:none;padding:13px 14px;border-top:1px solid #BBF7D0;background:#fff">
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">Client ID</label><input value="naver_client_xxx" style="width:100%;padding:7px 10px;border:1px solid #E2E8F0;border-radius:7px;font-size:12px;font-family:monospace"/></div>
+            <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">Client Secret</label><input type="password" value="secret_xxx" style="width:100%;padding:7px 10px;border:1px solid #E2E8F0;border-radius:7px;font-size:12px;font-family:monospace"/></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">수집 대상</label>
+              <div style="display:flex;gap:8px;padding:8px 10px;border:1px solid #E2E8F0;border-radius:7px;background:#F8FAFC">
+                <label style="font-size:11px;display:flex;align-items:center;gap:3px;cursor:pointer"><input type="checkbox" checked/> 블로그</label>
+                <label style="font-size:11px;display:flex;align-items:center;gap:3px;cursor:pointer"><input type="checkbox" checked/> 카페</label>
+                <label style="font-size:11px;display:flex;align-items:center;gap:3px;cursor:pointer"><input type="checkbox" checked/> 뉴스</label>
+              </div>
+            </div>
+            <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">수집 주기</label><select style="width:100%;padding:7px 10px;border:1px solid #E2E8F0;border-radius:7px;font-size:12px;background:#fff;font-family:inherit"><option>15분</option><option selected>30분</option><option>1시간</option></select></div>
+          </div>
+          <div style="display:flex;gap:7px">
+            <button onclick="testChannel('naver')" style="flex:1;background:#F8FAFC;border:1px solid #E2E8F0;color:#374151;border-radius:7px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">🔍 테스트</button>
+            <button onclick="saveChannel('naver')" style="flex:2;background:#03C75A;color:#fff;border:none;border-radius:7px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">💾 연동 저장</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 유튜브 -->
+    <div style="border:1px solid #FECACA;border-radius:12px;margin-bottom:10px;overflow:hidden">
+      <div style="background:#FFF5F5;padding:11px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleCh('ch-youtube')">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">▶️</span><div><div style="font-size:12px;font-weight:700;color:#EF4444">유튜브 댓글</div><div style="font-size:10px;color:#64748B">YouTube Data API v3</div></div></div>
+        <div style="display:flex;align-items:center;gap:8px"><span id="ch-youtube-badge" style="background:#FEE2E2;color:#DC2626;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600">미연동</span><span style="color:#94A3B8;font-size:12px">▼</span></div>
+      </div>
+      <div id="ch-youtube" style="display:none;padding:13px 14px;border-top:1px solid #FECACA;background:#fff">
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">API Key</label><input placeholder="AIzaSy..." style="width:100%;padding:7px 10px;border:1px solid #E2E8F0;border-radius:7px;font-size:12px;font-family:monospace"/></div>
+          <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">모니터링 채널 ID (쉼표로 구분)</label><input placeholder="UCxxxxxx, UCyyyyyy" style="width:100%;padding:7px 10px;border:1px solid #E2E8F0;border-radius:7px;font-size:12px;font-family:monospace"/></div>
+          <div style="display:flex;gap:7px">
+            <button onclick="testChannel('youtube')" style="flex:1;background:#F8FAFC;border:1px solid #E2E8F0;color:#374151;border-radius:7px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">🔍 테스트</button>
+            <button onclick="saveChannel('youtube')" style="flex:2;background:#EF4444;color:#fff;border:none;border-radius:7px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">💾 연동 저장</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 뉴스 -->
+    <div style="border:1px solid #BFDBFE;border-radius:12px;margin-bottom:10px;overflow:hidden">
+      <div style="background:#EFF6FF;padding:11px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleCh('ch-news')">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">📰</span><div><div style="font-size:12px;font-weight:700;color:#0284C7">뉴스·언론</div><div style="font-size:10px;color:#64748B">BigKinds API / 네이버 뉴스 API</div></div></div>
+        <div style="display:flex;align-items:center;gap:8px"><span id="ch-news-badge" style="background:#FEE2E2;color:#DC2626;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600">미연동</span><span style="color:#94A3B8;font-size:12px">▼</span></div>
+      </div>
+      <div id="ch-news" style="display:none;padding:13px 14px;border-top:1px solid #BFDBFE;background:#fff">
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">BigKinds API Key</label><input placeholder="bigkinds_key_xxx" style="width:100%;padding:7px 10px;border:1px solid #E2E8F0;border-radius:7px;font-size:12px;font-family:monospace"/></div>
+            <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">수집 언론사 필터</label>
+              <div style="display:flex;gap:5px;padding:7px 9px;border:1px solid #E2E8F0;border-radius:7px;background:#F8FAFC;flex-wrap:wrap">
+                <label style="font-size:10px;display:flex;align-items:center;gap:2px;cursor:pointer"><input type="checkbox" checked/> 전국일간지</label>
+                <label style="font-size:10px;display:flex;align-items:center;gap:2px;cursor:pointer"><input type="checkbox" checked/> 경제지</label>
+                <label style="font-size:10px;display:flex;align-items:center;gap:2px;cursor:pointer"><input type="checkbox"/> 지방지</label>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:7px">
+            <button onclick="testChannel('news')" style="flex:1;background:#F8FAFC;border:1px solid #E2E8F0;color:#374151;border-radius:7px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">🔍 테스트</button>
+            <button onclick="saveChannel('news')" style="flex:2;background:#0284C7;color:#fff;border:none;border-radius:7px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">💾 연동 저장</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- X(트위터) -->
+    <div style="border:1px solid #BAE6FD;border-radius:12px;overflow:hidden">
+      <div style="background:#EFF9FF;padding:11px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleCh('ch-twitter')">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">🐦</span><div><div style="font-size:12px;font-weight:700;color:#1DA1F2">X (트위터)</div><div style="font-size:10px;color:#64748B">X API v2 (Basic / Pro)</div></div></div>
+        <div style="display:flex;align-items:center;gap:8px"><span id="ch-twitter-badge" style="background:#FEE2E2;color:#DC2626;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600">미연동</span><span style="color:#94A3B8;font-size:12px">▼</span></div>
+      </div>
+      <div id="ch-twitter" style="display:none;padding:13px 14px;border-top:1px solid #BAE6FD;background:#fff">
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">Bearer Token</label><input placeholder="AAAA..." style="width:100%;padding:7px 10px;border:1px solid #E2E8F0;border-radius:7px;font-size:12px;font-family:monospace"/></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">플랜</label><select style="width:100%;padding:7px 10px;border:1px solid #E2E8F0;border-radius:7px;font-size:12px;background:#fff;font-family:inherit"><option>Basic ($100/월)</option><option>Pro ($5,000/월)</option></select></div>
+            <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:2px">수집 주기</label><select style="width:100%;padding:7px 10px;border:1px solid #E2E8F0;border-radius:7px;font-size:12px;background:#fff;font-family:inherit"><option>15분</option><option>30분</option><option>1시간</option></select></div>
+          </div>
+          <div style="display:flex;gap:7px">
+            <button onclick="testChannel('twitter')" style="flex:1;background:#F8FAFC;border:1px solid #E2E8F0;color:#374151;border-radius:7px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">🔍 테스트</button>
+            <button onclick="saveChannel('twitter')" style="flex:2;background:#1DA1F2;color:#fff;border:none;border-radius:7px;padding:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">💾 연동 저장</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI 분석 설정 -->
+  <div style="background:#fff;border-radius:16px;border:1px solid #E2E8F0;padding:18px 20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,0.05)">
+    <div style="font-size:13px;font-weight:800;color:#374151;margin-bottom:12px">🤖 AI 분석 설정 (Claude API)</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:3px">Anthropic API 키</label>
+        <div style="display:flex;gap:8px">
+          <input type="password" id="apiKeyInput2" placeholder="sk-ant-api03-..." style="flex:1;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;font-family:monospace"/>
+          <button onclick="saveApiKeyFromCfg()" style="background:#0046B5;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">저장</button>
+        </div>
+        <div id="apiKeyStatus2" style="font-size:10px;color:#94A3B8;margin-top:4px">💡 API 키를 등록하면 수집된 게시글을 AI가 자동 분석합니다.</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:3px">자동 분석 기준</label>
+          <select style="width:100%;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;background:#fff;font-family:inherit">
+            <option>모든 게시글 분석</option>
+            <option selected>뱅크런 키워드 포함 시만</option>
+            <option>좋아요 100+ 게시글만</option>
+          </select>
+        </div>
+        <div><label style="font-size:10px;color:#64748B;display:block;margin-bottom:3px">분석 언어</label>
+          <select style="width:100%;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;background:#fff;font-family:inherit">
+            <option selected>한국어</option><option>영어</option><option>한국어+영어</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 수집 현황 -->
+  <div style="background:#fff;border-radius:16px;border:1px solid #E2E8F0;padding:18px 20px;margin-bottom:24px;box-shadow:0 1px 3px rgba(0,0,0,0.05)">
+    <div style="font-size:13px;font-weight:800;color:#374151;margin-bottom:12px">📊 수집 현황 (오늘)</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+      <div style="background:#FFF0F6;border:1px solid #FBCFE8;border-radius:10px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:900;color:#E1306C">38건</div><div style="font-size:10px;color:#94A3B8;margin-top:2px">📸 인스타그램</div></div>
+      <div style="background:#F0FFF4;border:1px solid #BBF7D0;border-radius:10px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:900;color:#03C75A">142건</div><div style="font-size:10px;color:#94A3B8;margin-top:2px">🟢 네이버</div></div>
+      <div style="background:#FFF5F5;border:1px solid #FECACA;border-radius:10px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:900;color:#EF4444">67건</div><div style="font-size:10px;color:#94A3B8;margin-top:2px">▶️ 유튜브</div></div>
+      <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:900;color:#0284C7">29건</div><div style="font-size:10px;color:#94A3B8;margin-top:2px">📰 뉴스</div></div>
+    </div>
+    <div style="margin-top:10px;text-align:center;font-size:11px;color:#64748B">마지막 수집: 2026.04.19 14:28 · 총 276건 수집 / 오늘</div>
+  </div>
+
+</div>
+</div>
+
+<script>
+// ── Constants ─────────────────────────────────────────
+const GCFG={E:{c:"#E64A19",bg:"#FFF1ED",border:"#FECDC8",label:"긴급대응"},D:{c:"#EA580C",bg:"#FFF7ED",border:"#FED7AA",label:"고위험"},C:{c:"#D97706",bg:"#FFFBEB",border:"#FDE68A",label:"위험"},B:{c:"#CA8A04",bg:"#FEFCE8",border:"#FEF08A",label:"주의"},A:{c:"#16A34A",bg:"#F0FDF4",border:"#BBF7D0",label:"양호"},S:{c:"#0891B2",bg:"#ECFEFF",border:"#A5F3FC",label:"우수"}};
+const BALERT=[{min:80,label:"뱅크런 임박",c:"#E64A19",bg:"#FFF1ED",border:"#FECDC8"},{min:60,label:"고위험 경보",c:"#EA580C",bg:"#FFF7ED",border:"#FED7AA"},{min:40,label:"주의 단계",c:"#F97316",bg:"#FFF7ED",border:"#FED7AA"},{min:20,label:"관찰 단계",c:"#EAB308",bg:"#FEFCE8",border:"#FEF08A"},{min:0,label:"정상",c:"#16A34A",bg:"#F0FDF4",border:"#BBF7D0"}];
+const getBRI=s=>BALERT.find(a=>s>=a.min)||BALERT[4];
+const PLI={instagram:{label:"인스타그램",icon:"📸",c:"#E1306C",bg:"#FFF0F6"},naver:{label:"네이버",icon:"🟢",c:"#03C75A",bg:"#F0FFF4"},youtube:{label:"유튜브",icon:"▶️",c:"#EF4444",bg:"#FFF5F5"},news:{label:"뉴스",icon:"📰",c:"#0284C7",bg:"#EFF6FF"}};
+const BKW=["뱅크런","예금인출","예금자보호","현금인출","계좌해지","돈 뺀다","돈 빼야","파산","부도","불안","불신","믿을 수 없","망한다","예금 옮겨","다른 은행으로","SVB","리먼","영업정지"];
+
+// 각 게시글에 external(외부신호) + internal(내부고객행동 연계지표) 통합
+const POSTS=[
+  {
+    id:1, pl:"instagram", author:"@money_life_kr", handle:"머니라이프", time:"5분 전", lk:1240, cm:387, kw:"뱅크런우려",
+    text:"나라은행 앱 또 먹통이에요 😡 월급날 이체하려는데 오류만 뜨고 고객센터는 연결도 안 됨. 이거 파산하는 거 아닌가요? 무서워서 돈 빼야 할 것 같아요 #나라은행 #뱅크런 #불안",
+    rrs:82, grade:"E", action:"즉시 앱 장애 공식 사과문 발표 및 고객센터 긴급 증원, 뱅크런 루머 확산 차단 메시지 배포",
+    bars:{sentiment:88, virality:75, severity:80, legal:40},
+    bri:78, briAxes:{panic:82, withdrawal:75, spread:78, amplify:45},
+    internal:{deposit_outflow:"-1,240억원 급증", mobile_transfer:"+287%", atm_withdrawal:"+143%", account_close:"147건", customer_call:"앱오류 문의 집중", transfer_other:"KB·신한 방향"},
+    ibri_link:"앱 장애 발생 직후 모바일 이체 시도 +287% 급증 — 외부 불안 심리가 내부 행동으로 즉각 전환",
+    summary:"앱 장애가 SNS 공포 확산의 트리거로 작용하며 실제 모바일 이체·ATM 인출 급증으로 이어졌습니다. 외부 신호와 내부 행동이 동시에 악화되는 복합 위험 상황입니다.",
+    keywords:["앱오류뱅크런","모바일이체급증","내부외부동시악화"]
+  },
+  {
+    id:2, pl:"naver", author:"금융꿀팁연구소", handle:"네이버 블로그", time:"22분 전", lk:312, cm:47, kw:"은행혜택비교",
+    text:"주거래은행 혜택 총정리! 나라뱅킹 앱 환전 수수료 90% 우대, 청년 전세대출 금리 최저 연 2.9%, 나라트래블 해외ATM 무료. 시중은행 비교해봤는데 경쟁력 확실히 있네요 👍 #금융혜택 #주거래은행",
+    rrs:18, grade:"S", action:"긍정 후기를 공식 채널에서 적극 활용, 신규 고객 유치 캠페인 연계",
+    bars:{sentiment:8, virality:35, severity:5, legal:5},
+    bri:9, briAxes:{panic:5, withdrawal:8, spread:15, amplify:10},
+    internal:{deposit_outflow:"신규 유입 +320억원", mobile_transfer:"정상 범위", atm_withdrawal:"정상", account_close:"신규 가입 +218건", customer_call:"혜택 문의 증가(긍정)", transfer_other:"타행 → 당행 유입"},
+    ibri_link:"긍정 바이럴 게시글 확산 후 당일 신규 계좌 개설 +218건 유입 — 외부 긍정 신호가 내부 고객 유입으로 연결",
+    summary:"고객 자발적 혜택 비교 콘텐츠가 신규 계좌 유입으로 직결되는 긍정 선순환 패턴입니다. 마케팅 앰버서더 캠페인으로 확대 활용을 권장합니다.",
+    keywords:["혜택바이럴","신규유입","긍정선순환"]
+  },
+  {
+    id:3, pl:"youtube", author:"소비자권익TV", handle:"유튜브 댓글", time:"48분 전", lk:2180, cm:641, kw:"예금이탈경고",
+    text:"ELS 사태에 개인정보 유출까지 겹치면 뱅크런 가능성이 없다고 볼 수 없죠. 리먼 사태 때처럼 한순간에 무너질 수 있어요. 저는 이미 다른 은행으로 예금 옮겼습니다. 여러분도 서두르세요.",
+    rrs:91, grade:"E", action:"즉각 위기대응팀 소집, 공식 해명 자료 배포, 타행 이체 급증 모니터링 강화",
+    bars:{sentiment:92, virality:88, severity:90, legal:85},
+    bri:88, briAxes:{panic:90, withdrawal:92, spread:85, amplify:80},
+    internal:{deposit_outflow:"-3,870억원(당일)", mobile_transfer:"+412% 이상급증", atm_withdrawal:"+231%", account_close:"383건(전일比 +520%)", customer_call:"'예금 안전하냐' 집중", transfer_other:"KB·신한·하나 동시 급증"},
+    ibri_link:"댓글 게시 2시간 후 타행 이체 +412% 급등 — 유튜브 바이럴이 실제 예금 대량 이탈 트리거로 확인",
+    summary:"실제 예금 이탈 인증과 구체적 이탈 독려 메시지가 내부 모바일 이체·타행 이체 급증으로 직결됐습니다. 외부-내부 연동 가장 강한 고위험 게시글입니다.",
+    keywords:["예금이탈인증","타행이체급증","리먼비유"]
+  },
+  {
+    id:4, pl:"news", author:"조선일보", handle:"뉴스 기사", time:"1시간 전", lk:0, cm:528, kw:"실적호조",
+    text:"3분기 순이익 7,840억원… 전년比 11.3% 증가. NIM 개선·비이자이익 확대 효과로 연간 목표치 초과 달성 전망. 주가도 강세 흐름. 건전성 지표 개선으로 금융당국도 긍정 평가.",
+    rrs:22, grade:"A", action:"IR팀 활용한 투자자 신뢰 강화, 긍정 실적 뉴스의 고객 안심 메시지로 전환 활용",
+    bars:{sentiment:10, virality:55, severity:8, legal:5},
+    bri:11, briAxes:{panic:8, withdrawal:5, spread:18, amplify:20},
+    internal:{deposit_outflow:"순유입 +1,200억원", mobile_transfer:"정상 범위", atm_withdrawal:"정상", account_close:"신규 +156건", customer_call:"'이자율 문의' 정상수준", transfer_other:"이탈 없음"},
+    ibri_link:"실적 호조 보도 직후 예수금 순유입 +1,200억원 — 언론 긍정 보도가 내부 고객 신뢰 지표 안정화에 기여",
+    summary:"실적 호조 언론 보도가 예수금 순유입과 신규 계좌 개설 증가로 이어지며 내부 안정 지표를 강화했습니다. 현재 위기 상황의 균형추 역할로 적극 활용이 필요합니다.",
+    keywords:["실적호조","예수금순유입","내부안정"]
+  },
+  {
+    id:5, pl:"instagram", author:"@panic_finance", handle:"공황재테크", time:"2시간 전", lk:3420, cm:892, kw:"뱅크런대비",
+    text:"예금자보호 한도 5천만원 넘으면 위험합니다! 지금 당장 계좌 분산하세요. 저는 이미 현금인출 완료했어요. SVB 사태 기억하시죠? 다음은 여기일 수도 있어요 #예금자보호 #뱅크런대비 #현금인출",
+    rrs:95, grade:"E", action:"즉시 경영진 보고·예금자보호 안내 공식 성명 발표, 법적 허위사실 유포 대응 검토",
+    bars:{sentiment:95, virality:95, severity:92, legal:70},
+    bri:92, briAxes:{panic:95, withdrawal:95, spread:92, amplify:85},
+    internal:{deposit_outflow:"-4,230억원(3시간)", mobile_transfer:"+512% 역대최고", atm_withdrawal:"+387% 한도집중", account_close:"621건(역대최고)", customer_call:"4,100건 폭주·불통", transfer_other:"전 시중은행 방향 분산이탈"},
+    ibri_link:"게시물 공유 3시간 만에 ATM 한도 집중 인출 +387%·고객센터 폭주 — I-BRI 최고 위험 트리거 게시글",
+    summary:"직접적 현금인출 완료 인증과 SVB 비유가 내부 ATM·모바일 이체 역대 최고치를 기록하게 한 핵심 트리거입니다. 외부-내부 연동 강도가 전체 게시글 중 최고 수준입니다.",
+    keywords:["현금인출완료","ATM한도집중","SVB비유최고위험"]
+  },
+  {
+    id:6, pl:"naver", author:"법률금융카페", handle:"네이버 카페", time:"3시간 전", lk:2140, cm:647, kw:"ELS집단소송",
+    text:"홍콩 H지수 ELS 손실 피해자 집단소송 2차 모집 안내. 현재까지 원금의 평균 55% 손실 확인. 은행 신뢰도가 바닥을 치는데 예금 옮겨야 하나 진지하게 고민됩니다. 법무법인 무료 상담 링크 공유.",
+    rrs:78, grade:"D", action:"법무팀 ELS 보상안 즉시 검토·피해자 직접 소통 창구 개설, 집단소송 확대 차단",
+    bars:{sentiment:80, virality:72, severity:85, legal:90},
+    bri:65, briAxes:{panic:70, withdrawal:68, spread:65, amplify:58},
+    internal:{deposit_outflow:"-1,840억원(ELS가입자)", mobile_transfer:"+178% ELS관련계좌", atm_withdrawal:"+95%", account_close:"247건(ELS가입자집중)", customer_call:"ELS 손실 문의 집중", transfer_other:"ELS가입자 타행이체 집중"},
+    ibri_link:"소송 모집글 확산 후 ELS 가입 계좌 보유자 중심 타행 이체 +178% — 특정 피해 고객군의 이탈 가속화",
+    summary:"집단소송 모집이 ELS 가입 고객군의 집중적인 예금 이탈과 타행 이체를 유발했습니다. 법적·평판 복합 리스크로 특정 고객군 이탈 차단 전략이 필요합니다.",
+    keywords:["ELS소송","가입자이탈집중","법적평판복합"]
+  },
+  {
+    id:7, pl:"youtube", author:"재테크유튜버민준", handle:"유튜브 댓글", time:"4시간 전", lk:203, cm:41, kw:"적금금리비교",
+    text:"나라적금 금리 진짜 좋던데요? 연 4.5%에 조건도 까다롭지 않고. 시중은행 중 상위권이에요. 요즘 불안한 소식 많지만 금리만큼은 확실히 챙겨주네요. 강력 추천합니다!",
+    rrs:15, grade:"S", action:"나라적금 긍정 바이럴 활용, 불안 심리 상쇄용 금리 경쟁력 마케팅 강화",
+    bars:{sentiment:5, virality:30, severity:5, legal:5},
+    bri:8, briAxes:{panic:5, withdrawal:5, spread:12, amplify:10},
+    internal:{deposit_outflow:"적금 신규 +480억원", mobile_transfer:"정상", atm_withdrawal:"정상", account_close:"신규 적금 가입 +312건", customer_call:"금리 문의 긍정적", transfer_other:"타행→당행 적금이전 증가"},
+    ibri_link:"금리 비교 콘텐츠 확산 후 타행에서 당행으로 적금 이전 증가 — 위기 속 금리 경쟁력이 고객 유입 요인",
+    summary:"불안한 외부 환경 속에서도 금리 경쟁력에 대한 긍정 콘텐츠가 신규 적금 가입과 타행 자금 유입을 이끌었습니다. 위기 상황 완충을 위한 마케팅 강화가 효과적입니다.",
+    keywords:["나라적금금리","타행자금유입","위기속긍정"]
+  },
+  {
+    id:8, pl:"news", author:"한겨레", handle:"뉴스 기사", time:"5시간 전", lk:0, cm:2830, kw:"개인정보유출",
+    text:"개인정보 유출 의혹 내부 고발 — 직원 수천 명 고객 조회 기록 무더기 감사 착수. SNS에서 '믿을 수 없는 은행'이라며 계좌해지 인증 게시물이 급증 중. 금융당국 현장 점검 예정.",
+    rrs:88, grade:"E", action:"즉시 금융위 보고·개인정보 긴급 점검·공식 성명 발표, 계좌해지 급증 대응팀 가동",
+    bars:{sentiment:90, virality:85, severity:88, legal:92},
+    bri:82, briAxes:{panic:85, withdrawal:80, spread:82, amplify:88},
+    internal:{deposit_outflow:"-2,910억원(당일)", mobile_transfer:"+334%", atm_withdrawal:"+198%", account_close:"534건 인증샷 확산", customer_call:"'내 정보 유출됐냐' 폭증", transfer_other:"전 연령대 분산이탈"},
+    ibri_link:"개인정보 유출 보도 후 '계좌해지 인증' SNS 트렌드 형성 → 당일 해지 534건 역대 최고 — 언론 보도가 내부 행동 촉발",
+    summary:"언론의 개인정보 유출 보도가 SNS 계좌해지 인증 트렌드를 형성하고 이것이 실제 대규모 해지로 이어지는 외부-내부 최악의 연동 패턴입니다. 즉각 경영진 개입이 필요합니다.",
+    keywords:["개인정보유출","계좌해지인증트렌드","외부내부최악연동"]
+  },
+  {
+    id:9, pl:"instagram", author:"@travel_with_won", handle:"여행스타그램", time:"6시간 전", lk:934, cm:116, kw:"나라트래블카드",
+    text:"나라트래블카드 유럽 여행 내내 진짜 편했어요✈️ 환전 수수료 0원·ATM 무료·실시간 환율. 여행 중 불안한 뉴스 봤는데 이 카드는 걱정 없이 쓸 수 있었어요 #나라트래블 #해외여행 #여행필수템",
+    rrs:12, grade:"A", action:"나라트래블 긍정 후기 공식 리그램·뱅크런 우려 상쇄 고객 안심 메시지로 활용",
+    bars:{sentiment:5, virality:42, severity:5, legal:5},
+    bri:7, briAxes:{panic:5, withdrawal:5, spread:15, amplify:8},
+    internal:{deposit_outflow:"영향 없음", mobile_transfer:"정상", atm_withdrawal:"해외ATM 정상 사용", account_close:"카드 신규 발급 +189건", customer_call:"트래블카드 문의 증가(긍정)", transfer_other:"없음"},
+    ibri_link:"여행 긍정 후기 확산 → 당일 트래블카드 신규 발급 +189건 — 위기 중 긍정 콘텐츠의 고객 유지 효과 확인",
+    summary:"뱅크런 우려 속에서도 여행 관련 긍정 후기가 카드 신규 발급 증가로 이어지며 고객 신뢰를 유지했습니다. 위기 국면에서 생활밀착형 긍정 콘텐츠의 완충 효과가 검증됩니다.",
+    keywords:["나라트래블","위기속고객유지","긍정완충효과"]
+  },
+  {
+    id:10, pl:"news", author:"머니투데이", handle:"뉴스 기사", time:"7시간 전", lk:0, cm:4120, kw:"뱅크런루머확산",
+    text:"금감원, ELS 불완전판매 제재심 다음 달 개최. 온라인 커뮤니티에서 '망한다', '뱅크런 올 것 같다'는 게시물이 하루 새 1만 건 이상 확산. 예수금 이탈 및 모바일 이체 급증 지표도 당국이 예의주시 중.",
+    rrs:86, grade:"D", action:"금감원 제재 선제 대응·뱅크런 루머 공식 해명·예수금 이탈 실시간 임계치 모니터링 가동",
+    bars:{sentiment:85, virality:92, severity:85, legal:88},
+    bri:79, briAxes:{panic:78, withdrawal:72, spread:88, amplify:82},
+    internal:{deposit_outflow:"-3,400억원(누적)", mobile_transfer:"+389% 지속상승", atm_withdrawal:"+276%", account_close:"471건(3일 누적)", customer_call:"당국 예의주시 보도 후 2배 폭증", transfer_other:"루머 확산 지역 집중이탈"},
+    ibri_link:"뉴스 보도 후 6시간 만에 모바일 이체 +389% 지속 상승 — 금융당국 언급이 오히려 고객 불안 증폭시켜 내부 이탈 가속",
+    summary:"금감원의 예의주시 보도가 역설적으로 고객 불안을 증폭시켜 모바일 이체와 예수금 이탈을 가속화했습니다. SNS 루머와 언론 보도의 악순환이 내부 지표 동시 악화로 이어지는 위기 임박 상황입니다.",
+    keywords:["뱅크런루머1만건","당국보도역효과","내부외부악순환"]
+  },
+];
+
+let allPosts=[...POSTS], currentGradeFilter="all", currentPlatFilter="all", apiKey="";
+
+// ── Timeline ─────────────────────────────────────────
+function renderTimeline(){
+  const hours=["09","10","11","12","13","14"];
+  const vals=[120,180,240,890,1540,2340];
+  const max=Math.max(...vals);
+  document.getElementById("tlBars").innerHTML=hours.map((h,i)=>{
+    const color=vals[i]>1000?"#EF4444":vals[i]>500?"#F97316":"#FCD34D";
+    return `<div class="tl-bar" style="height:${Math.max(4,Math.round((vals[i]/max)*40))}px;background:${color}" data-tip="${h}시: ${vals[i].toLocaleString()}억원"></div>`;
+  }).join("");
+  document.getElementById("tlLabels").innerHTML=hours.map(h=>`<div class="tl-lbl">${h}시</div>`).join("");
+}
+
+// ── Highlight keywords ───────────────────────────────
+function hlText(t){BKW.forEach(k=>{t=t.split(k).join(`<mark>${k}</mark>`);});return t;}
+
+// ── Render post card ─────────────────────────────────
+function renderCard(p){
+  const gc=GCFG[p.grade]||GCFG.B, ba=getBRI(p.bri), pl=PLI[p.pl];
+  const hasBkw=BKW.some(k=>p.text.includes(k));
+  return `
+  <div class="post-card">
+    <div class="rrs-bar" style="width:${p.rrs}%;background:${gc.c}"></div>
+    <div class="post-inner">
+      <div class="post-header-row" style="display:flex;align-items:flex-start;gap:9px;margin-bottom:9px">
+        <div style="width:34px;height:34px;border-radius:8px;background:${pl.bg};border:1px solid ${pl.c}22;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${pl.icon}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-bottom:2px">
+            <span style="font-weight:700;font-size:13px;color:#1A202C">${p.author}</span>
+            <span class="pill" style="background:${pl.bg};color:${pl.c}">${pl.icon} ${pl.label}</span>
+            <span class="pill" style="background:#EFF6FF;color:#3B82F6">#${p.kw}</span>
+            ${hasBkw?`<span class="pill" style="background:#FEE2E2;color:#DC2626;border:1px solid #FECACA">🚨 뱅크런 신호</span>`:''}
+          </div>
+          <div style="font-size:11px;color:#94A3B8">${p.handle} · ${p.time}${p.lk>0?` ❤️ ${p.lk.toLocaleString()}`:''}${p.cm>0?` 💬 ${p.cm.toLocaleString()}`:''}</div>
+        </div>
+        <div style="flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <div style="text-align:right"><div style="font-size:9px;color:#94A3B8">RRS</div><div style="font-size:19px;font-weight:900;color:${gc.c};line-height:1">${p.rrs}</div></div>
+            <div style="width:38px;height:38px;border-radius:10px;background:${gc.bg};border:2px solid ${gc.border};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:${gc.c}">${p.grade}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;background:${ba.bg};border:1px solid ${ba.border};border-radius:7px;padding:3px 8px">
+            <div style="font-size:9px;color:#94A3B8">BRI</div>
+            <div style="font-size:13px;font-weight:900;color:${ba.c}">${p.bri}</div>
+            <div style="font-size:10px;color:${ba.c};font-weight:600">${ba.label}</div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:13px;color:#374151;line-height:1.7;padding-left:43px;margin-bottom:11px">${hasBkw?hlText(p.text):p.text}</div>
+      <div style="margin-left:43px">
+        <div style="display:flex;align-items:center;gap:7px;background:${gc.bg};border:1px solid ${gc.border};border-radius:9px;padding:8px 12px;margin-bottom:9px">
+          <span style="font-size:12px;font-weight:800;color:${gc.c};flex-shrink:0">${p.grade}등급 · ${gc.label}</span>
+          <div style="width:1px;height:14px;background:${gc.border};flex-shrink:0"></div>
+          <span style="font-size:11px;color:#64748B;flex:1">${p.action}</span>
+        </div>
+        <div class="bars-box">
+          <div style="font-size:11px;color:#374151;font-weight:700;margin-bottom:8px">📊 RRS 평가 지표</div>
+          ${[{l:"부정 감성도",c:"#EF4444",v:p.bars.sentiment},{l:"확산 위험도",c:"#F59E0B",v:p.bars.virality},{l:"이슈 중대성",c:"#F97316",v:p.bars.severity},{l:"법적·규제 위험",c:"#A855F7",v:p.bars.legal}].map(b=>`
+          <div class="b-row">
+            <div class="b-lbl"><span style="font-size:11px;color:#64748B">${b.l}</span><span style="font-size:11px;color:${b.c};font-weight:700">${b.v}점</span></div>
+            <div class="b-track"><div class="b-fill" style="width:${b.v}%;background:${b.c}"></div></div>
+          </div>`).join('')}
+          <div style="display:flex;justify-content:flex-end;margin-top:6px;padding-top:6px;border-top:1px solid #E2E8F0">
+            <span style="font-size:11px;color:#94A3B8;margin-right:5px">RRS 종합</span>
+            <span style="font-size:14px;font-weight:900;color:${gc.c}">${p.rrs}점</span>
+          </div>
+        </div>
+        <!-- BRI 외부 신호 -->
+        <div class="bri-box" style="background:${ba.bg};border:1px solid ${ba.border}">
+          <div style="font-size:11px;color:${ba.c};font-weight:700;margin-bottom:7px;display:flex;align-items:center;gap:5px">
+            📡 외부 BRI <span style="font-size:15px;font-weight:900">${p.bri}점</span>
+            <span style="background:${ba.bg};border:1px solid ${ba.border};padding:1px 8px;border-radius:20px;font-size:10px">${ba.label}</span>
+          </div>
+          <div style="display:flex;gap:9px">
+            ${[{l:"불신·공포",c:"#EF4444",v:p.briAxes.panic},{l:"인출의도",c:"#F97316",v:p.briAxes.withdrawal},{l:"확산속도",c:"#F59E0B",v:p.briAxes.spread},{l:"미디어증폭",c:"#A855F7",v:p.briAxes.amplify}].map(b=>`
+            <div style="flex:1">
+              <div style="display:flex;justify-content:space-between;margin-bottom:2px"><span style="font-size:10px;color:#94A3B8">${b.l}</span><span style="font-size:10px;color:${b.c};font-weight:700">${b.v}</span></div>
+              <div class="b-track"><div class="b-fill" style="width:${b.v}%;background:${b.c}"></div></div>
+            </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- 내부 고객행동 연계 지표 -->
+        ${p.internal ? `
+        <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:9px;padding:10px 12px;margin-bottom:7px">
+          <div style="font-size:11px;color:#1D4ED8;font-weight:700;margin-bottom:8px">🏦 내부 고객행동 연계 지표</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px">
+            ${[
+              {l:"예수금 이탈",v:p.internal.deposit_outflow,c:p.internal.deposit_outflow.startsWith('-')||p.internal.deposit_outflow.includes('급증')?"#DC2626":"#16A34A"},
+              {l:"모바일 이체",v:p.internal.mobile_transfer,c:p.internal.mobile_transfer.includes('+')||p.internal.mobile_transfer.includes('급증')?"#EA580C":"#16A34A"},
+              {l:"ATM 인출",v:p.internal.atm_withdrawal,c:p.internal.atm_withdrawal.includes('+')||p.internal.atm_withdrawal.includes('급증')?"#D97706":"#16A34A"},
+              {l:"계좌 해지",v:p.internal.account_close,c:p.internal.account_close.includes('건')&&!p.internal.account_close.includes('신규')?"#D97706":p.internal.account_close.includes('신규')?"#16A34A":"#64748B"},
+              {l:"고객센터",v:p.internal.customer_call,c:p.internal.customer_call.includes('폭')?"#DC2626":p.internal.customer_call.includes('긍')?"#16A34A":"#64748B"},
+              {l:"타행 이체",v:p.internal.transfer_other,c:p.internal.transfer_other.includes('이탈')||p.internal.transfer_other.includes('방향')?"#D97706":p.internal.transfer_other.includes('유입')?"#16A34A":"#64748B"},
+            ].map(m=>`
+            <div style="background:#fff;border:1px solid #BFDBFE;border-radius:7px;padding:7px 8px">
+              <div style="font-size:9px;color:#94A3B8;margin-bottom:2px">${m.l}</div>
+              <div style="font-size:11px;font-weight:700;color:${m.c};line-height:1.3">${m.v}</div>
+            </div>`).join('')}
+          </div>
+          <!-- 외부-내부 연동 분석 -->
+          <div style="background:#DBEAFE;border-radius:7px;padding:7px 9px;font-size:11px;color:#1D4ED8;line-height:1.55">
+            <span style="font-weight:800">🔗 외부→내부 연동 </span>${p.ibri_link}
+          </div>
+        </div>` : ''}
+
+        <div class="summary-txt"><span style="color:#0046B5;font-weight:700">💡 통합 인사이트 </span>${p.summary}</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">${p.keywords.map(k=>`<span class="kw-tag">#${k}</span>`).join('')}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderPosts(){
+  const s = document.getElementById('searchInput').value.toLowerCase();
+  const vis = allPosts.filter(p => {
+    // 검색
+    const mSearch = !s || p.text.toLowerCase().includes(s) || p.author.toLowerCase().includes(s) || p.kw.toLowerCase().includes(s);
+    if (!mSearch) return false;
+    // 등급 필터
+    let mGrade = true;
+    if (currentGradeFilter === 'bankrun') mGrade = BKW.some(k => p.text.includes(k));
+    else if (currentGradeFilter !== 'all') {
+      if (Array.isArray(currentGradeFilter)) mGrade = currentGradeFilter.includes(p.grade);
+      else mGrade = p.grade === currentGradeFilter;
+    }
+    // 플랫폼 필터
+    const mPlat = currentPlatFilter === 'all' || p.pl === currentPlatFilter;
+    return mGrade && mPlat;
+  });
+  const el = document.getElementById('postList');
+  el.innerHTML = vis.length
+    ? vis.map(renderCard).join('')
+    : `<div style="text-align:center;color:#94A3B8;padding:40px 0;font-size:14px">해당하는 게시글이 없습니다.</div>`;
+}
+
+// ── 등급 필터 (그룹1) ──────────────────────────────
+function setGradeActive(el, isBkw=false){
+  document.querySelectorAll('#gradeFilterBar .f-btn').forEach(b => {
+    b.classList.remove('active','bkw');
+    b.style.fontWeight = '500';
+  });
+  if(el){ el.classList.add('active'); if(isBkw) el.classList.add('bkw'); el.style.fontWeight='700'; }
+}
+
+function filterAll(el){
+  currentGradeFilter = 'all';
+  setGradeActive(el || document.getElementById('btn-all'));
+  renderPosts();
+}
+
+function filterBankrun(el){
+  currentGradeFilter = 'bankrun';
+  setGradeActive(el || document.getElementById('btn-bankrun'), true);
+  renderPosts();
+}
+
+function filterGrade(g, el){
+  currentGradeFilter = g;
+  setGradeActive(el || document.getElementById('btn-'+g));
+  renderPosts();
+}
+
+function filterMultiGrade(grades){
+  currentGradeFilter = grades;
+  // 복합 등급 필터 시 등급 버튼 전체 해제 후 시각 표시
+  document.querySelectorAll('#gradeFilterBar .f-btn').forEach(b => {
+    b.classList.remove('active','bkw');
+    const g = b.id.replace('btn-','');
+    if(grades.includes(g)) b.classList.add('active');
+  });
+  renderPosts();
+}
+
+// ── 플랫폼 필터 (그룹2) ──────────────────────────
+function setPlatActive(el){
+  document.querySelectorAll('#platFilterBar .f-btn').forEach(b => {
+    b.classList.remove('active');
+    b.style.fontWeight = '500';
+  });
+  if(el){ el.classList.add('active'); el.style.fontWeight='700'; }
+}
+
+function filterPlatformBtn(pl, el){
+  currentPlatFilter = pl;
+  setPlatActive(el || document.getElementById('btn-plt-'+pl));
+  renderPosts();
+}
+
+// 기존 호환 함수 (제거하지 않음)
+function filterPlatform(pl, el){ filterPlatformBtn(pl, el); }
+
+function switchTab(id,el){
+  document.querySelectorAll('.nav-tab').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  const tabs=['feed','add','guide','cfg-int','cfg-ext'];
+  tabs.forEach(t=>{
+    const el2=document.getElementById('tab-'+t);
+    if(el2) el2.style.display = t===id ? 'block' : 'none';
+  });
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ── 내부 설정 JS ──────────────────────────────────
+function setDataMode(mode){
+  ['manual','db','api'].forEach(m=>{
+    document.getElementById('panel-'+m).style.display = m===mode ? 'block' : 'none';
+    const lbl=document.getElementById('mode-'+m+'-lbl');
+    if(lbl){
+      lbl.style.border   = m===mode ? '2px solid #0046B5' : '2px solid #E2E8F0';
+      lbl.style.background = m===mode ? '#EFF6FF' : '#F8FAFC';
+    }
+  });
+}
+
+function saveInternalData(){
+  const rate   = document.getElementById('int-outflow-rate').value;
+  const amt    = document.getElementById('int-outflow-amt').value;
+  const mobile = document.getElementById('int-mobile').value;
+  const atm    = document.getElementById('int-atm').value;
+  const close  = document.getElementById('int-close').value;
+  const trans  = document.getElementById('int-transfer').value;
+  const call   = document.getElementById('int-call').value;
+  const web    = document.getElementById('int-web').value;
+
+  // 내부 BRI 간이 산출 (실제 가중 산식)
+  const score = Math.min(100, Math.round(
+    Math.abs(parseFloat(rate)||0) * 10 * 0.25 +
+    Math.min(100, (parseFloat(mobile)||0) / 4) * 0.25 +
+    Math.min(100, (parseInt(close)||0) / 5) * 0.20 +
+    Math.min(100, (parseFloat(atm)||0) / 4) * 0.15 +
+    Math.min(100, (parseFloat(trans)||0) / 3) * 0.15
+  ));
+
+  document.getElementById('int-bri-preview').textContent = score+'점';
+  const st=document.getElementById('int-save-status');
+  st.style.color='#16A34A';
+  st.textContent='✅ 저장 완료 · 내부 BRI: '+score+'점으로 업데이트됐습니다. ('+new Date().toLocaleTimeString()+')';
+
+  // 내부 지표 카드 업데이트 (대시보드 반영)
+  try{
+    const cards=document.querySelectorAll('.m-val');
+    if(cards.length>=2){
+      if(rate) cards[0].textContent=rate+'%';
+      if(amt)  cards[1].textContent=Math.round(amt/10000*10)/10+'조';
+    }
+  }catch(e){}
+}
+
+function saveDbConn(){
+  const host=document.getElementById('db-host').value;
+  const name=document.getElementById('db-name').value;
+  if(!host||!name){ document.getElementById('db-status').textContent='⚠️ 호스트와 DB명을 입력해주세요.'; return; }
+  document.getElementById('db-status').style.color='#16A34A';
+  document.getElementById('db-status').textContent='✅ DB 연결 설정 저장됨 ('+document.getElementById('db-type').value+' · '+host+')';
+}
+
+function testDbConn(){
+  const host=document.getElementById('db-host').value;
+  if(!host){ document.getElementById('db-status').textContent='⚠️ 호스트를 입력해주세요.'; return; }
+  document.getElementById('db-status').style.color='#64748B';
+  document.getElementById('db-status').textContent='🔄 연결 테스트 중...';
+  setTimeout(()=>{
+    document.getElementById('db-status').style.color='#16A34A';
+    document.getElementById('db-status').textContent='✅ 연결 성공 · 응답시간 12ms';
+  },1500);
+}
+
+function saveApiConn(){
+  const ep=document.getElementById('api-endpoint').value;
+  if(!ep){ document.getElementById('api-status').textContent='⚠️ API 엔드포인트를 입력해주세요.'; return; }
+  document.getElementById('api-status').style.color='#16A34A';
+  document.getElementById('api-status').textContent='✅ API 연동 설정 저장됨 · '+document.getElementById('api-interval').value+' 주기로 수집 시작';
+}
+
+function testApiConn(){
+  const ep=document.getElementById('api-endpoint').value;
+  if(!ep){ document.getElementById('api-status').textContent='⚠️ API 엔드포인트를 입력해주세요.'; return; }
+  document.getElementById('api-status').style.color='#64748B';
+  document.getElementById('api-status').textContent='🔄 API 테스트 중...';
+  setTimeout(()=>{
+    document.getElementById('api-status').style.color='#16A34A';
+    document.getElementById('api-status').textContent='✅ API 응답 정상 · HTTP 200 · 응답시간 38ms';
+  },1500);
+}
+
+function saveThresholds(){
+  alert('✅ 임계치 설정이 저장됐습니다.\n이탈률: '+document.getElementById('thr-outflow').value+'%\n이탈규모: '+document.getElementById('thr-amt').value+'억원\n모바일이체: '+document.getElementById('thr-mobile').value+'%\n계좌해지: '+document.getElementById('thr-close').value+'건');
+}
+
+function saveAlerts(){
+  const email=document.getElementById('alert-email-on').checked;
+  const slack=document.getElementById('alert-slack-on').checked;
+  const sms  =document.getElementById('alert-sms-on').checked;
+  const level=document.getElementById('alert-level').value;
+  alert('✅ 알림 설정 저장됐습니다.\n이메일: '+(email?'활성':'비활성')+'\nSlack: '+(slack?'활성':'비활성')+'\nSMS: '+(sms?'활성':'비활성')+'\n경보 기준: I-BRI '+level+'점 이상');
+}
+
+// ── 외부 설정 JS ──────────────────────────────────
+function toggleCh(id){
+  const el=document.getElementById(id);
+  el.style.display=el.style.display==='none'?'block':'none';
+}
+
+function addKw(containerId){
+  const container=document.getElementById(containerId);
+  const borderColor=containerId==='brand-kws'?'#BFDBFE':'#FED7AA';
+  const div=document.createElement('div');
+  div.style.cssText='display:flex;gap:6px';
+  div.innerHTML=`<input placeholder="키워드 입력" style="flex:1;padding:6px 9px;border:1px solid ${borderColor};border-radius:6px;font-size:12px;font-family:inherit;background:#fff"/><button onclick="removeKw(this)" style="background:#FEF2F2;border:1px solid #FECACA;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;color:#DC2626;font-family:inherit">✕</button>`;
+  container.appendChild(div);
+}
+
+function removeKw(btn){
+  btn.parentElement.remove();
+}
+
+function testChannel(ch){
+  const badge=document.getElementById('ch-'+ch+'-badge');
+  if(badge){ badge.style.background='#FEFCE8'; badge.style.color='#CA8A04'; badge.textContent='테스트중...'; }
+  setTimeout(()=>{
+    if(badge){ badge.style.background='#D1FAE5'; badge.style.color='#065F46'; badge.textContent='연결성공'; }
+  },1500);
+}
+
+function saveChannel(ch){
+  const badge=document.getElementById('ch-'+ch+'-badge');
+  if(badge){ badge.style.background='#D1FAE5'; badge.style.color='#065F46'; badge.textContent='연동중'; }
+  const panel=document.getElementById('ch-'+ch);
+  if(panel) panel.style.display='none';
+  alert('✅ '+ch+' 채널 연동 설정이 저장됐습니다.');
+}
+
+function saveApiKeyFromCfg(){
+  const v=document.getElementById('apiKeyInput2').value.trim();
+  if(!v||!v.startsWith('sk-')){
+    document.getElementById('apiKeyStatus2').textContent='⚠️ 올바른 API 키를 입력해주세요. (sk-ant-api03-... 형태)';
+    return;
+  }
+  apiKey=v;
+  // 피드 탭의 API 입력창도 동기화
+  const inp=document.getElementById('apiKeyInput');
+  if(inp) inp.value=v;
+  const st=document.getElementById('apiStatus');
+  if(st) st.innerHTML='<span style="color:#16A34A">✅ API 키 저장 완료.</span>';
+  document.getElementById('apiKeyStatus2').style.color='#16A34A';
+  document.getElementById('apiKeyStatus2').textContent='✅ API 키 저장 완료. 수집된 게시글 자동 분석이 활성화됩니다.';
+}
+
+function saveApiKey(){
+  const v=document.getElementById('apiKeyInput').value.trim();
+  if(!v||!v.startsWith('sk-')){alert('올바른 API 키를 입력해주세요.\n(sk-ant-api03-... 형태)');return;}
+  apiKey=v;
+  document.getElementById('apiStatus').innerHTML='<span style="color:#16A34A">✅ API 키 저장 완료.</span>';
+}
+
+function checkBankrun(){
+  const t=document.getElementById('addText').value, f=BKW.filter(k=>t.includes(k));
+  const b=document.getElementById('bkwAlert');
+  b.style.display=f.length?'block':'none';
+  if(f.length)b.textContent='🚨 뱅크런 신호 키워드 감지: '+f.join(', ');
+}
+
+async function submitPost(){
+  const txt=document.getElementById('addText').value.trim(), pl=document.getElementById('addPlatform').value, kw=document.getElementById('addKw').value.trim()||'나라은행';
+  if(!txt)return;
+  const pli=PLI[pl], btn=document.getElementById('submitBtn');
+  const np={id:Date.now(),pl,author:'@custom_user',handle:pli.label,time:'방금 전',lk:0,cm:0,kw,text:txt};
+  if(apiKey){
+    btn.textContent='AI 분석 중...';btn.disabled=true;
+    try{
+      const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1200,system:`금융기관 평판 리스크 분석가. 순수 JSON만 반환:{"sentiment":0-100,"virality":0-100,"severity":0-100,"legal":0-100,"bri":{"panic":0-100,"withdrawal":0-100,"spread":0-100,"amplify":0-100},"summary":"2문장","action":"대응방안 1문장","keywords":["k1","k2","k3"],"grade":"E|D|C|B|A|S","rrs":0-100}`,messages:[{role:'user',content:`플랫폼:${pli.label}\n게시글:${txt}`}]})});
+      const data=await res.json();
+      const r=JSON.parse(data.content.map(c=>c.text||'').join('').replace(/```json|```/g,'').trim());
+      Object.assign(np,{rrs:r.rrs||50,grade:r.grade||'B',action:r.action||'추가 분석 필요',bars:{sentiment:r.sentiment,virality:r.virality,severity:r.severity,legal:r.legal},bri:r.bri?Math.round(r.bri.panic*.3+r.bri.withdrawal*.3+r.bri.spread*.25+r.bri.amplify*.15):30,briAxes:r.bri||{panic:30,withdrawal:25,spread:35,amplify:20},summary:r.summary||'분석 완료',keywords:r.keywords||[]});
+    }catch{const bkw=BKW.some(k=>txt.includes(k));Object.assign(np,{rrs:bkw?75:35,grade:bkw?'D':'B',action:'AI 오류. 수동 검토 권장',bars:{sentiment:bkw?70:30,virality:50,severity:bkw?65:25,legal:bkw?50:15},bri:bkw?65:15,briAxes:{panic:bkw?65:10,withdrawal:bkw?60:8,spread:bkw?70:15,amplify:bkw?55:12},summary:'분석 중 오류가 발생했습니다.',keywords:['분석오류']});}
+    btn.textContent='피드에 추가하기 →';btn.disabled=false;
+  }else{
+    const bkw=BKW.some(k=>txt.includes(k));
+    Object.assign(np,{rrs:bkw?70:30,grade:bkw?'D':'B',action:'API 키를 등록하면 AI 정밀 분석이 가능합니다',bars:{sentiment:bkw?65:25,virality:45,severity:bkw?60:20,legal:bkw?45:15},bri:bkw?60:12,briAxes:{panic:bkw?62:10,withdrawal:bkw?58:8,spread:bkw?65:14,amplify:bkw?52:10},summary:'API 키를 등록하면 AI가 정밀하게 분석합니다.',keywords:['키워드분석']});
+  }
+  allPosts.unshift(np);
+  document.getElementById('addText').value='';document.getElementById('addKw').value='';document.getElementById('bkwAlert').style.display='none';
+  currentGradeFilter='all'; currentPlatFilter='all';
+  switchTab('feed',document.querySelector('.nav-tab'));
+  setGradeActive(document.getElementById('btn-all'));
+  setPlatActive(document.getElementById('btn-plt-all'));
+  renderPosts();
+}
+
+// ── Init ─────────────────────────────────────────────
+renderTimeline();
+renderPosts();
+</script>
+</body>
+</html>

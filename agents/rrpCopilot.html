@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RRP Copilot — 자체정상화계획 초안 생성 시스템</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ============ TOKENS ============ */
+:root{
+  --ink:#111621;          /* 본문 잉크 */
+  --ink-2:#4A5468;        /* 보조 텍스트 */
+  --ink-3:#8A93A6;        /* 캡션 */
+  --paper:#F4F6F9;        /* 앱 배경 */
+  --surface:#FFFFFF;
+  --surface-2:#FAFBFD;
+  --line:#E2E7EF;
+  --line-2:#CFD6E2;
+  --brand:#1F3FE0;        /* 잉크블루 */
+  --brand-soft:#EEF1FE;
+  --brand-deep:#152BA0;
+  --new:#0B7A63;          /* 신규 */
+  --new-soft:#E4F5F0;
+  --chg:#9A6300;          /* 수정 */
+  --chg-soft:#FDF2DE;
+  --del:#AE2233;          /* 삭제 */
+  --del-soft:#FCEBED;
+  --ok:#0B7A63;
+  --warn:#9A6300;
+  --r-s:6px; --r-m:10px; --r-l:16px;
+  --sans:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;
+  --serif:'Gowun Batang','Nanum Myeongjo',serif;
+  --mono:'JetBrains Mono','SF Mono',Consolas,monospace;
+  --shadow:0 1px 2px rgba(17,22,33,.04),0 8px 24px -12px rgba(17,22,33,.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.6}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:4px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ============ SHELL ============ */
+.app{display:grid;grid-template-columns:248px 1fr;height:100vh;overflow:hidden}
+
+/* Sidebar */
+.side{background:var(--ink);color:#C8CEDC;display:flex;flex-direction:column;overflow:hidden}
+.brand{padding:20px 18px 16px;border-bottom:1px solid rgba(255,255,255,.08)}
+.brand-mark{display:flex;align-items:center;gap:9px}
+.brand-dot{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,#4C6BFF,#1F3FE0);display:grid;place-items:center;font-size:11px;font-weight:800;color:#fff;letter-spacing:-.5px}
+.brand-name{color:#fff;font-weight:700;font-size:15px;letter-spacing:-.3px}
+.brand-sub{font-size:10.5px;color:#6F7A91;margin-top:5px;letter-spacing:.06em;font-family:var(--mono)}
+.nav{flex:1;overflow-y:auto;padding:14px 10px 20px}
+.nav::-webkit-scrollbar{width:6px}
+.nav::-webkit-scrollbar-thumb{background:#2B3346;border-radius:3px}
+.nav-label{font-size:10px;color:#5D6885;letter-spacing:.13em;font-weight:700;padding:12px 8px 7px}
+.nav-item{display:flex;align-items:center;gap:9px;width:100%;padding:8px 9px;border-radius:7px;font-size:13px;color:#B6BECE;text-align:left;transition:background .12s,color .12s}
+.nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
+.nav-item.on{background:var(--brand);color:#fff;font-weight:600}
+.nav-item .ic{width:15px;text-align:center;font-size:12px;opacity:.9}
+.ch-item{display:grid;grid-template-columns:34px 1fr 14px;align-items:center;gap:0;width:100%;padding:7px 9px;border-radius:7px;text-align:left;transition:background .12s}
+.ch-item:hover{background:rgba(255,255,255,.06)}
+.ch-item.on{background:rgba(76,107,255,.18);box-shadow:inset 2px 0 0 var(--brand)}
+.ch-id{font-family:var(--mono);font-size:10.5px;color:#6F7A91;font-weight:600}
+.ch-item.on .ch-id{color:#93A8FF}
+.ch-nm{font-size:12.5px;color:#B6BECE;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ch-item.on .ch-nm{color:#fff;font-weight:600}
+.dot{width:7px;height:7px;border-radius:50%;background:#39415A;flex:0 0 auto}
+.dot.draft{background:var(--chg)}
+.dot.done{background:#19C39C}
+.side-foot{padding:12px 16px;border-top:1px solid rgba(255,255,255,.08);font-size:10.5px;color:#5D6885;font-family:var(--mono)}
+
+/* Main */
+.main{display:flex;flex-direction:column;overflow:hidden;background:var(--paper)}
+.topbar{height:56px;flex:0 0 56px;background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 22px}
+.org-pick{display:flex;align-items:center;gap:8px;border:1px solid var(--line-2);border-radius:8px;padding:6px 10px;background:var(--surface-2)}
+.org-pick select{border:none;background:none;font-weight:700;font-size:13.5px;letter-spacing:-.2px;cursor:pointer}
+.yr{font-family:var(--mono);font-size:12px;color:var(--ink-2);border-left:1px solid var(--line-2);padding-left:9px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:3px 8px;border-radius:99px;font-weight:600;letter-spacing:-.1px}
+.chip.demo{background:var(--chg-soft);color:var(--chg)}
+.chip.rule{background:var(--brand-soft);color:var(--brand-deep);font-family:var(--mono);font-size:10.5px}
+.spacer{flex:1}
+.user{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-2)}
+.avatar{width:26px;height:26px;border-radius:50%;background:var(--brand-soft);color:var(--brand-deep);display:grid;place-items:center;font-size:11px;font-weight:700}
+.scroll{flex:1;overflow-y:auto}
+.wrap{max-width:1080px;margin:0 auto;padding:28px 28px 80px}
+.wrap.wide{max-width:1240px}
+
+/* ============ TYPO ============ */
+.eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:var(--ink-3);font-weight:600;margin-bottom:8px}
+h1{font-size:25px;font-weight:800;letter-spacing:-.7px;line-height:1.25}
+h2{font-size:16px;font-weight:700;letter-spacing:-.35px}
+h3{font-size:13.5px;font-weight:700;letter-spacing:-.2px}
+.lede{color:var(--ink-2);font-size:13.5px;margin-top:8px;max-width:62ch}
+.sec-head{display:flex;align-items:flex-end;justify-content:space-between;margin:30px 0 12px;gap:16px}
+.sec-head p{font-size:12px;color:var(--ink-3);margin-top:3px}
+
+/* ============ COMPONENTS ============ */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-l);box-shadow:var(--shadow)}
+.pad{padding:20px}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:9px 15px;border-radius:9px;font-size:13px;font-weight:600;transition:.14s;border:1px solid transparent;letter-spacing:-.2px}
+.btn.pri{background:var(--brand);color:#fff}
+.btn.pri:hover{background:var(--brand-deep)}
+.btn.pri:disabled{background:#C3CADB;cursor:not-allowed}
+.btn.gho{border-color:var(--line-2);background:var(--surface);color:var(--ink)}
+.btn.gho:hover{background:var(--surface-2);border-color:var(--ink-3)}
+.btn.sm{padding:6px 11px;font-size:12px;border-radius:7px}
+.btn.dark{background:var(--ink);color:#fff}
+.tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:2.5px 8px;border-radius:5px;letter-spacing:-.1px}
+.tag.n{background:var(--new-soft);color:var(--new)}
+.tag.c{background:var(--chg-soft);color:var(--chg)}
+.tag.d{background:var(--del-soft);color:var(--del)}
+.tag.g{background:#F0F2F6;color:var(--ink-2)}
+.tag.b{background:var(--brand-soft);color:var(--brand-deep)}
+.bar{height:5px;background:#EDF0F5;border-radius:99px;overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--brand);border-radius:99px;transition:width .5s cubic-bezier(.4,0,.2,1)}
+.bar>i.ok{background:#19C39C}
+table{width:100%;border-collapse:collapse}
+th{font-size:11px;color:var(--ink-3);font-weight:700;text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);letter-spacing:-.1px;white-space:nowrap}
+td{padding:11px 12px;border-bottom:1px solid var(--line);font-size:12.5px;vertical-align:top}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--surface-2)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+
+/* KPI */
+.kpi{padding:16px 18px}
+.kpi .k{font-size:11px;color:var(--ink-3);font-weight:600;letter-spacing:-.1px}
+.kpi .v{font-family:var(--mono);font-size:26px;font-weight:700;letter-spacing:-1.2px;margin:6px 0 2px}
+.kpi .s{font-size:11.5px;color:var(--ink-2)}
+
+/* Stepper */
+.steps{display:flex;align-items:center;gap:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-l);padding:6px;margin-bottom:18px}
+.step{flex:1;display:flex;align-items:center;gap:9px;padding:10px 14px;border-radius:11px;transition:.15s;text-align:left}
+.step:hover:not(.on){background:var(--surface-2)}
+.step.on{background:var(--ink);color:#fff}
+.step-n{width:21px;height:21px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:10.5px;font-weight:700;background:#EDF0F5;color:var(--ink-2);flex:0 0 auto}
+.step.on .step-n{background:rgba(255,255,255,.2);color:#fff}
+.step.done .step-n{background:#19C39C;color:#fff}
+.step-t{font-size:12.5px;font-weight:600;letter-spacing:-.2px}
+.step-d{font-size:10.5px;opacity:.65;margin-top:1px}
+.step-sep{width:14px;height:1px;background:var(--line-2);flex:0 0 auto}
+
+/* Input rows */
+.inrow{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
+.inrow:last-child{border-bottom:none}
+.inrow.filled{background:linear-gradient(90deg,rgba(11,122,99,.045),transparent 40%)}
+.in-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:5px}
+.in-name{font-size:13px;font-weight:600;letter-spacing:-.2px;display:flex;align-items:center;gap:7px}
+.req{color:var(--del);font-size:11px}
+.src{font-size:11px;color:var(--ink-3);font-family:var(--mono)}
+.filechip{display:inline-flex;align-items:center;gap:6px;background:var(--new-soft);color:var(--new);border-radius:6px;padding:4px 9px;font-size:11.5px;font-weight:600;font-family:var(--mono)}
+.valbox{display:flex;align-items:center;gap:6px}
+.valbox input{width:104px;border:1px solid var(--line-2);border-radius:7px;padding:7px 9px;font-family:var(--mono);font-size:12.5px;text-align:right;background:var(--surface)}
+.valbox input:focus{border-color:var(--brand);outline:none;box-shadow:0 0 0 3px var(--brand-soft)}
+.unit{font-size:11.5px;color:var(--ink-3);width:36px}
+.prev{font-size:11px;color:var(--ink-3);font-family:var(--mono);min-width:96px;text-align:right}
+
+/* Generating */
+.gen{background:var(--ink);color:#D6DBE7;border-radius:var(--r-l);padding:24px;font-family:var(--mono);font-size:12px;line-height:2}
+.gen .ln{opacity:0;transform:translateY(3px);animation:up .3s forwards}
+@keyframes up{to{opacity:1;transform:none}}
+.gen .ok{color:#19C39C}
+.gen .hl{color:#93A8FF}
+
+/* Document */
+.docwrap{display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start}
+.doc{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-l);box-shadow:var(--shadow);overflow:hidden}
+.doc-bar{display:flex;align-items:center;gap:10px;padding:11px 18px;border-bottom:1px solid var(--line);background:var(--surface-2);flex-wrap:wrap}
+.doc-body{padding:30px 34px 38px}
+.doc-title{font-family:var(--serif);font-size:20px;font-weight:700;letter-spacing:-.3px;padding-bottom:12px;border-bottom:2px solid var(--ink);margin-bottom:22px}
+.p{position:relative;padding-left:26px;margin-bottom:16px;font-family:var(--serif);font-size:14.5px;line-height:2.05;letter-spacing:-.1px;color:#1A2030;transition:opacity .2s}
+.p .gut{position:absolute;left:0;top:11px;width:14px;font-family:var(--mono);font-size:9px;font-weight:700;color:var(--ink-3);letter-spacing:-.5px}
+.p .gut i{display:block;width:3px;height:100%;position:absolute;left:5px;top:0}
+.p.pnew{border-left:2px solid var(--new);margin-left:-2px;padding-left:28px}
+.p.pchg{border-left:2px solid var(--chg);margin-left:-2px;padding-left:28px}
+.p .sub{font-family:var(--sans);font-size:12px;font-weight:700;color:var(--ink-2);letter-spacing:-.2px;display:block;margin-bottom:2px}
+.d{border-radius:3px;padding:1px 2px;cursor:pointer;transition:.12s;text-decoration:none;border-bottom:1.5px solid transparent}
+.d-new{background:var(--new-soft);border-bottom-color:var(--new);color:#064F40}
+.d-chg{background:var(--chg-soft);border-bottom-color:var(--chg);color:#6B4400}
+.d-del{background:var(--del-soft);color:var(--del);text-decoration:line-through;opacity:.7}
+.d-same{border-bottom:1px dotted var(--line-2)}
+.d:hover{filter:brightness(.96)}
+.d.act{box-shadow:0 0 0 2px var(--brand);background:var(--brand-soft);border-bottom-color:var(--brand)}
+.dimmed{opacity:.22}
+.doc-tbl{margin:8px 0 20px 26px;border:1px solid var(--line);border-radius:var(--r-m);overflow:hidden;font-family:var(--sans)}
+.doc-tbl caption{caption-side:top;text-align:left;font-size:11.5px;font-weight:700;color:var(--ink-2);padding:9px 12px;background:var(--surface-2);border-bottom:1px solid var(--line)}
+.doc-tbl td,.doc-tbl th{font-size:11.5px;padding:8px 12px}
+
+/* Evidence panel */
+.ev{position:sticky;top:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-l);box-shadow:var(--shadow);overflow:hidden}
+.ev-h{padding:13px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;background:var(--ink);color:#fff}
+.ev-h .t{font-size:12.5px;font-weight:700;letter-spacing:-.2px}
+.ev-h .s{font-size:10px;color:#8A93A6;font-family:var(--mono);margin-top:1px}
+.ev-b{padding:16px;max-height:calc(100vh - 230px);overflow-y:auto}
+.ev-empty{text-align:center;padding:34px 16px;color:var(--ink-3);font-size:12px;line-height:1.7}
+.ev-empty .big{font-size:22px;margin-bottom:10px;opacity:.5}
+.ev-row{padding:10px 0;border-bottom:1px solid var(--line)}
+.ev-row:last-child{border-bottom:none}
+.ev-k{font-size:10.5px;color:var(--ink-3);font-weight:700;letter-spacing:.02em;margin-bottom:3px}
+.ev-v{font-size:12.5px;color:var(--ink);word-break:break-all}
+.ev-v.m{font-family:var(--mono);font-size:12px}
+.delta{display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-m);padding:10px 12px;margin:4px 0 10px}
+.delta .a{font-family:var(--mono);font-size:13px;color:var(--ink-3);text-decoration:line-through}
+.delta .arw{color:var(--ink-3);font-size:11px}
+.delta .b{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--ink)}
+.trace{font-family:var(--mono);font-size:10.5px;color:var(--ink-2);background:var(--surface-2);border:1px dashed var(--line-2);border-radius:7px;padding:9px 10px;line-height:1.75;word-break:break-all}
+
+/* Checklist */
+.chk{display:flex;gap:11px;padding:12px 0;border-bottom:1px solid var(--line);align-items:flex-start}
+.chk:last-child{border-bottom:none}
+.chk input{margin-top:3px;width:15px;height:15px;accent-color:var(--brand);cursor:pointer}
+.chk label{font-size:12.5px;cursor:pointer;flex:1}
+.chk .h{font-size:11px;color:var(--ink-3);margin-top:2px}
+textarea.cmt{width:100%;border:1px solid var(--line-2);border-radius:9px;padding:11px;font-size:12.5px;min-height:74px;resize:vertical;line-height:1.7}
+textarea.cmt:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+
+/* Rules */
+.rule-row{display:grid;grid-template-columns:1fr 150px 84px;gap:12px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line)}
+.rule-row:last-child{border-bottom:none}
+.rule-row input,.rule-row select{border:1px solid var(--line-2);border-radius:7px;padding:6px 9px;font-family:var(--mono);font-size:12px;width:100%}
+
+/* misc */
+.note{background:var(--brand-soft);border:1px solid #D3DBFB;border-radius:var(--r-m);padding:12px 14px;font-size:12px;color:var(--brand-deep);line-height:1.7}
+.warnbox{background:var(--chg-soft);border:1px solid #F0DFB8;border-radius:var(--r-m);padding:12px 14px;font-size:12px;color:#6B4400;line-height:1.7}
+.trig{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
+.trig:last-child{border-bottom:none}
+.trig .lv{width:52px;text-align:center;font-size:10px;font-weight:700;padding:3px 0;border-radius:5px}
+.lv.normal{background:#E9F7F3;color:var(--ok)}
+.lv.watch{background:var(--chg-soft);color:var(--chg)}
+.lv.alert{background:var(--del-soft);color:var(--del)}
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--ink);color:#fff;padding:12px 20px;border-radius:11px;font-size:13px;font-weight:600;box-shadow:0 12px 32px rgba(0,0,0,.24);transition:transform .3s cubic-bezier(.2,.9,.3,1.2);z-index:99;display:flex;align-items:center;gap:9px}
+.toast.show{transform:translateX(-50%) translateY(0)}
+@media(max-width:1180px){.docwrap{grid-template-columns:1fr}.ev{position:relative}}
+@media(max-width:900px){.app{grid-template-columns:1fr}.side{display:none}.g4,.g3,.g2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ========== SIDEBAR ========== -->
+  <aside class="side">
+    <div class="brand">
+      <div class="brand-mark">
+        <div class="brand-dot">R</div>
+        <div class="brand-name">RRP Copilot</div>
+      </div>
+      <div class="brand-sub">RECOVERY PLAN DRAFTING SUITE</div>
+    </div>
+    <nav class="nav">
+      <div class="nav-label">워크스페이스</div>
+      <button class="nav-item" data-view="home"><span class="ic">◈</span>대시보드</button>
+      <button class="nav-item" data-view="hub"><span class="ic">▤</span>데이터 허브</button>
+      <button class="nav-item" data-view="diff"><span class="ic">⇄</span>변경점 리뷰</button>
+      <button class="nav-item" data-view="rules"><span class="ic">⚙</span>기관 로직 설정</button>
+      <button class="nav-item" data-view="export"><span class="ic">⤓</span>산출물 생성</button>
+      <div class="nav-label">보고서 목차 (지주)</div>
+      <div id="chNav"></div>
+    </nav>
+    <div class="side-foot">DEMO BUILD v0.9 · PwC</div>
+  </aside>
+
+  <!-- ========== MAIN ========== -->
+  <div class="main">
+    <header class="topbar">
+      <div class="org-pick">
+        <select id="orgSel">
+          <option value="woori">우리금융지주</option>
+          <option value="kb">KB금융지주</option>
+          <option value="shinhan">신한금융지주</option>
+          <option value="hana">하나금융지주</option>
+          <option value="nh">NH농협금융지주</option>
+        </select>
+        <span class="yr">FY2026 제출본</span>
+      </div>
+      <span class="chip rule" id="ruleChip">RULESET · WR-A3</span>
+      <span class="chip demo">DEMO DATA</span>
+      <div class="spacer"></div>
+      <div class="user"><span id="learnState" class="mono" style="font-size:11px;color:var(--ink-3)">학습 완료 · 5개년</span><div class="avatar">JB</div></div>
+    </header>
+    <div class="scroll" id="scroll">
+      <div id="view"></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"><span>✓</span><span id="toastMsg"></span></div>
+
+<script>
+/* =====================================================================
+   DATA MODEL — 지주 제출 RRP 목차 / 목차별 필요정보 / 초안 / 근거
+   ===================================================================== */
+
+const ORGS={
+  woori:{name:'우리금융지주',rs:'WR-A3',subs:16,core:'우리은행'},
+  kb:{name:'KB금융지주',rs:'KB-B1',subs:13,core:'국민은행'},
+  shinhan:{name:'신한금융지주',rs:'SH-B2',subs:17,core:'신한은행'},
+  hana:{name:'하나금융지주',rs:'HN-A1',subs:15,core:'하나은행'},
+  nh:{name:'NH농협금융지주',rs:'NH-C1',subs:12,core:'농협은행'}
+};
+
+/* 근거 원장 */
+const EV={
+ 'e1':{t:'대상 자회사 수',pv:'15개사',cv:'16개사',src:'2026_지주_연결대상종속기업.xlsx',loc:'Sheet「연결범위」 B4:B20',rule:'연결재무제표 기준 종속기업 전량 편입',conf:'확정',logic:'전년 15개사 + 신규 편입 2개사(동양생명, ABL생명) − 합병 소멸 1개사'},
+ 'e2':{t:'평가 기준연도',pv:'2024.12말',cv:'2025.12말',src:'FISIS 정기공시 / 지주 결산자료',loc:'금융통계정보시스템 정기공시',rule:'직전 사업연도말 확정치 적용',conf:'확정',logic:'기준일 자동 롤포워드(+1Y)'},
+ 'e3':{t:'시장점유율 반영 시점',pv:'—',cv:'2026년 1분기 확정치',src:'FISIS 2026 Q1',loc:'업권별 통계 > 시장점유율',rule:'가장 최근 확정 분기 우선 적용',conf:'확정',logic:'신규 문장 — 기준일 이원화(재무 25.12 / 점유율 26.1Q) 명시 필요'},
+ 'e4':{t:'내부 상호연계성 임계치',pv:'5%',cv:'5%',src:'RRP 산출 툴킷 v3.2',loc:'내부연계성 시트 > MAX(4개 지표)',rule:'4개 지표 중 최댓값 ≥ 5% → 후보 편입',conf:'확정',logic:'변동 없음 · MIN→MAX 로직 오류 수정본 반영'},
+ 'e5':{t:'대체가능성별 점유율 임계치',pv:'10% / 5%',cv:'10% / 5%',src:'방법론서 표 2-7',loc:'표 2-7 고정기준',rule:"대체가능성 '보통' 이상 10%, '낮음' 5%",conf:'확정',logic:'유효 경쟁사업자 평균(cut-off) 방식은 각주 참조로만 유지'},
+ 'e6':{t:'우리카드 시장점유율',pv:'8.71%',cv:'8.29%',src:'FISIS 2026 Q1',loc:'여신전문금융 > 신용카드 이용실적',rule:'업권 대표지표 = 신용카드 이용실적',conf:'확정',logic:'전년 대비 △0.42%p — 임계치 10% 미달 유지'},
+ 'e7':{t:'우리금융캐피탈 시장점유율',pv:'5.02%',cv:'5.36%',src:'FISIS 2026 Q1',loc:'여신전문금융 > 총자산',rule:'업권 대표지표 = 총자산',conf:'확정',logic:'전년 대비 +0.34%p — 대체가능성 낮음(5%) 임계치 상회'},
+ 'e8':{t:'동양생명 / ABL생명',pv:'해당 없음',cv:'3.56% / 1.98%',src:'FISIS 2026 Q1',loc:'생명보험 > 총자산',rule:'업권 대표지표 = 총자산',conf:'확정',logic:'신규 편입 자회사 — 금년 최초 산출'},
+ 'e9':{t:'BIS 총자본비율 (위기 임계치)',pv:'11.5%',cv:'11.8%',src:'2026 감독규정 개정 / 리스크대시보드',loc:'규제비율 모니터링 > 자본',rule:'규제최저 + 경기대응완충 반영',conf:'검증필요',logic:'경기대응완충자본 0.3%p 상향 반영'},
+ 'e10':{t:'LCR 관찰 임계치',pv:'105%',cv:'110%',src:'유동성 리스크 관리기준',loc:'유동성 트리거 표',rule:'규제비율 + 내부 버퍼',conf:'확정',logic:'내부 버퍼 5%p 상향'},
+ 'e11':{t:'트리거 발동 이력',pv:'0건',cv:'2건 (관찰단계)',src:'리스크 모니터링 로그 2025.07~2026.06',loc:'트리거 이벤트 대장',rule:'12개월 롤링 집계',conf:'확정',logic:'신규 문장 — 발동 사유 및 해제 경과 서술 추가'},
+ 'e12':{t:'RRP 전담조직',pv:'리스크관리부 내 TF',cv:'그룹리스크관리부 정상화계획팀',src:'2026.03 직제개편 공문',loc:'조직도 v2026.03',rule:'상설 조직 전환',conf:'확정',logic:'조직 명칭·위상 변경 — 관련 R&R 문장 연동 재작성'},
+ 'e13':{t:'사이버 침해사고 대응체계',pv:'—',cv:'신설 (제4장 3절)',src:'전자금융감독규정 / 정보보호위원회 결의',loc:'침해사고 대응 매뉴얼 v2.0',rule:'감독당국 피드백 반영 신설 항목',conf:'확정',logic:'신규 절 — 위기단계 연동 보고체계 포함'},
+ 'e14':{t:'자체정상화조치 총 회복력',pv:'3.9%p',cv:'4.3%p',src:'조치별 효과 산출표',loc:'Recovery Options 효과 집계',rule:'중복효과 제거 후 순효과 합산',conf:'검증필요',logic:'신규 조치 2건 추가 효과 +0.4%p'},
+ 'e15':{t:'조치 수',pv:'11개',cv:'13개',src:'조치 목록 대장',loc:'조치 마스터',rule:'실행가능성 평가 통과 조치만 계상',conf:'확정',logic:'신규 2건(비은행 지분 일부 매각, 후순위채 발행)'},
+ 'e16':{t:'복합 스트레스 시나리오 GDP',pv:'△1.8%',cv:'△2.4%',src:'한국은행 ECOS / 내부 거시모형',loc:'시나리오 파라미터 표',rule:'심각 시나리오 = 과거 최악 분위 + α',conf:'확정',logic:'거시지표 자동 갱신 — 하방 심화'},
+ 'e17':{t:'기준금리 경로',pv:'3.50% → 3.00%',cv:'2.75% → 2.25%',src:'한국은행 ECOS',loc:'정책금리 시계열',rule:'기준일 현재 정책금리에서 시나리오 충격 부가',conf:'확정',logic:'기준금리 인하 사이클 반영'},
+ 'e18':{t:'실행 장애요인',pv:'7건',cv:'9건',src:'법무·규제 검토의견서',loc:'장애요인 대장',rule:'조치별 법률·규제·운영 제약 식별',conf:'검증필요',logic:'신규 조치 관련 제약 2건 추가'},
+ 'e19':{t:'SNS 모니터링 체계',pv:'—',cv:'신설',src:'홍보실 온라인 대응 매뉴얼',loc:'커뮤니케이션 계획 3절',rule:'실시간 여론 모니터링 및 단계별 대응',conf:'확정',logic:'신규 절 — 위기단계별 대응 문안 사전 준비'},
+ 'e20':{t:'감독당국 자료제공 소요시간',pv:'T+5영업일',cv:'T+3영업일',src:'데이터 인프라 개선과제 이행결과',loc:'MIS 산출 성능 측정',rule:'표준 요청항목 기준 산출 리드타임',conf:'확정',logic:'전년 개선과제 완료 반영'},
+ 'e21':{t:'지주 연결총자산',pv:'523.4조원',cv:'561.8조원',src:'2025 사업보고서 / FISIS',loc:'연결재무상태표',rule:'연결 기준 기말잔액',conf:'확정',logic:'+7.3% YoY'},
+ 'e22':{t:'이사회 의결일',pv:'2025.05.28',cv:'2026.05.27',src:'이사회 의사록',loc:'제2026-05차 이사회',rule:'제출 전 이사회 승인 필수',conf:'확정',logic:'연도 롤포워드'},
+ 'e23':{t:'핵심기능 수',pv:'6개',cv:'7개',src:'핵심기능 식별 워크시트',loc:'기능별 중요도 평가',rule:'대체가능성·시스템 영향도 2축 평가',conf:'확정',logic:'신규: 간편지급결제 대행'}
+};
+
+/* 챕터 정의 */
+const CH=[
+{id:'G01',nm:'개요 및 요약',
+ desc:'계획 수립 근거·적용범위·전년 대비 주요 변경사항 요약. 감독당국이 가장 먼저 읽는 장으로, 타 장의 확정값이 자동 인용됩니다.',
+ inputs:[
+  {n:'지주 일반현황 (연결총자산·자기자본·임직원수)',t:'file',s:'사업보고서 / FISIS',c:'연 1회',r:1,f:'2025_사업보고서_연결.pdf',pv:'523.4조'},
+  {n:'자회사 현황표 (연결대상 종속기업)',t:'file',s:'연결재무제표 주석',c:'연 1회',r:1,f:'연결대상종속기업.xlsx',pv:'15개사'},
+  {n:'계획 수립 근거 법령·가이드라인 버전',t:'val',s:'금산법 / 작성 가이드라인',c:'개정 시',r:1,v:'2026.02',u:'개정',pv:'2024.11'},
+  {n:'이사회 의결일',t:'val',s:'이사회 의사록',c:'연 1회',r:1,v:'2026-05-27',u:'',pv:'2025-05-28'},
+  {n:'전년도 제출본 및 감독당국 피드백',t:'file',s:'전년 제출본 / 보완요구서',c:'연 1회',r:1,f:'FY2025_RRP_최종제출본.docx',pv:'—'}
+ ],
+ draft:[
+  {st:'chg',h:'1.1 계획 수립의 목적 및 근거',x:`당사는 「금융산업의 구조개선에 관한 법률」 제9조의2 및 <D e="e1" k="chg">금융위원회 자체정상화계획 작성 가이드라인(2026.02 개정)</D>에 따라 금융체계상 중요한 금융기관으로서 본 자체정상화계획을 수립하였다. 본 계획은 당사에 중대한 재무적 위기가 발생하는 경우 외부의 재정지원 없이 자체적인 노력으로 경영을 정상화하기 위한 사전 대응계획으로서의 성격을 가진다.`},
+  {st:'chg',h:'1.2 적용 범위',x:`본 계획의 적용 범위는 지주회사와 <D e="e1" k="chg">연결대상 종속기업 16개사</D> 전체이며, 그 중 중요자회사로 선정된 회사에 대해서는 개별 정상화방안을 별도로 수립하였다. 재무정보의 평가 기준일은 <D e="e2" k="chg">2025년 12월 31일</D>이며, <D e="e3" k="new">시장점유율 등 업권 통계는 2026년 1분기 확정치를 적용하였다.</D>`},
+  {st:'chg',h:'1.3 전년 계획 대비 주요 변경사항',x:`금년도 계획은 전년 대비 다음 사항이 변경되었다. 첫째, <D e="e1" k="chg">자회사 편입에 따라 평가 대상이 16개사로 확대</D>되었다. 둘째, <D e="e12" k="chg">자체정상화계획 전담조직이 상설 조직(그룹리스크관리부 정상화계획팀)으로 전환</D>되었다. 셋째, <D e="e15" k="chg">자체정상화조치가 13개로 확대</D>되어 총 회복력이 <D e="e14" k="chg">4.3%p</D>로 제고되었다. 넷째, 감독당국 피드백을 반영하여 <D e="e13" k="new">사이버 침해사고 대응체계</D> 및 <D e="e19" k="new">온라인·SNS 커뮤니케이션 대응 절</D>을 신설하였다.`},
+  {st:'chg',h:'1.4 승인 절차',x:`본 계획은 그룹리스크관리부에서 작성하고 리스크관리위원회의 심의를 거쳐 <D e="e22" k="chg">2026년 5월 27일 이사회</D>에서 최종 승인되었다.`}
+ ]},
+
+{id:'G02',nm:'중요자회사 및 핵심기능',
+ desc:'핵심기능·핵심사업 식별, 내부/외부 상호연계성 평가를 통한 중요자회사 선정. 기관별 산출 로직 차이가 가장 큰 장으로 룰셋 커스터마이징 대상입니다.',
+ inputs:[
+  {n:'자회사별 재무 4개 지표 (총자산·자기자본·당기순이익·자금조달)',t:'file',s:'연결 세그먼트 자료',c:'연 1회',r:1,f:'내부상호연계성_산출_v3.2.xlsx',pv:'15개사 기준'},
+  {n:'내부 상호연계성 임계치',t:'val',s:'방법론서 §2.3',c:'연 1회',r:1,v:'5',u:'%',pv:'5%'},
+  {n:'업권별 시장점유율 (대표지표 기준)',t:'file',s:'FISIS 2026 Q1',c:'분기',r:1,f:'FISIS_업권별점유율_26Q1.xlsx',pv:'25Q1 기준'},
+  {n:'대체가능성 평가 결과 (자회사별 등급)',t:'file',s:'내부 평가 워크시트',c:'연 1회',r:1,f:'대체가능성_평가.xlsx',pv:'—'},
+  {n:'점유율 임계치 — 대체가능성 보통 이상',t:'val',s:'방법론서 표 2-7',c:'연 1회',r:1,v:'10',u:'%',pv:'10%'},
+  {n:'점유율 임계치 — 대체가능성 낮음',t:'val',s:'방법론서 표 2-7',c:'연 1회',r:1,v:'5',u:'%',pv:'5%'},
+  {n:'주요 거래상대방 익스포져 현황',t:'file',s:'그룹 익스포져 집계',c:'반기',r:1,f:'거래상대방_익스포져.xlsx',pv:'—'},
+  {n:'제3자 업무 위·수탁 현황',t:'file',s:'위수탁 계약 대장',c:'연 1회',r:0,f:'',pv:'—'},
+  {n:'핵심기능 식별 워크시트',t:'file',s:'기능별 중요도 평가',c:'연 1회',r:1,f:'핵심기능_식별.xlsx',pv:'6개 기능'}
+ ],
+ draft:[
+  {st:'chg',h:'2.1 중요자회사 선정 개요',x:`당사는 지주 내 <D e="e1" k="chg">16개 자회사</D>를 대상으로 내부 상호연계성 및 외부 상호연계성을 종합 평가하여 중요자회사를 선정하였다. 평가 기준일은 <D e="e2" k="chg">2025년 12월 31일</D>이며, <D e="e3" k="new">업권별 시장점유율은 2026년 1분기 확정치를 반영하였다.</D>`},
+  {st:'same',h:'2.2 내부 상호연계성 평가',x:`내부 상호연계성은 지주 연결 기준 총자산, 자기자본, 당기순이익, 자금조달 규모의 4개 지표에 대하여 자회사별 비중을 산출하고, <D e="e4" k="same">4개 지표 중 최댓값이 임계치(5%)를 상회</D>하는 경우 중요자회사 후보로 분류하는 방식을 적용하였다. 지표 간 가중치는 부여하지 아니하였다.`},
+  {st:'same',h:'2.3 외부 상호연계성 평가 기준',x:`외부 상호연계성은 ①중요 금융상품·서비스 ②주요 거래상대방 익스포져 ③제3자 업무 위·수탁의 3개 축으로 평가하였다. 이 중 중요 금융상품·서비스의 시장점유율 임계치는 <D e="e5" k="same">대체가능성 평가 결과가 '보통' 이상인 경우 10%, '낮음'인 경우 5%를 적용</D>하였다. 업권별 대표지표는 신용카드업은 신용카드 이용실적, 리스·할부금융업 및 생명보험업은 총자산, 증권업은 자기자본, 부동산신탁업은 영업수익, 자산운용업은 운용자산(AUM)을 사용하였다.`},
+  {st:'chg',h:'2.4 평가 결과',tbl:1,x:`2026년 1분기 기준 업권별 대표지표에 따른 시장점유율은 <D e="e6" k="chg">우리카드 8.29%</D>, <D e="e7" k="chg">우리금융캐피탈 5.36%</D>, <D e="e8" k="new">동양생명 3.56%, ABL생명 1.98%</D>로 산출되었다. <D e="e7" k="chg">우리금융캐피탈은 대체가능성 '낮음' 기준 임계치(5%)를 상회하여 외부 상호연계성 관점에서 중요자회사로 판단</D>되었으며, 우리카드는 대체가능성 '보통' 기준 임계치(10%)에 미달하였으나 내부 상호연계성 기준을 충족하여 중요자회사로 선정되었다.`},
+  {st:'chg',h:'2.5 핵심기능 식별',x:`핵심기능은 대체가능성과 시스템 영향도의 2축 평가를 통해 <D e="e23" k="chg">총 7개 기능</D>을 식별하였으며, 금년도에는 <D e="e23" k="new">간편지급결제 대행 기능이 신규 편입</D>되었다. 각 핵심기능은 이를 수행하는 자회사와 매핑하여 정상화조치 설계 시 우선 보호 대상으로 관리한다.`}
+ ]},
+
+{id:'G03',nm:'경영위기상황 판단기준',
+ desc:'자본·유동성·수익성·자산건전성·시장지표 카테고리별 정량 트리거와 3단계 임계치, 모니터링 주기 및 발동 이력.',
+ inputs:[
+  {n:'규제비율 실적 (BIS·CET1·LCR·NSFR)',t:'file',s:'감독업무보고서',c:'분기',r:1,f:'규제비율_실적_26Q1.xlsx',pv:'25Q4 기준'},
+  {n:'BIS 총자본비율 위기 임계치',t:'val',s:'감독규정 + 내부버퍼',c:'연 1회',r:1,v:'11.8',u:'%',pv:'11.5%'},
+  {n:'LCR 관찰 임계치',t:'val',s:'유동성 관리기준',c:'연 1회',r:1,v:'110',u:'%',pv:'105%'},
+  {n:'고정이하여신비율 임계치',t:'val',s:'자산건전성 기준',c:'연 1회',r:1,v:'1.20',u:'%',pv:'1.10%'},
+  {n:'시장지표 (CDS 프리미엄·주가·신용등급)',t:'file',s:'Bloomberg / 시장데이터',c:'일',r:1,f:'시장지표_시계열.csv',pv:'—'},
+  {n:'최근 12개월 트리거 발동 이력',t:'file',s:'리스크 모니터링 로그',c:'월',r:1,f:'트리거_이벤트대장.xlsx',pv:'0건'},
+  {n:'정성적 판단기준 (경영진 판단 요소)',t:'file',s:'리스크관리위원회 규정',c:'연 1회',r:0,f:'',pv:'—'}
+ ],
+ draft:[
+  {st:'same',h:'3.1 판단기준 체계',x:`경영위기상황 판단기준은 자본적정성, 유동성, 수익성, 자산건전성, 시장지표의 5개 범주로 구성하며, 각 지표별로 관찰단계·주의단계·위기단계의 3단계 임계치를 설정하였다. 정량지표에 의한 자동 판단을 원칙으로 하되, 정성적 요소는 리스크관리위원회의 판단을 거쳐 보완적으로 적용한다.`},
+  {st:'chg',h:'3.2 자본 및 유동성 임계치',x:`자본적정성 부문의 위기단계 임계치는 <D e="e9" k="chg">BIS 총자본비율 11.8%</D>로 설정하였으며, 이는 <D e="e9" k="chg">2026년 경기대응완충자본 적립수준 상향(0.3%p)을 반영</D>한 것이다. 유동성 부문의 관찰단계 임계치는 <D e="e10" k="chg">LCR 110%</D>로 전년 대비 5%p 상향하여 내부 버퍼를 확대하였다.`},
+  {st:'chg',h:'3.3 트리거 발동 이력',x:`<D e="e11" k="new">최근 12개월간 관찰단계 트리거가 2건 발동되었다. 2025년 9월 시장지표 부문(CDS 프리미엄 급등)에서 1건, 2026년 3월 수익성 부문(분기 ROA 하락)에서 1건이 발동되었으며, 두 건 모두 리스크관리위원회 보고 후 후속 모니터링을 거쳐 정상 단계로 복귀하였다.</D> 위기단계 트리거 발동 사례는 없었다.`}
+ ]},
+
+{id:'G04',nm:'지배구조',
+ desc:'RRP 수립·이행 거버넌스, 이사회·위원회 역할, 전담조직 R&R, 위기 시 의사결정 체계 및 자회사 연계 구조.',
+ inputs:[
+  {n:'RRP 거버넌스 조직도',t:'file',s:'직제표 / 조직개편 공문',c:'수시',r:1,f:'조직도_2026.03.pptx',pv:'2025.03판'},
+  {n:'이사회·리스크관리위원회 규정',t:'file',s:'내부규정집',c:'개정 시',r:1,f:'리스크관리위원회_규정.pdf',pv:'—'},
+  {n:'전담조직 명칭 및 인원',t:'val',s:'직제개편 공문',c:'수시',r:1,v:'정상화계획팀 / 9명',u:'',pv:'TF / 5명'},
+  {n:'위기 시 의사결정 체계 및 비상연락망',t:'file',s:'위기대응 매뉴얼',c:'반기',r:1,f:'비상대응체계_v3.docx',pv:'—'},
+  {n:'자회사 연계 거버넌스 (보고·승인 라인)',t:'file',s:'자회사 관리규정',c:'연 1회',r:1,f:'자회사_거버넌스.xlsx',pv:'—'},
+  {n:'사이버 침해사고 대응체계',t:'file',s:'정보보호 매뉴얼',c:'연 1회',r:1,f:'침해사고_대응매뉴얼_v2.pdf',pv:'미수록'}
+ ],
+ draft:[
+  {st:'chg',h:'4.1 자체정상화계획 거버넌스',x:`본 계획의 수립·점검·갱신은 <D e="e12" k="chg">그룹리스크관리부 정상화계획팀</D>이 주관한다. <D e="e12" k="chg">전년도까지 한시 조직(TF) 형태로 운영되던 조직을 2026년 3월 직제개편을 통해 상설 조직으로 전환</D>하여 연중 상시 모니터링 및 계획 갱신 체계를 확보하였다.`},
+  {st:'same',h:'4.2 이사회 및 위원회 역할',x:`이사회는 자체정상화계획의 최종 승인 및 중대 변경사항 의결을 담당하며, 리스크관리위원회는 계획의 적정성 심의, 경영위기상황 판단기준의 승인, 트리거 발동 시 대응방향 결정을 담당한다. 경영진은 위기단계 진입 시 정상화조치의 실행을 결정하고 그 결과를 이사회에 보고한다.`},
+  {st:'new',h:'4.3 사이버 침해사고 대응체계',x:`<D e="e13" k="new">사이버 침해사고는 재무적 위기와 별개의 경로로 핵심기능 중단을 초래할 수 있으므로, 침해사고 대응체계를 경영위기상황 판단·보고 체계와 연계하여 운영한다. 정보보호최고책임자(CISO)는 침해사고 등급이 '심각' 이상으로 판정되는 경우 즉시 리스크관리위원회 및 정상화계획팀에 통보하며, 핵심기능 중단이 24시간 이상 지속될 것으로 예상되는 경우 경영위기상황 판단 절차를 개시한다.</D>`}
+ ]},
+
+{id:'G05',nm:'자체정상화조치',
+ desc:'자본확충·유동성확보·자산매각·사업재편 등 조치 목록과 조치별 효과·소요기간·실행조건, 우선순위 매트릭스.',
+ inputs:[
+  {n:'조치 마스터 목록',t:'file',s:'조치 대장',c:'연 1회',r:1,f:'정상화조치_마스터.xlsx',pv:'11개'},
+  {n:'조치별 자본비율 개선효과',t:'file',s:'재무 시뮬레이션',c:'연 1회',r:1,f:'조치효과_산출표.xlsx',pv:'3.9%p'},
+  {n:'조치별 유동성 조달 규모',t:'file',s:'유동성 계획',c:'연 1회',r:1,f:'유동성조달_계획.xlsx',pv:'—'},
+  {n:'조치별 실행 소요기간',t:'val',s:'실행계획서',c:'연 1회',r:1,v:'1~9',u:'개월',pv:'1~12개월'},
+  {n:'매각가능 자산·지분 포트폴리오',t:'file',s:'자산 현황표',c:'반기',r:1,f:'매각가능자산.xlsx',pv:'—'},
+  {n:'조치 우선순위 평가기준',t:'file',s:'방법론서 §5',c:'연 1회',r:0,f:'',pv:'—'}
+ ],
+ draft:[
+  {st:'chg',h:'5.1 조치 개요',x:`당사는 경영위기상황 발생 시 적용 가능한 자체정상화조치로 <D e="e15" k="chg">총 13개 조치</D>를 식별하였다. 금년도에는 <D e="e15" k="new">비은행 자회사 지분 일부 매각 및 조건부자본증권(후순위채) 발행 2건이 신규 추가</D>되었다. 조치는 자본확충, 유동성 확보, 자산·사업 매각, 비용구조 조정의 4개 유형으로 분류하였다.`},
+  {st:'chg',h:'5.2 조치 효과',x:`모든 조치를 실행하는 경우 예상되는 자본비율 개선효과는 <D e="e14" k="chg">총 4.3%p</D>이며, 이는 중복효과를 제거한 순효과 기준이다. 위기단계 진입 시 6개월 내 실행 가능한 조치만을 적용하더라도 자본비율 <D e="e14" k="chg">2.8%p</D> 개선이 가능한 것으로 분석되었다.`},
+  {st:'same',h:'5.3 조치 우선순위',x:`조치의 실행 순서는 실행 용이성, 핵심기능에 미치는 영향, 시장 평판에 미치는 영향, 회복 효과의 4개 기준을 종합하여 결정한다. 핵심기능을 수행하는 중요자회사의 매각은 최후 순위로 배치하며, 시장 신뢰에 미치는 부정적 영향을 고려하여 배당 중단 및 비용 절감을 선순위로 적용한다.`}
+ ]},
+
+{id:'G06',nm:'위기상황분석 (스트레스 시나리오)',
+ desc:'거시 시나리오 파라미터, 개별·시스템·복합 시나리오별 자본·유동성 영향 및 조치 적용 후 회복경로.',
+ inputs:[
+  {n:'거시경제 지표 (GDP·기준금리·환율·주가·부동산)',t:'file',s:'한국은행 ECOS',c:'분기',r:1,f:'ECOS_거시지표_26Q2.csv',pv:'25Q2 기준'},
+  {n:'복합 시나리오 GDP 성장률',t:'val',s:'내부 거시모형',c:'연 1회',r:1,v:'-2.4',u:'%',pv:'-1.8%'},
+  {n:'기준금리 시나리오 경로',t:'val',s:'ECOS + 시나리오 충격',c:'연 1회',r:1,v:'2.75→2.25',u:'%',pv:'3.50→3.00'},
+  {n:'감독당국 제시 시나리오',t:'file',s:'금감원 스트레스 시나리오',c:'연 1회',r:1,f:'감독원_시나리오_2026.pdf',pv:'—'},
+  {n:'시나리오별 손실 추정 결과',t:'file',s:'내부 스트레스테스트 모형',c:'연 1회',r:1,f:'스트레스테스트_결과.xlsx',pv:'—'},
+  {n:'유동성 스트레스 가정 (예금이탈률 등)',t:'file',s:'유동성 모형 가정표',c:'연 1회',r:1,f:'유동성가정.xlsx',pv:'—'}
+ ],
+ draft:[
+  {st:'same',h:'6.1 시나리오 구성',x:`위기상황분석은 개별 위기(당사 고유 요인), 시스템 위기(시장 전반 충격), 복합 위기(양자 동시 발생)의 3개 유형으로 구성하였으며, 각 유형별로 심각도를 차등 적용하였다. 시나리오의 심각도는 과거 위기 국면의 최악 분위 수준을 하회하도록 설정하였다.`},
+  {st:'chg',h:'6.2 거시 시나리오 가정',x:`복합 위기 시나리오의 주요 가정은 <D e="e16" k="chg">실질 GDP 성장률 △2.4%</D>, <D e="e17" k="chg">기준금리 2.75%에서 2.25%로의 인하</D>, 원/달러 환율 1,520원, KOSPI 35% 하락, 수도권 주택가격 22% 하락이다. <D e="e16" k="chg">전년 대비 GDP 충격을 0.6%p 심화</D>하여 보수적으로 설정하였다.`},
+  {st:'chg',h:'6.3 영향 및 회복 경로',x:`복합 위기 시나리오 적용 시 BIS 총자본비율은 스트레스 발생 후 4분기 시점에 최저점에 도달하며, 이는 위기단계 임계치 <D e="e9" k="chg">11.8%</D>를 하회한다. 자체정상화조치를 적용하는 경우 <D e="e14" k="chg">4.3%p</D>의 개선효과를 통해 스트레스 발생 후 6분기 시점에 규제 최저비율을 회복하는 것으로 분석되었다.`}
+ ]},
+
+{id:'G07',nm:'실행가능성 평가 및 장애요인',
+ desc:'조치별 법률·규제·운영·시장·평판 관점 실행가능성 평가와 장애요인 및 완화방안.',
+ inputs:[
+  {n:'조치별 실행가능성 평가표',t:'file',s:'내부 평가 워크시트',c:'연 1회',r:1,f:'실행가능성_평가.xlsx',pv:'—'},
+  {n:'법무 검토의견서',t:'file',s:'법무실',c:'연 1회',r:1,f:'법무검토의견_2026.pdf',pv:'—'},
+  {n:'장애요인 대장',t:'file',s:'장애요인 관리대장',c:'반기',r:1,f:'장애요인_대장.xlsx',pv:'7건'},
+  {n:'자회사 자금이전 제약 현황',t:'file',s:'규제 제약 목록',c:'연 1회',r:1,f:'자금이전_제약.xlsx',pv:'—'},
+  {n:'시장 흡수력 분석 (자산매각 관련)',t:'file',s:'IB 자문의견 / 내부 분석',c:'연 1회',r:0,f:'',pv:'—'}
+ ],
+ draft:[
+  {st:'same',h:'7.1 평가 방법',x:`각 자체정상화조치에 대하여 법률적 제약, 규제 승인 필요성, 운영 실행가능성, 시장 흡수력, 평판 영향의 5개 관점에서 실행가능성을 평가하고, 평가 결과에 따라 조치의 실행 시점과 우선순위를 조정하였다.`},
+  {st:'chg',h:'7.2 식별된 장애요인',x:`실행가능성 평가 결과 <D e="e18" k="chg">총 9건의 장애요인</D>이 식별되었다. <D e="e18" k="new">금년도에는 신규 조치와 관련하여 조건부자본증권 발행 시 시장 수요 위축 가능성 및 비은행 자회사 지분 매각에 따른 대주주 변경승인 소요기간 2건이 추가</D>되었다. 각 장애요인에 대해서는 사전 준비조치 및 대체 조치를 매핑하여 관리한다.`},
+  {st:'same',h:'7.3 자회사 자금이전 제약',x:`지주회사와 자회사 간 자금이전은 자본시장법상 신용공여 제한, 은행법상 대주주 거래 제한 등의 규제를 적용받으므로, 위기 시 활용 가능한 자금이전 수단과 그 한도를 사전에 산정하여 관리하고 있다.`}
+ ]},
+
+{id:'G08',nm:'커뮤니케이션 계획',
+ desc:'이해관계자별 커뮤니케이션 시나리오, 공시 의무, 대변인 체계 및 온라인·SNS 대응 체계.',
+ inputs:[
+  {n:'이해관계자 맵',t:'file',s:'홍보실 / IR',c:'연 1회',r:1,f:'이해관계자_맵.xlsx',pv:'—'},
+  {n:'단계별 커뮤니케이션 시나리오·문안',t:'file',s:'위기 커뮤니케이션 매뉴얼',c:'연 1회',r:1,f:'위기커뮤니케이션_매뉴얼.docx',pv:'—'},
+  {n:'공시 의무사항 체크리스트',t:'file',s:'공시규정 / 준법감시',c:'개정 시',r:1,f:'공시체크리스트.xlsx',pv:'—'},
+  {n:'대변인 및 비상 연락체계',t:'val',s:'홍보실',c:'반기',r:1,v:'대변인 1 / 예비 2',u:'',pv:'대변인 1 / 예비 1'},
+  {n:'온라인·SNS 모니터링 체계',t:'file',s:'온라인 대응 매뉴얼',c:'연 1회',r:1,f:'SNS_대응체계.docx',pv:'미수록'}
+ ],
+ draft:[
+  {st:'same',h:'8.1 커뮤니케이션 원칙',x:`위기 상황에서의 커뮤니케이션은 신속성, 일관성, 정확성을 원칙으로 하며, 단일 창구를 통한 메시지 통제를 기본으로 한다. 감독당국에 대한 보고는 대외 공표에 우선하며, 예금자 및 고객에 대한 안내는 핵심기능의 지속 여부를 최우선으로 다룬다.`},
+  {st:'same',h:'8.2 이해관계자별 대응',x:`이해관계자는 감독당국, 주주 및 투자자, 예금자·고객, 임직원, 언론, 거래상대방으로 구분하고, 경영위기상황의 단계별로 커뮤니케이션 시점·주체·채널·핵심 메시지를 사전에 정의하였다. 각 단계별 표준 문안은 별첨으로 관리하며 연 1회 갱신한다.`},
+  {st:'new',h:'8.3 온라인·SNS 대응 체계',x:`<D e="e19" k="new">디지털 채널을 통한 정보 확산 속도를 고려하여 온라인·SNS 대응 체계를 신설하였다. 홍보실은 상시 온라인 여론 모니터링을 수행하며, 부정적 언급량이 평시 대비 일정 배수를 초과하는 경우 조기경보를 발령한다. 위기단계 진입 시에는 공식 채널을 통한 사실관계 공지를 우선 게시하고, 허위정보 확산에 대해서는 정정 공지 및 필요 시 법적 조치를 병행한다. 임직원의 개인 계정을 통한 정보 발신은 위기 기간 중 제한한다.</D>`}
+ ]},
+
+{id:'G09',nm:'사전 준비 및 정보제공체계',
+ desc:'데이터 인프라(MIS), 감독당국 정보제공 항목·주기·소요시간, 전년 개선과제 이행현황.',
+ inputs:[
+  {n:'RRP 데이터 인프라 명세',t:'file',s:'IT 시스템 명세서',c:'연 1회',r:1,f:'MIS_명세서.docx',pv:'—'},
+  {n:'감독당국 제공 항목 목록',t:'file',s:'정보제공 항목표',c:'연 1회',r:1,f:'정보제공항목.xlsx',pv:'—'},
+  {n:'자료 산출 소요시간',t:'val',s:'MIS 성능 측정',c:'연 1회',r:1,v:'3',u:'영업일',pv:'5영업일'},
+  {n:'전년도 개선과제 이행현황',t:'file',s:'개선과제 대장',c:'반기',r:1,f:'개선과제_이행현황.xlsx',pv:'—'},
+  {n:'데이터 품질관리 체계',t:'file',s:'데이터 거버넌스 규정',c:'연 1회',r:0,f:'',pv:'—'}
+ ],
+ draft:[
+  {st:'chg',h:'9.1 정보제공 체계',x:`감독당국이 요구하는 자체정상화계획 관련 자료는 그룹 통합 MIS를 통해 산출하며, 표준 요청항목 기준 산출 소요시간은 <D e="e20" k="chg">T+3영업일</D>이다. <D e="e20" k="chg">전년도 개선과제로 추진한 데이터마트 구축이 완료되어 소요시간이 2영업일 단축</D>되었다.`},
+  {st:'same',h:'9.2 데이터 품질관리',x:`정보제공에 사용되는 데이터는 원천 시스템, 산출 로직, 검증 책임자를 명시한 데이터 계보(lineage)를 관리하며, 분기별로 정합성 점검을 수행한다.`},
+  {st:'chg',h:'9.3 개선과제 이행현황',x:`전년도 계획에서 식별한 개선과제 6건 중 <D e="e20" k="chg">5건이 완료</D>되었으며, 잔여 1건(자회사 데이터 실시간 연계)은 2026년 하반기 완료 예정이다.`}
+ ]}
+];
+
+/* =====================================================================
+   STATE
+   ===================================================================== */
+const S={
+  view:'home', ch:null, step:1, org:'woori',
+  filled:{},      // chId -> Set of input idx
+  gen:{},         // chId -> true (초안 생성됨)
+  conf:{},        // chId -> true (확정)
+  onlyDiff:false, actEv:null
+};
+CH.forEach(c=>{
+  S.filled[c.id]=new Set();
+  c.inputs.forEach((it,i)=>{ if(it.f||it.v) S.filled[c.id].add(i); });
+});
+// 데모 시작 상태: G01~G02는 초안 생성됨, G01은 확정
+S.gen['G01']=true; S.conf['G01']=true; S.gen['G02']=true;
+
+const $=s=>document.querySelector(s);
+const chOf=id=>CH.find(c=>c.id===id);
+const status=id=>S.conf[id]?'done':(S.gen[id]?'draft':'todo');
+const pct=id=>{const c=chOf(id);return Math.round(S.filled[id].size/c.inputs.length*100)};
+function toast(m){$('#toastMsg').textContent=m;$('#toast').classList.add('show');clearTimeout(window._t);window._t=setTimeout(()=>$('#toast').classList.remove('show'),2400)}
+
+/* =====================================================================
+   RENDER — NAV
+   ===================================================================== */
+function renderNav(){
+  $('#chNav').innerHTML=CH.map(c=>{
+    const st=status(c.id);
+    return `<button class="ch-item ${S.view==='ch'&&S.ch===c.id?'on':''}" data-ch="${c.id}">
+      <span class="ch-id">${c.id}</span>
+      <span class="ch-nm">${c.nm}</span>
+      <span class="dot ${st==='done'?'done':st==='draft'?'draft':''}"></span>
+    </button>`;}).join('');
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('on',S.view===b.dataset.view));
+  $('#chNav').querySelectorAll('.ch-item').forEach(b=>b.onclick=()=>{S.ch=b.dataset.ch;S.step=S.gen[S.ch]?2:1;S.view='ch';S.actEv=null;render()});
+}
+
+/* =====================================================================
+   VIEWS
+   ===================================================================== */
+function vHome(){
+  const done=CH.filter(c=>S.conf[c.id]).length, drafted=CH.filter(c=>S.gen[c.id]).length;
+  const totIn=CH.reduce((a,c)=>a+c.inputs.length,0);
+  const totF=CH.reduce((a,c)=>a+S.filled[c.id].size,0);
+  const chgCnt=Object.keys(EV).length;
+  const o=ORGS[S.org];
+  return `<div class="wrap wide">
+    <div class="eyebrow">FY2026 자체정상화계획 · 지주 제출본</div>
+    <h1>${o.name} 정상화계획 갱신 작업실</h1>
+    <p class="lede">전년도를 포함한 5개년 제출본과 최신 거시·재무지표, 내부 트리거 현황을 학습해 9개 장의 갱신 초안을 만듭니다. 장마다 필요한 정보를 순서대로 올리면, 값이 바뀐 문장만 다시 씁니다.</p>
+
+    <div class="grid g4" style="margin-top:24px">
+      <div class="card kpi"><div class="k">정보 수집률</div><div class="v">${Math.round(totF/totIn*100)}<span style="font-size:15px">%</span></div><div class="s">${totF} / ${totIn}개 항목</div><div class="bar" style="margin-top:9px"><i style="width:${totF/totIn*100}%"></i></div></div>
+      <div class="card kpi"><div class="k">초안 생성</div><div class="v">${drafted}<span style="font-size:15px">/9</span></div><div class="s">장 기준</div><div class="bar" style="margin-top:9px"><i style="width:${drafted/9*100}%"></i></div></div>
+      <div class="card kpi"><div class="k">검토 확정</div><div class="v">${done}<span style="font-size:15px">/9</span></div><div class="s">이사회 상정 가능 여부</div><div class="bar" style="margin-top:9px"><i class="ok" style="width:${done/9*100}%"></i></div></div>
+      <div class="card kpi"><div class="k">전년 대비 변경점</div><div class="v">${chgCnt}</div><div class="s">근거 매핑 완료 ${chgCnt}건</div><div class="bar" style="margin-top:9px"><i class="ok" style="width:100%"></i></div></div>
+    </div>
+
+    <div class="sec-head"><div><h2>학습 데이터</h2><p>초안 생성 시 참조하는 원천입니다. 데이터 허브에서 교체할 수 있습니다.</p></div><button class="btn gho sm" data-go="hub">데이터 허브 열기</button></div>
+    <div class="card">
+      <table>
+        <thead><tr><th style="width:32%">원천</th><th>범위</th><th>최신 반영</th><th style="width:110px">상태</th></tr></thead>
+        <tbody>
+          <tr><td><b>과년도 RRP 제출본</b></td><td class="mono">FY2021 ~ FY2025 (5개년)</td><td class="mono">2025.06.30</td><td><span class="tag n">임베딩 완료</span></td></tr>
+          <tr><td><b>감독당국 보완요구·피드백</b></td><td class="mono">FY2023 ~ FY2025 · 34건</td><td class="mono">2025.11.14</td><td><span class="tag n">임베딩 완료</span></td></tr>
+          <tr><td><b>거시경제 지표</b></td><td class="mono">한국은행 ECOS · 12개 계열</td><td class="mono">2026.07.31</td><td><span class="tag n">자동 연동</span></td></tr>
+          <tr><td><b>업권별 시장통계</b></td><td class="mono">FISIS · 6개 업권</td><td class="mono">2026 Q1 확정</td><td><span class="tag n">자동 연동</span></td></tr>
+          <tr><td><b>내부 리스크 트리거 로그</b></td><td class="mono">최근 12개월 롤링</td><td class="mono">2026.07.31</td><td><span class="tag n">자동 연동</span></td></tr>
+          <tr><td><b>내부규정·조직도</b></td><td class="mono">2026.03 직제개편 반영</td><td class="mono">2026.03.02</td><td><span class="tag c">수동 갱신</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid g2" style="margin-top:26px;align-items:start">
+      <div>
+        <div class="sec-head" style="margin-top:0"><div><h2>장별 진행 현황</h2><p>클릭하면 해당 장의 작성 화면으로 이동합니다.</p></div></div>
+        <div class="card">
+          <table><thead><tr><th style="width:52px">장</th><th>제목</th><th style="width:130px">정보</th><th style="width:86px">상태</th></tr></thead><tbody>
+          ${CH.map(c=>{const st=status(c.id),p=pct(c.id);return `<tr style="cursor:pointer" data-goch="${c.id}">
+            <td class="mono" style="color:var(--ink-3);font-weight:600">${c.id}</td>
+            <td><b>${c.nm}</b></td>
+            <td><div style="display:flex;align-items:center;gap:8px"><div class="bar" style="flex:1"><i class="${p===100?'ok':''}" style="width:${p}%"></i></div><span class="mono" style="font-size:11px;color:var(--ink-3)">${p}%</span></div></td>
+            <td>${st==='done'?'<span class="tag n">확정</span>':st==='draft'?'<span class="tag c">검토중</span>':'<span class="tag g">대기</span>'}</td></tr>`}).join('')}
+          </tbody></table>
+        </div>
+      </div>
+      <div>
+        <div class="sec-head" style="margin-top:0"><div><h2>위기 트리거 현황</h2><p>최근 12개월 · G03 초안에 자동 반영</p></div></div>
+        <div class="card pad">
+          ${[['자본적정성','BIS 총자본 15.42%','normal','정상'],['유동성','LCR 128.6%','normal','정상'],['수익성','분기 ROA 0.58%','watch','관찰'],['자산건전성','고정이하 0.86%','normal','정상'],['시장지표','CDS 62bp','normal','정상']].map(t=>`
+          <div class="trig"><span class="lv ${t[2]}">${t[3]}</span><div style="flex:1"><div style="font-size:12.5px;font-weight:600">${t[0]}</div><div class="mono" style="font-size:11px;color:var(--ink-3)">${t[1]}</div></div></div>`).join('')}
+          <div class="warnbox" style="margin-top:14px">최근 12개월 <b>관찰단계 2건 발동</b> — 2025.09 시장지표, 2026.03 수익성. 두 건 모두 G03 §3.3에 신규 문단으로 반영되었습니다.</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function vHub(){
+  return `<div class="wrap">
+    <div class="eyebrow">DATA HUB</div>
+    <h1>데이터 허브</h1>
+    <p class="lede">모든 장이 공통으로 참조하는 원천을 한곳에서 관리합니다. 여기서 값을 바꾸면 해당 값을 인용한 모든 장의 문장이 다시 생성 대상으로 표시됩니다.</p>
+    <div class="note" style="margin-top:18px">한 번 올린 원천은 여러 장에서 재사용됩니다. 예를 들어 <b>FISIS 2026 Q1</b>은 G02 시장점유율과 G03 업권 비교지표에 동시에 연결되어 있습니다.</div>
+
+    <div class="sec-head"><div><h2>원천 파일</h2><p>드래그하거나 선택해 올립니다.</p></div><button class="btn pri sm" onclick="toast('데모 빌드에서는 파일 업로드가 시뮬레이션됩니다')">＋ 파일 올리기</button></div>
+    <div class="card">
+      ${[
+        ['과년도 RRP 제출본 (5개년)','FY2021~FY2025_RRP.zip','G01·전 장','2025.06.30'],
+        ['감독당국 보완요구서','피드백_통합_34건.xlsx','G01·G04·G08','2025.11.14'],
+        ['연결재무제표 및 세그먼트','2025_연결재무제표.xlsx','G01·G02·G05','2026.03.15'],
+        ['FISIS 업권별 시장통계','FISIS_점유율_26Q1.xlsx','G02·G03','2026.05.20'],
+        ['한국은행 ECOS 거시지표','ECOS_거시지표_26Q2.csv','G06','2026.07.31'],
+        ['리스크 트리거 모니터링 로그','트리거_이벤트대장.xlsx','G03','2026.07.31'],
+        ['조직도 및 내부규정','조직도_2026.03.pptx','G04','2026.03.02']
+      ].map(r=>`<div class="inrow">
+        <div><div class="in-name">${r[0]}</div>
+        <div class="in-meta"><span class="filechip">▣ ${r[1]}</span><span class="tag b">${r[2]}</span><span class="src">갱신 ${r[3]}</span></div></div>
+        <div style="display:flex;gap:6px"><button class="btn gho sm" onclick="toast('미리보기는 데모에서 제공되지 않습니다')">미리보기</button><button class="btn gho sm" onclick="toast('새 파일로 교체하면 연결된 장이 재생성 대상이 됩니다')">교체</button></div>
+      </div>`).join('')}
+    </div>
+
+    <div class="sec-head"><div><h2>자동 연동 커넥터</h2><p>정기 갱신되는 외부 통계는 API로 가져옵니다.</p></div></div>
+    <div class="grid g3">
+      ${[['FISIS','금융통계정보시스템','분기','정상'],['ECOS','한국은행 경제통계','월','정상'],['내부 MIS','그룹 통합 데이터마트','일','정상']].map(c=>`
+      <div class="card pad"><div style="display:flex;justify-content:space-between;align-items:center"><h3>${c[0]}</h3><span class="tag n">● ${c[3]}</span></div>
+      <p style="font-size:12px;color:var(--ink-2);margin-top:6px">${c[1]}</p>
+      <div class="src" style="margin-top:10px">동기화 주기 ${c[2]}</div></div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function vRules(){
+  const o=ORGS[S.org];
+  return `<div class="wrap">
+    <div class="eyebrow">RULESET · ${o.rs}</div>
+    <h1>기관 로직 설정</h1>
+    <p class="lede">중요자회사 판정 기준, 업권 대표지표, 트리거 임계치처럼 기관마다 다른 규칙을 여기서 정의합니다. 본문 서술은 이 값을 읽어 자동으로 문장을 맞춥니다.</p>
+    <div class="note" style="margin-top:18px"><b>${o.name}</b> 프로파일이 적용 중입니다. 상단에서 기관을 바꾸면 룰셋이 함께 전환되고, 이미 생성된 초안은 재생성 대상으로 표시됩니다.</div>
+
+    <div class="sec-head"><div><h2>중요자회사 판정 (G02)</h2></div></div>
+    <div class="card">
+      <div class="rule-row" style="font-size:11px;color:var(--ink-3);font-weight:700;background:var(--surface-2)"><div>규칙</div><div>값</div><div>적용</div></div>
+      ${[['내부 상호연계성 임계치 (4개 지표 중 최댓값)','5','%'],['외부 — 대체가능성 보통 이상 시 점유율','10','%'],['외부 — 대체가능성 낮음 시 점유율','5','%'],['거래상대방 익스포져 임계치','3','%'],['제3자 위·수탁 중요도 기준','상','등급']].map(r=>`
+      <div class="rule-row"><div style="font-size:12.5px">${r[0]}</div><input value="${r[1]}"><div class="src">${r[2]}</div></div>`).join('')}
+    </div>
+
+    <div class="sec-head"><div><h2>업권별 대표지표</h2><p>점유율 산출에 쓰는 분모입니다.</p></div></div>
+    <div class="card"><table><thead><tr><th>업권</th><th>대표지표</th><th>출처</th></tr></thead><tbody>
+      ${[['신용카드업','신용카드 이용실적','FISIS 여신전문금융'],['리스·할부금융업','총자산','FISIS 여신전문금융'],['생명보험업','총자산','FISIS 보험'],['증권업','자기자본','FISIS 금융투자'],['부동산신탁업','영업수익','FISIS 신탁'],['자산운용업','운용자산(AUM)','금융투자협회']].map(r=>`<tr><td><b>${r[0]}</b></td><td class="mono">${r[1]}</td><td class="src">${r[2]}</td></tr>`).join('')}
+    </tbody></table></div>
+
+    <div class="sec-head"><div><h2>경영위기 트리거 임계치 (G03)</h2></div></div>
+    <div class="card"><table><thead><tr><th>구분</th><th>지표</th><th class="num">관찰</th><th class="num">주의</th><th class="num">위기</th></tr></thead><tbody>
+      ${[['자본','BIS 총자본비율','13.5','12.5','11.8'],['자본','보통주자본비율(CET1)','11.5','10.5','9.8'],['유동성','LCR','110','105','100'],['유동성','NSFR','105','102','100'],['수익성','분기 ROA','0.45','0.30','0.10'],['건전성','고정이하여신비율','1.00','1.20','1.60'],['시장','CDS 프리미엄(bp)','120','180','250']].map(r=>`<tr><td><span class="tag g">${r[0]}</span></td><td><b>${r[1]}</b></td><td class="num">${r[2]}</td><td class="num">${r[3]}</td><td class="num" style="color:var(--del);font-weight:700">${r[4]}</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="warnbox" style="margin-top:14px">임계치를 수정하면 G03 §3.2와 G06 §6.3의 서술이 자동으로 다시 계산됩니다. 값 변경 후 해당 장에서 <b>초안 다시 만들기</b>를 실행하세요.</div>
+  </div>`;
+}
+
+function vDiff(){
+  const rows=[];
+  CH.forEach(c=>{ if(!S.gen[c.id])return;
+    c.draft.forEach(p=>{ const m=[...p.x.matchAll(/<D e="(e\d+)" k="(\w+)">/g)];
+      m.forEach(x=>{ if(x[2]==='same')return; rows.push({ch:c.id,cn:c.nm,sec:p.h,e:x[1],k:x[2]}); }); }); });
+  const seen=new Set(); const uniq=rows.filter(r=>{const k=r.ch+r.e;if(seen.has(k))return false;seen.add(k);return true});
+  return `<div class="wrap wide">
+    <div class="eyebrow">CHANGE REVIEW</div>
+    <h1>변경점 리뷰</h1>
+    <p class="lede">전년 제출본과 달라진 부분만 모았습니다. 각 항목은 값이 어디서 왔는지, 어떤 규칙으로 계산됐는지까지 함께 보여줍니다.</p>
+    <div class="grid g3" style="margin-top:22px">
+      <div class="card kpi"><div class="k">신규 서술</div><div class="v" style="color:var(--new)">${uniq.filter(r=>r.k==='new').length}</div><div class="s">전년에 없던 문장</div></div>
+      <div class="card kpi"><div class="k">수치·표현 변경</div><div class="v" style="color:var(--chg)">${uniq.filter(r=>r.k==='chg').length}</div><div class="s">값 변동에 따른 재작성</div></div>
+      <div class="card kpi"><div class="k">근거 미확정</div><div class="v" style="color:var(--del)">${uniq.filter(r=>EV[r.e].conf==='검증필요').length}</div><div class="s">내부 확인 필요</div></div>
+    </div>
+    <div class="card" style="margin-top:20px">
+      <table><thead><tr><th style="width:48px">장</th><th style="width:19%">절</th><th style="width:20%">항목</th><th class="num" style="width:120px">전년</th><th class="num" style="width:130px">금년</th><th style="width:78px">유형</th><th style="width:88px">근거</th></tr></thead><tbody>
+      ${uniq.map(r=>{const e=EV[r.e];return `<tr>
+        <td class="mono" style="color:var(--ink-3);font-weight:600">${r.ch}</td>
+        <td style="font-size:12px">${r.sec}</td>
+        <td><b>${e.t}</b><div class="src" style="margin-top:2px">${e.src}</div></td>
+        <td class="num" style="color:var(--ink-3)">${e.pv}</td>
+        <td class="num" style="font-weight:700">${e.cv}</td>
+        <td>${r.k==='new'?'<span class="tag n">신규</span>':'<span class="tag c">변경</span>'}</td>
+        <td>${e.conf==='확정'?'<span class="tag n">확정</span>':'<span class="tag d">검증필요</span>'}</td></tr>`}).join('')}
+      </tbody></table>
+    </div>
+    <div class="note" style="margin-top:16px">검증필요 항목은 원천 데이터가 내부 산출물이거나 감독규정 해석이 필요한 값입니다. 확정 전까지 산출물 생성 시 각주로 표시됩니다.</div>
+  </div>`;
+}
+
+function vExport(){
+  const done=CH.filter(c=>S.conf[c.id]).length;
+  return `<div class="wrap">
+    <div class="eyebrow">EXPORT</div>
+    <h1>산출물 생성</h1>
+    <p class="lede">확정된 장을 모아 제출용 문서로 내보냅니다. 변경점 표시와 근거 각주는 선택할 수 있습니다.</p>
+    <div class="card pad" style="margin-top:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><h2>포함 대상</h2><span class="tag ${done===9?'n':'c'}">${done}/9장 확정</span></div>
+      ${CH.map(c=>{const st=status(c.id);return `<div style="display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid var(--line)">
+        <input type="checkbox" ${st==='todo'?'':'checked'} ${st==='todo'?'disabled':''} style="accent-color:var(--brand);width:15px;height:15px">
+        <span class="mono" style="font-size:11px;color:var(--ink-3);width:34px">${c.id}</span>
+        <span style="flex:1;font-size:12.5px;font-weight:600">${c.nm}</span>
+        ${st==='done'?'<span class="tag n">확정</span>':st==='draft'?'<span class="tag c">검토중</span>':'<span class="tag g">미생성</span>'}</div>`}).join('')}
+    </div>
+    <div class="card pad" style="margin-top:16px">
+      <h2 style="margin-bottom:12px">출력 옵션</h2>
+      ${[['변경점 하이라이트 포함 (검토용)',1],['근거 데이터 각주 삽입',1],['전년 제출본 대조표 별첨',1],['미확정 항목 표시',0]].map(o=>`
+      <label class="chk" style="cursor:pointer"><input type="checkbox" ${o[1]?'checked':''}><span style="font-size:12.5px">${o[0]}</span></label>`).join('')}
+      <div style="display:flex;gap:9px;margin-top:18px">
+        <button class="btn pri" onclick="toast('DOCX 생성은 데모에서 시뮬레이션됩니다')">⤓ DOCX 내보내기</button>
+        <button class="btn gho" onclick="toast('PDF 생성은 데모에서 시뮬레이션됩니다')">PDF 내보내기</button>
+        <button class="btn gho" onclick="toast('변경점 대조표를 XLSX로 내보냅니다')">변경점 대조표 (XLSX)</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ---------- CHAPTER ---------- */
+function vCh(){
+  const c=chOf(S.ch);
+  const p=pct(c.id), req=c.inputs.filter(i=>i.r).length;
+  const reqDone=c.inputs.filter((i,idx)=>i.r&&S.filled[c.id].has(idx)).length;
+  const canGen=reqDone===req;
+  const st=status(c.id);
+
+  const stepper=`<div class="steps">
+    <button class="step ${S.step===1?'on':''} ${p===100?'done':''}" data-step="1"><span class="step-n">${p===100?'✓':'1'}</span><span><span class="step-t">정보 올리기</span><span class="step-d">${S.filled[c.id].size}/${c.inputs.length}개 수집</span></span></button>
+    <span class="step-sep"></span>
+    <button class="step ${S.step===2?'on':''} ${S.gen[c.id]?'done':''}" data-step="2"><span class="step-n">${S.gen[c.id]?'✓':'2'}</span><span><span class="step-t">초안 확인</span><span class="step-d">${S.gen[c.id]?'생성 완료':'대기'}</span></span></button>
+    <span class="step-sep"></span>
+    <button class="step ${S.step===3?'on':''} ${S.conf[c.id]?'done':''}" data-step="3"><span class="step-n">${S.conf[c.id]?'✓':'3'}</span><span><span class="step-t">검토·확정</span><span class="step-d">${S.conf[c.id]?'확정됨':'미확정'}</span></span></button>
+  </div>`;
+
+  const head=`<div class="eyebrow">${c.id} · 지주 제출본 제${c.id.slice(2)}장</div>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+      <div><h1>${c.nm}</h1><p class="lede">${c.desc}</p></div>
+      ${st==='done'?'<span class="tag n" style="flex:0 0 auto">확정</span>':st==='draft'?'<span class="tag c" style="flex:0 0 auto">검토중</span>':'<span class="tag g" style="flex:0 0 auto">대기</span>'}
+    </div>`;
+
+  let body='';
+  if(S.step===1) body=step1(c,canGen,req,reqDone);
+  else if(S.step===2) body=S.gen[c.id]?step2(c):`<div class="card pad" style="text-align:center;padding:50px"><p style="color:var(--ink-3);font-size:13px">아직 초안이 없습니다. 1단계에서 정보를 올린 뒤 <b>초안 만들기</b>를 실행하세요.</p><button class="btn pri" style="margin-top:14px" data-step="1">1단계로 이동</button></div>`;
+  else body=step3(c);
+
+  return `<div class="wrap ${S.step===2?'wide':''}">${head}<div style="margin-top:20px">${stepper}</div>${body}</div>`;
+}
+
+function step1(c,canGen,req,reqDone){
+  return `<div class="card">
+    <div style="padding:15px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;background:var(--surface-2)">
+      <div><h2>이 장에 필요한 정보</h2><p style="font-size:11.5px;color:var(--ink-3);margin-top:2px">필수 ${req}개 중 ${reqDone}개 수집 · 오른쪽 값은 전년 제출본 기준</p></div>
+      <div style="width:150px"><div class="bar"><i class="${pct(c.id)===100?'ok':''}" style="width:${pct(c.id)}%"></i></div></div>
+    </div>
+    ${c.inputs.map((it,i)=>{
+      const has=S.filled[c.id].has(i);
+      return `<div class="inrow ${has?'filled':''}">
+        <div>
+          <div class="in-name">${it.n} ${it.r?'<span class="req">*</span>':'<span class="tag g">선택</span>'}</div>
+          <div class="in-meta"><span class="src">출처 ${it.s}</span><span class="tag g">갱신 ${it.c}</span>${has?`<span class="filechip">${it.t==='file'?'▣ '+it.f:'✎ 입력됨'}</span>`:''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="prev">전년 ${it.pv}</span>
+          ${it.t==='file'
+            ? (has?`<button class="btn gho sm" data-clear="${i}">교체</button>`:`<button class="btn pri sm" data-up="${i}">파일 올리기</button>`)
+            : `<div class="valbox"><input value="${it.v||''}" data-val="${i}" placeholder="입력"><span class="unit">${it.u||''}</span></div>`}
+        </div>
+      </div>`}).join('')}
+    <div style="padding:18px;display:flex;align-items:center;justify-content:space-between;gap:16px;border-top:1px solid var(--line);background:var(--surface-2)">
+      <div style="font-size:12px;color:var(--ink-2)">${canGen?'필수 정보가 모두 준비됐습니다. 5개년 학습본과 대조해 갱신 초안을 만듭니다.':`필수 항목 ${req-reqDone}개가 남았습니다.`}</div>
+      <button class="btn pri" id="genBtn" ${canGen?'':'disabled'}>${S.gen[c.id]?'초안 다시 만들기':'초안 만들기'} →</button>
+    </div>
+  </div>`;
+}
+
+function renderP(p){
+  const body=p.x.replace(/<D e="(e\d+)" k="(\w+)">/g,(m,e,k)=>`<span class="d d-${k==='new'?'new':k==='chg'?'chg':'same'} ${S.actEv===e?'act':''}" data-ev="${e}">`).replace(/<\/D>/g,'</span>');
+  const cls=p.st==='new'?'pnew':p.st==='chg'?'pchg':'';
+  const dim=S.onlyDiff&&p.st==='same'?'dimmed':'';
+  const mark=p.st==='new'?'NEW':p.st==='chg'?'MOD':'';
+  return `<div class="p ${cls} ${dim}"><span class="gut" style="color:${p.st==='new'?'var(--new)':p.st==='chg'?'var(--chg)':'var(--ink-3)'}">${mark}</span><span class="sub">${p.h}</span>${body}</div>`;
+}
+
+function step2(c){
+  const nNew=c.draft.filter(p=>p.st==='new').length, nChg=c.draft.filter(p=>p.st==='chg').length;
+  const tbl=c.id==='G02'?`<table class="doc-tbl"><caption>[표 2-8] 2026 1Q 기준 업권별 시장점유율 및 임계치 판정</caption>
+    <thead><tr><th>자회사</th><th>업권</th><th>대표지표</th><th class="num">점유율</th><th class="num">임계치</th><th>판정</th></tr></thead><tbody>
+    <tr><td><b>우리카드</b></td><td>신용카드업</td><td class="mono">이용실적</td><td class="num"><span class="d d-chg" data-ev="e6">8.29%</span></td><td class="num">10.0%</td><td><span class="tag g">미달</span></td></tr>
+    <tr><td><b>우리금융캐피탈</b></td><td>리스·할부</td><td class="mono">총자산</td><td class="num"><span class="d d-chg" data-ev="e7">5.36%</span></td><td class="num">5.0%</td><td><span class="tag n">충족</span></td></tr>
+    <tr><td><b>동양생명</b></td><td>생명보험업</td><td class="mono">총자산</td><td class="num"><span class="d d-new" data-ev="e8">3.56%</span></td><td class="num">5.0%</td><td><span class="tag g">미달</span></td></tr>
+    <tr><td><b>ABL생명</b></td><td>생명보험업</td><td class="mono">총자산</td><td class="num"><span class="d d-new" data-ev="e8">1.98%</span></td><td class="num">5.0%</td><td><span class="tag g">미달</span></td></tr>
+    </tbody></table>`:'';
+
+  let docBody=''; c.draft.forEach((p,i)=>{ docBody+=renderP(p); if(p.tbl) docBody+=tbl; });
+
+  return `<div class="docwrap">
+    <div class="doc">
+      <div class="doc-bar">
+        <span class="tag n">신규 ${nNew}</span><span class="tag c">변경 ${nChg}</span><span class="tag g">유지 ${c.draft.length-nNew-nChg}</span>
+        <span class="src" style="margin-left:4px">5개년 학습본 대조 · 생성 2026.08.16 09:41</span>
+        <div class="spacer" style="flex:1"></div>
+        <button class="btn gho sm" id="onlyDiff">${S.onlyDiff?'전체 보기':'변경만 보기'}</button>
+        <button class="btn gho sm" onclick="toast('편집 모드는 데모에서 제공되지 않습니다')">직접 편집</button>
+      </div>
+      <div class="doc-body">
+        <div class="doc-title">제${c.id.slice(2)}장 ${c.nm}</div>
+        ${docBody}
+      </div>
+    </div>
+    <div class="ev">${evPanel()}</div>
+  </div>
+  <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:16px">
+    <button class="btn gho" data-step="1">← 정보 수정</button>
+    <button class="btn pri" data-step="3">검토·확정으로 →</button>
+  </div>`;
+}
+
+function evPanel(){
+  if(!S.actEv) return `<div class="ev-h"><div><div class="t">근거 원장</div><div class="s">EVIDENCE LEDGER</div></div></div>
+    <div class="ev-b"><div class="ev-empty"><div class="big">◎</div>본문에서 <b>색이 칠해진 부분</b>을 누르면<br>그 문장이 어떤 값에서 나왔는지,<br>전년과 무엇이 달라졌는지 보여줍니다.</div></div>`;
+  const e=EV[S.actEv];
+  return `<div class="ev-h"><div><div class="t">${e.t}</div><div class="s">${S.actEv.toUpperCase()} · ${e.conf}</div></div>${e.conf==='확정'?'<span class="tag n">확정</span>':'<span class="tag d">검증필요</span>'}</div>
+  <div class="ev-b">
+    <div class="ev-k" style="margin-bottom:6px">전년 → 금년</div>
+    <div class="delta"><span class="a">${e.pv}</span><span class="arw">▶</span><span class="b">${e.cv}</span></div>
+    <div class="ev-row"><div class="ev-k">원천 데이터</div><div class="ev-v m">${e.src}</div></div>
+    <div class="ev-row"><div class="ev-k">위치</div><div class="ev-v m">${e.loc}</div></div>
+    <div class="ev-row"><div class="ev-k">적용 규칙</div><div class="ev-v">${e.rule}</div></div>
+    <div class="ev-row"><div class="ev-k">변경 사유</div><div class="ev-v">${e.logic}</div></div>
+    <div style="margin-top:14px"><div class="ev-k" style="margin-bottom:6px">데이터 계보</div>
+    <div class="trace">${e.src}<br>&nbsp;└ ${e.loc}<br>&nbsp;&nbsp;&nbsp;└ 룰셋 ${ORGS[S.org].rs}<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└ 본문 문장 생성</div></div>
+    <div style="display:flex;gap:6px;margin-top:14px"><button class="btn gho sm" style="flex:1" onclick="toast('원천 파일 열기는 데모에서 제공되지 않습니다')">원천 열기</button><button class="btn gho sm" style="flex:1" onclick="toast('검토 의견이 기록되었습니다')">이의 제기</button></div>
+  </div>`;
+}
+
+function step3(c){
+  const items=[
+    ['수치 정합성','본문 인용 수치가 원천 데이터와 일치하는지 확인'],
+    ['논리 일관성','전년 대비 변경 사유가 본문에 서술되어 있는지 확인'],
+    ['타 장 연계','다른 장에서 인용하는 값과 충돌이 없는지 확인'],
+    ['감독당국 피드백','전년 보완요구 사항이 반영되었는지 확인'],
+    ['미확정 항목','검증필요로 표시된 근거의 내부 확인 완료 여부']
+  ];
+  return `<div class="grid g2" style="align-items:start">
+    <div class="card pad">
+      <h2>검토 체크리스트</h2>
+      <p style="font-size:11.5px;color:var(--ink-3);margin:3px 0 6px">모두 확인해야 확정할 수 있습니다.</p>
+      ${items.map((it,i)=>`<div class="chk"><input type="checkbox" id="ck${i}" class="ckx" ${S.conf[c.id]?'checked':''}><label for="ck${i}"><b>${it[0]}</b><div class="h">${it[1]}</div></label></div>`).join('')}
+      <div style="margin-top:14px"><div class="ev-k" style="margin-bottom:6px">검토 의견</div><textarea class="cmt" placeholder="예: 2.4절 우리금융캐피탈 판정 근거에 표 2-7 각주 인용 추가 필요">${S.conf[c.id]?'전년 대비 변경 4건 확인 완료. 표 2-8 각주 보완 후 확정.':''}</textarea></div>
+      <div style="display:flex;gap:9px;margin-top:14px">
+        <button class="btn gho" data-step="2">← 초안 보기</button>
+        <button class="btn ${S.conf[c.id]?'gho':'pri'}" id="confBtn" style="flex:1">${S.conf[c.id]?'확정 해제':'이 장 확정하기'}</button>
+      </div>
+    </div>
+    <div>
+      <div class="card pad">
+        <h2>승인 이력</h2>
+        ${[['작성','정상화계획팀 백재웅','2026.08.16 09:41',1],['1차 검토','팀장 김OO',S.conf[c.id]?'2026.08.16 14:20':'대기',S.conf[c.id]?1:0],['부서 승인','그룹리스크관리부장','대기',0],['위원회 심의','리스크관리위원회','2026.05 예정',0]].map(r=>`
+        <div style="display:flex;gap:11px;padding:10px 0;border-bottom:1px solid var(--line)">
+          <span class="dot ${r[3]?'done':''}" style="margin-top:6px;background:${r[3]?'#19C39C':'#D6DBE7'}"></span>
+          <div style="flex:1"><div style="font-size:12.5px;font-weight:600">${r[0]}</div><div class="src">${r[1]}</div></div>
+          <div class="src">${r[2]}</div></div>`).join('')}
+      </div>
+      <div class="card pad" style="margin-top:14px">
+        <h2>이 장이 다른 장에 미치는 영향</h2>
+        <p style="font-size:11.5px;color:var(--ink-3);margin:3px 0 10px">확정 시 아래 장의 인용값이 갱신됩니다.</p>
+        ${(c.id==='G02'?[['G01','1.3 전년 대비 주요 변경사항','자회사 16개사'],['G05','5.3 조치 우선순위','중요자회사 목록'],['G07','7.3 자회사 자금이전 제약','대상 자회사']]:
+           c.id==='G03'?[['G06','6.3 영향 및 회복 경로','위기 임계치 11.8%'],['G01','1.3 전년 대비 주요 변경사항','트리거 기준 변경']]:
+           [['G01','1.3 전년 대비 주요 변경사항','장별 변경 요약']]).map(r=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
+          <span class="mono" style="font-size:11px;color:var(--ink-3);width:32px">${r[0]}</span>
+          <span style="flex:1;font-size:12px">${r[1]}</span><span class="tag b">${r[2]}</span></div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+/* =====================================================================
+   GENERATION ANIMATION
+   ===================================================================== */
+function runGen(c){
+  const lines=[
+    `> 룰셋 로드 · ${ORGS[S.org].rs} (${ORGS[S.org].name})`,
+    `> 과년도 제출본 조회 · FY2021~FY2025 중 제${c.id.slice(2)}장 5개 버전`,
+    `> 전년 본문 구조 파싱 · ${c.draft.length}개 절 / 문장 단위 분해`,
+    `> 신규 입력값 대조 · ${S.filled[c.id].size}개 항목`,
+    `> 값 변동 감지 · ${c.draft.filter(p=>p.st!=='same').length}개 절에서 변경 확인`,
+    `> 서술 재생성 · 변경 문장만 재작성, 유지 문장은 원문 보존`,
+    `> 논리 정합성 검증 · 타 장 인용값 충돌 0건`,
+    `> 근거 매핑 · 원천 파일 → 위치 → 규칙 → 문장 연결`,
+    `✓ 초안 생성 완료`
+  ];
+  $('#view').innerHTML=`<div class="wrap"><div class="eyebrow">${c.id} · GENERATING</div><h1>초안을 만드는 중입니다</h1>
+    <p class="lede">전년 본문을 그대로 두고, 값이 바뀐 문장만 다시 씁니다.</p>
+    <div class="gen" id="genLog" style="margin-top:22px"></div>
+    <div class="bar" style="margin-top:16px"><i id="genBar" style="width:0%"></i></div></div>`;
+  const log=$('#genLog'); let i=0;
+  const tick=()=>{
+    if(i>=lines.length){ S.gen[c.id]=true; S.step=2; S.actEv=null; setTimeout(()=>{render();toast('초안이 만들어졌습니다')},420); return; }
+    const d=document.createElement('div'); d.className='ln'+(i===lines.length-1?' ok':'');
+    d.innerHTML=lines[i].replace(/·(.+)$/,'·<span class="hl">$1</span>');
+    log.appendChild(d); $('#genBar').style.width=((i+1)/lines.length*100)+'%'; i++;
+    setTimeout(tick, i===1?260:200+Math.random()*180);
+  };
+  setTimeout(tick,260);
+}
+
+/* =====================================================================
+   RENDER + EVENTS
+   ===================================================================== */
+function render(){
+  renderNav();
+  const v=S.view;
+  $('#view').innerHTML = v==='home'?vHome():v==='hub'?vHub():v==='rules'?vRules():v==='diff'?vDiff():v==='export'?vExport():vCh();
+  $('#scroll').scrollTop=0;
+  bind();
+}
+
+function bind(){
+  document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{S.view=b.dataset.go;render()});
+  document.querySelectorAll('[data-goch]').forEach(b=>b.onclick=()=>{S.ch=b.dataset.goch;S.step=S.gen[S.ch]?2:1;S.view='ch';render()});
+  document.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{S.step=+b.dataset.step;render()});
+  document.querySelectorAll('[data-up]').forEach(b=>b.onclick=()=>{
+    const i=+b.dataset.up, c=chOf(S.ch);
+    S.filled[c.id].add(i); if(!c.inputs[i].f) c.inputs[i].f=c.inputs[i].n.split(' ')[0].replace(/[()]/g,'')+'_2026.xlsx';
+    render(); toast('파일을 올렸습니다');
+  });
+  document.querySelectorAll('[data-clear]').forEach(b=>b.onclick=()=>{toast('새 파일로 교체하면 초안이 재생성 대상이 됩니다')});
+  document.querySelectorAll('[data-val]').forEach(inp=>{
+    inp.oninput=()=>{const i=+inp.dataset.val,c=chOf(S.ch);c.inputs[i].v=inp.value;
+      if(inp.value.trim())S.filled[c.id].add(i);else S.filled[c.id].delete(i);
+      const req=c.inputs.filter(x=>x.r).length, rd=c.inputs.filter((x,ix)=>x.r&&S.filled[c.id].has(ix)).length;
+      const g=$('#genBtn'); if(g) g.disabled=(rd!==req);
+    };
+  });
+  const gb=$('#genBtn'); if(gb) gb.onclick=()=>runGen(chOf(S.ch));
+  const od=$('#onlyDiff'); if(od) od.onclick=()=>{S.onlyDiff=!S.onlyDiff;render()};
+  document.querySelectorAll('.d').forEach(s=>s.onclick=()=>{
+    S.actEv = S.actEv===s.dataset.ev ? null : s.dataset.ev;
+    document.querySelectorAll('.d').forEach(x=>x.classList.toggle('act',x.dataset.ev===S.actEv&&S.actEv));
+    const p=document.querySelector('.ev'); if(p) p.innerHTML=evPanel(); bindEv();
+  });
+  bindEv();
+  const cb=$('#confBtn'); if(cb) cb.onclick=()=>{
+    const c=chOf(S.ch);
+    if(S.conf[c.id]){S.conf[c.id]=false;render();toast('확정을 해제했습니다');return}
+    const all=[...document.querySelectorAll('.ckx')].every(x=>x.checked);
+    if(!all){toast('체크리스트를 모두 확인해 주세요');return}
+    S.conf[c.id]=true;render();toast(`${c.id} ${c.nm} — 확정했습니다`);
+  };
+}
+function bindEv(){ /* 근거 패널 내 버튼은 인라인 onclick 사용 */ }
+
+document.querySelectorAll('.nav-item').forEach(b=>b.onclick=()=>{S.view=b.dataset.view;S.actEv=null;render()});
+$('#orgSel').onchange=e=>{
+  S.org=e.target.value; const o=ORGS[S.org];
+  $('#ruleChip').textContent='RULESET · '+o.rs;
+  render(); toast(`${o.name} 룰셋으로 전환했습니다 — 생성된 초안은 재생성 대상입니다`);
+};
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chairman Risk Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Mono:wght@300;400;500&family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#ffffff;--s2:#f8fafd;--s3:#f0f4f9;
+  --border:rgba(30,80,160,0.09);--bh:rgba(30,80,160,0.20);
+  --accent:#1a6fd4;--green:#00966d;--warn:#d95f02;--red:#c0162f;--gold:#9a6f00;
+  --text:#0d1b2a;--muted:rgba(20,50,100,0.52);--dim:rgba(20,50,100,0.32);
+}
+body{background:#ffffff;color:var(--text);font-family:'Noto Sans KR',sans-serif;font-size:13px;min-height:100vh}
+/* TOPBAR */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 28px;border-bottom:1px solid var(--border);background:#ffffff;position:sticky;top:0;z-index:100;box-shadow:0 1px 4px rgba(20,50,100,0.06)}
+.tl{display:flex;align-items:center;gap:12px}
+.logo{width:30px;height:30px;border:1.5px solid var(--accent);border-radius:4px;display:grid;place-items:center;font-family:'DM Mono',monospace;font-size:10px;color:var(--accent)}
+.ttitle{font-family:'DM Serif Display',serif;font-size:15px}
+.tsub{font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:1px}
+.navtabs{display:flex;gap:3px}
+.navtab{padding:6px 14px;border-radius:3px;font-size:11px;cursor:pointer;border:1px solid transparent;color:var(--muted);transition:all .18s;white-space:nowrap}
+.navtab.on{border-color:var(--accent);color:var(--accent);background:rgba(26,111,212,0.07)}
+.navtab:hover:not(.on){border-color:var(--bh);color:var(--text)}
+.live{display:flex;align-items:center;gap:5px;font-family:'DM Mono',monospace;font-size:10px;color:var(--green)}
+.ldot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+#clock{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)}
+/* VIEWS */
+.view{display:none}.view.active{display:block}
+/* GRID */
+.grid{display:grid;grid-template-columns:260px 1fr 260px;gap:1px;background:#dde3ed}
+.p{background:#ffffff;padding:18px;overflow:hidden}
+.p2{grid-column:span 2}.p3{grid-column:span 3}
+.plabel{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.12em;color:var(--dim);text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.plabel::after{content:'';flex:1;height:1px;background:var(--border)}
+.shdr{grid-column:1/-1;background:#f0f4f9;padding:10px 18px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.15em;color:var(--dim);text-transform:uppercase;border-top:2px solid var(--accent);border-bottom:1px solid var(--border)}
+/* ORACLE */
+.oracle-ring{width:110px;height:110px;border-radius:50%;margin:0 auto 14px;background:conic-gradient(from 200deg,var(--accent) 0%,var(--green) 38%,var(--warn) 62%,var(--red) 80%,var(--accent) 100%);padding:3px}
+.oracle-in{width:100%;height:100%;border-radius:50%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.oracle-score{font-family:'DM Serif Display',serif;font-size:32px;line-height:1;color:var(--warn)}
+.oracle-lbl{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:.08em;margin-top:2px}
+.odims{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:12px}
+.odim{background:var(--s2);border:1px solid var(--border);border-radius:4px;padding:7px 9px}
+.odim-lbl{font-size:9px;color:var(--dim);font-family:'DM Mono',monospace;margin-bottom:2px}
+.odim-val{font-size:14px;font-weight:600}
+.cg{color:#00966d}.cw{color:#d95f02}.cr{color:#c0162f}.ca{color:#1a6fd4}.cgo{color:#9a6f00}
+/* SIGNALS */
+.sig{display:flex;align-items:flex-start;gap:9px;padding:9px 11px;border-radius:4px;border:1px solid var(--border);background:#fff;margin-bottom:7px}
+.sig.urg{border-left:2.5px solid var(--red)}.sig.wrn{border-left:2.5px solid var(--warn)}.sig.inf{border-left:2.5px solid var(--accent)}
+.sig-ico{width:22px;height:22px;border-radius:3px;display:grid;place-items:center;font-size:11px;flex-shrink:0}
+.sig-ico.urg{background:rgba(192,22,47,0.09)}.sig-ico.wrn{background:rgba(217,95,2,0.09)}.sig-ico.inf{background:rgba(26,111,212,0.09)}
+.sig-txt{font-size:11px;line-height:1.55;flex:1}
+.sig-txt strong{font-weight:600;display:block;margin-bottom:2px;font-size:12px}
+.aitag{font-size:9px;padding:2px 5px;border-radius:2px;background:rgba(26,111,212,0.08);color:var(--accent);font-family:'DM Mono',monospace;flex-shrink:0}
+.sigtime{font-size:9px;color:var(--dim);font-family:'DM Mono',monospace;margin-top:3px}
+/* KRI */
+.kri-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.kri-card{background:var(--s2);border:1px solid var(--border);border-radius:6px;padding:11px;display:flex;flex-direction:column;align-items:center}
+.kri-arc{position:relative;width:76px;height:44px;overflow:hidden;margin-bottom:6px}
+.kri-arc svg{width:76px;height:76px;position:absolute;top:0}
+.kri-v{position:absolute;bottom:0;left:50%;transform:translateX(-50%);font-family:'DM Serif Display',serif;font-size:14px;white-space:nowrap}
+.kri-name{font-size:9px;color:var(--muted);text-align:center;font-family:'DM Mono',monospace}
+.kri-chg{font-size:9px;margin-top:2px;font-family:'DM Mono',monospace}
+/* CONTAGION */
+.node-lbl{font-family:'DM Mono',monospace;font-size:9px;fill:rgba(15,26,46,0.62)}
+.cleg{display:flex;gap:12px;margin-top:8px;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace}
+.ldot2{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:3px;vertical-align:middle}
+/* STRESS */
+.stabs{display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap}
+.stab{padding:4px 10px;border-radius:3px;font-size:10px;cursor:pointer;border:1px solid var(--border);color:var(--muted);font-family:'DM Mono',monospace;transition:all .18s}
+.stab.on{border-color:var(--warn);color:var(--warn);background:rgba(217,95,2,0.07)}
+.sbars{display:flex;flex-direction:column;gap:7px}
+.srow{display:flex;align-items:center;gap:9px}
+.sname{font-size:11px;width:105px;color:var(--muted);flex-shrink:0}
+.strack{flex:1;height:6px;background:var(--s3);border-radius:3px;overflow:hidden}
+.sfill{height:100%;border-radius:3px;transition:width .55s}
+.sval{font-family:'DM Mono',monospace;font-size:11px;width:52px;text-align:right}
+/* NARRATIVE */
+.narr-box{background:var(--s2);border:1px solid var(--border);border-radius:5px;padding:14px;position:relative;overflow:hidden}
+.narr-box::before{content:'"';position:absolute;top:-6px;left:8px;font-family:'DM Serif Display',serif;font-size:66px;color:rgba(26,111,212,0.07);line-height:1}
+.narr-txt{font-size:12.5px;line-height:1.8;position:relative;z-index:1}
+.nh{color:#00966d;font-weight:500}.nw{color:#d95f02;font-weight:500}
+.narr-ft{display:flex;align-items:center;justify-content:space-between;margin-top:11px;padding-top:9px;border-top:1px solid var(--border)}
+.narr-src{font-family:'DM Mono',monospace;font-size:9px;color:var(--dim)}
+.regen{font-size:10px;padding:4px 11px;border-radius:3px;border:1px solid var(--accent);color:var(--accent);cursor:pointer;background:transparent;font-family:'DM Mono',monospace}
+.regen:disabled{opacity:.5;cursor:default}
+/* RADAR */
+.ritem{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.rname{font-size:10px;width:90px;color:var(--muted);flex-shrink:0}
+.rbar{flex:1;height:4px;background:var(--s3);border-radius:2px;overflow:hidden}
+.rfill{height:100%;border-radius:2px}
+.rpct{font-family:'DM Mono',monospace;font-size:10px;width:30px;text-align:right}
+/* HEATMAP */
+.hm-months{display:grid;grid-template-columns:repeat(12,1fr);gap:2px;margin-bottom:2px}
+.hm-mo{font-size:8px;color:var(--dim);font-family:'DM Mono',monospace;text-align:center}
+.hm-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:2px;margin-bottom:2px}
+.hm-cell{aspect-ratio:1;border-radius:2px}
+.hm-yr{font-size:9px;color:var(--dim);font-family:'DM Mono',monospace;height:16px;display:flex;align-items:center;margin-right:6px}
+/* MATRIX */
+.mwrap{overflow-x:auto}
+.mtbl{border-collapse:collapse;font-family:'DM Mono',monospace;font-size:10px;width:100%}
+.mtbl th,.mtbl td{padding:4px 8px;text-align:center;border:1px solid var(--border)}
+.mtbl th{color:var(--muted);font-weight:500;background:var(--s2)}
+/* DS 여수신 */
+.ds-kpi{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:13px}
+.ds-card{border-radius:5px;padding:11px;border:1px solid}
+.ds-val{font-family:'DM Serif Display',serif;font-size:24px}
+.port-bar{display:flex;height:16px;border-radius:3px;overflow:hidden;margin-bottom:5px}
+.port-leg{display:flex;flex-wrap:wrap;gap:5px}
+.port-li{font-size:9px;font-family:'DM Mono',monospace;color:var(--muted);display:flex;align-items:center;gap:3px}
+.port-dot{width:8px;height:8px;border-radius:2px;display:inline-block;flex-shrink:0}
+/* LARGE CREDIT */
+.lct{width:100%;border-collapse:collapse;font-size:11.5px}
+.lct th{padding:7px 10px;font-size:10px;font-family:'DM Mono',monospace;font-weight:500;color:var(--muted);background:var(--s2);border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
+.lct td{padding:7px 10px;border-bottom:1px solid rgba(20,60,140,0.06);white-space:nowrap}
+.badge{font-size:9px;padding:2px 7px;border-radius:3px;font-family:'DM Mono',monospace}
+.ai-bw{display:flex;align-items:center;gap:5px}
+.ai-bt{width:38px;height:5px;background:rgba(20,60,140,0.08);border-radius:3px;overflow:hidden}
+.ai-bf{height:100%;border-radius:3px}
+.ai-sp{font-family:'DM Mono',monospace;font-size:10px;padding:1px 5px;border-radius:2px}
+.lc-sum{margin-top:11px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}
+.lc-stat{padding:8px 13px;border-radius:4px;border:1px solid}
+.lc-stat-lbl{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.05em;margin-bottom:2px}
+.lc-stat-val{font-family:'DM Serif Display',serif;font-size:20px}
+/* BANKRUN */
+.br-gauge-wrap{display:flex;align-items:center;gap:14px;margin-bottom:14px;padding:11px;background:rgba(26,111,212,0.04);border:1px solid rgba(26,111,212,0.12);border-radius:5px}
+.br-inds{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.br-ind{padding:7px 9px;border-radius:4px;border:1px solid;display:flex;align-items:flex-start;gap:6px}
+.br-ind-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:3px}
+.ch-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.ch-name{font-size:10px;color:var(--muted);width:80px;flex-shrink:0}
+.ch-track{flex:1;height:7px;background:var(--s3);border-radius:4px;overflow:hidden}
+.ch-fill{height:100%;border-radius:4px}
+.ch-val{font-family:'DM Mono',monospace;font-size:10px;width:52px;text-align:right}
+.sns-row{display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--border)}
+/* MARKET RISK view */
+.metric-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.metric-card{background:var(--s2);border:1px solid var(--border);border-radius:6px;padding:14px}
+.metric-card .lbl{font-size:9px;color:var(--dim);font-family:'DM Mono',monospace;letter-spacing:.08em;margin-bottom:4px}
+.metric-card .val{font-family:'DM Serif Display',serif;font-size:22px}
+.metric-card .chg{font-size:10px;margin-top:3px;font-family:'DM Mono',monospace}
+.tbl-std{width:100%;border-collapse:collapse;font-size:12px}
+.tbl-std th{padding:8px 12px;background:var(--s2);border-bottom:1px solid var(--border);text-align:left;font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);font-weight:500}
+.tbl-std td{padding:8px 12px;border-bottom:1px solid rgba(20,60,140,0.06)}
+/* CREDIT RISK view */
+.seg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+.seg-card{background:var(--s2);border:1px solid var(--border);border-radius:6px;padding:14px}
+/* REGULATORY view */
+.reg-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.reg-card{background:var(--s2);border:1px solid var(--border);border-radius:6px;padding:16px}
+.reg-card-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.reg-title{font-size:13px;font-weight:600}
+.reg-status{font-size:10px;padding:3px 8px;border-radius:3px;font-family:'DM Mono',monospace}
+/* SCENARIO view */
+.scen-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:16px}
+.scen-card{background:var(--s2);border:1px solid var(--border);border-radius:6px;padding:16px}
+.scen-title{font-size:13px;font-weight:600;margin-bottom:3px}
+.scen-sub{font-size:10px;color:var(--muted);margin-bottom:12px}
+/* THINKING */
+.thinking{display:flex;align-items:center;gap:7px;font-family:'DM Mono',monospace;font-size:11px;color:var(--accent)}
+.tdots span{display:inline-block;width:4px;height:4px;border-radius:50%;background:var(--accent);animation:blink 1.2s infinite;margin:0 1px}
+.tdots span:nth-child(2){animation-delay:.2s}.tdots span:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
+/* CHAT */
+.ask-btn{position:fixed;bottom:22px;right:22px;z-index:200;width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--green));border:none;cursor:pointer;font-size:19px;display:grid;place-items:center;box-shadow:0 4px 16px rgba(26,111,212,0.28);animation:abp 3s infinite}
+@keyframes abp{0%{box-shadow:0 0 0 0 rgba(26,111,212,.4)}70%{box-shadow:0 0 0 12px rgba(26,111,212,0)}100%{box-shadow:0 0 0 0 rgba(26,111,212,0)}}
+.chat-panel{position:fixed;bottom:82px;right:22px;z-index:200;width:380px;max-height:500px;background:#fff;border:1px solid var(--bh);border-radius:9px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 16px 48px rgba(0,0,0,.10);transition:all .28s}
+.chat-panel.hidden{opacity:0;transform:translateY(14px) scale(.96);pointer-events:none}
+.chat-hdr{padding:11px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;background:rgba(26,111,212,0.04)}
+.chat-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:9px;max-height:340px}
+.msg{max-width:86%}.msg.user{align-self:flex-end}.msg.ai{align-self:flex-start}
+.msg-bub{padding:8px 12px;border-radius:7px;font-size:12px;line-height:1.6}
+.msg.user .msg-bub{background:rgba(26,111,212,0.10);border:1px solid rgba(26,111,212,0.18);border-radius:7px 7px 2px 7px}
+.msg.ai .msg-bub{background:var(--s2);border:1px solid var(--border);border-radius:7px 7px 7px 2px}
+.chat-inp-row{padding:9px 11px;border-top:1px solid var(--border);display:flex;gap:7px}
+.chat-inp{flex:1;background:var(--s2);border:1px solid var(--border);border-radius:4px;padding:7px 11px;color:var(--text);font-size:12px;outline:none;font-family:'Noto Sans KR',sans-serif}
+.chat-inp:focus{border-color:var(--accent)}
+.chat-send{width:31px;height:31px;border-radius:4px;border:none;background:var(--accent);cursor:pointer;color:#fff;font-size:13px;display:grid;place-items:center;flex-shrink:0}
+.chat-send:disabled{background:var(--s3);cursor:default}
+.qq-wrap{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px}
+.qq{font-size:9px;padding:3px 8px;border-radius:3px;border:1px solid var(--border);color:var(--muted);cursor:pointer;font-family:'DM Mono',monospace;background:transparent}
+.qq:hover{border-color:var(--accent);color:var(--accent)}
+/* page padding */
+.view-wrap{padding:0 0 60px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:18px">
+    <div class="logo">RK</div>
+    <div>
+      <div style="font-family:'DM Serif Display',serif;font-size:22px;letter-spacing:0.01em;color:var(--text)">Chairman Risk Intelligence</div>
+      <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px;letter-spacing:0.06em">AI-AUGMENTED · 은행지주 통합 리스크 인텔리전스 플랫폼</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:22px">
+    <div class="live"><span class="ldot"></span>LIVE AI</div>
+    <div id="clock"></div>
+  </div>
+</div>
+
+<!-- ========== VIEW 0: 종합 현황 ========== -->
+<div class="view active view-wrap" id="v0">
+<div class="grid">
+<div class="p" style="grid-row:span 2">
+  <div class="plabel">AI Risk Oracle</div>
+  <div style="text-align:center">
+    <div class="oracle-ring"><div class="oracle-in">
+      <div class="oracle-score" id="oScore">72</div>
+      <div class="oracle-lbl">RISK INDEX</div>
+    </div></div>
+    <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">전체 리스크 등급</div>
+    <div style="font-family:'DM Serif Display',serif;font-size:17px;color:var(--warn);margin-top:2px">ELEVATED</div>
+    <div style="font-size:10px;color:var(--dim);margin-top:2px">전일 대비 <span class="cr">▲ 4.2pt</span></div>
+  </div>
+  <div class="odims">
+    <div class="odim"><div class="odim-lbl">신용리스크</div><div class="odim-val cw">68</div></div>
+    <div class="odim"><div class="odim-lbl">시장리스크</div><div class="odim-val cr">81</div></div>
+    <div class="odim"><div class="odim-lbl">유동성</div><div class="odim-val cg">44</div></div>
+    <div class="odim"><div class="odim-lbl">운영리스크</div><div class="odim-val ca">57</div></div>
+    <div class="odim"><div class="odim-lbl">규제리스크</div><div class="odim-val cgo">63</div></div>
+    <div class="odim"><div class="odim-lbl">평판리스크</div><div class="odim-val cg">38</div></div>
+  </div>
+  <div style="margin-top:13px;padding:9px 11px;background:rgba(192,22,47,0.05);border:1px solid rgba(192,22,47,0.18);border-radius:4px">
+    <div style="font-size:9px;color:var(--red);font-family:'DM Mono',monospace;letter-spacing:.07em;margin-bottom:4px">⚡ AI ANOMALY DETECTED</div>
+    <div style="font-size:11px;line-height:1.6">조선·해운 익스포저 동반 상승 — 2016년 패턴과 <span class="cr">73% 유사도</span> 감지</div>
+  </div>
+</div>
+<div class="p p2">
+  <div class="plabel">AI 실시간 시그널 피드 — 기존 보고서에 없는 선행 경보</div>
+  <div class="sig urg"><div class="sig-ico urg">🔴</div><div class="sig-txt"><strong>부동산 PF 연쇄 부실 조기경보</strong>SNS·법원경매·채권스프레드 교차분석 — 수도권 3개 사업장 90일 내 부도 가능성 <span class="cr">64%</span> 감지</div><div><div class="aitag">AI PREDICT</div><div class="sigtime">3분 전</div></div></div>
+  <div class="sig wrn"><div class="sig-ico wrn">🟠</div><div class="sig-txt"><strong>미국 SOFR 급등 시 변동금리 여신 충격 시뮬레이션</strong>+200bp 시나리오: 기업여신 NPL <span class="cw">+1.8%p</span> 예상 — 5개 자회사 동시 타격</div><div><div class="aitag">STRESS SIM</div><div class="sigtime">17분 전</div></div></div>
+  <div class="sig inf"><div class="sig-ico inf">🔵</div><div class="sig-txt"><strong>거래상대방 집중도 신규 패턴 발견</strong>2,847개 거래처 분석 — 중견그룹 5곳 상호보증 체인이 단일 위기원 공유. <span class="ca">숨겨진 집중위험</span></div><div><div class="aitag">NETWORK AI</div><div class="sigtime">42분 전</div></div></div>
+  <div class="sig wrn"><div class="sig-ico wrn">🟠</div><div class="sig-txt"><strong>임직원 이상거래 패턴 (내부통제)</strong>특정 지점 야간 승인 패턴 <span class="cw">Z-score 4.2σ</span> 탐지 — 내부감사 즉시 권고</div><div><div class="aitag">FRAUD AI</div><div class="sigtime">1시간 전</div></div></div>
+  <div class="sig inf"><div class="sig-ico inf">🔵</div><div class="sig-txt"><strong>경쟁사 NIM 격차 확대</strong>경쟁 4개사 IR 분석 — 당행 NIM 대비 경쟁사 우위 <span class="ca">12bp 확대</span>, 수익성 압박 가시화</div><div><div class="aitag">COMP INTEL</div><div class="sigtime">2시간 전</div></div></div>
+</div>
+<div class="p p3">
+  <div class="plabel">핵심 리스크 지표 (KRI) — AI 임계값 자동 조정</div>
+  <div class="kri-grid">
+    <div class="kri-card"><div class="kri-arc"><svg viewBox="0 0 76 76" id="ks0"></svg><div class="kri-v cg">14.2%</div></div><div class="kri-name">BIS 자기자본비율</div><div class="kri-chg cg">▲ 0.3%p MoM</div></div>
+    <div class="kri-card"><div class="kri-arc"><svg viewBox="0 0 76 76" id="ks1"></svg><div class="kri-v cg">128%</div></div><div class="kri-name">LCR (유동성)</div><div class="kri-chg cg">▲ 1.2%p</div></div>
+    <div class="kri-card"><div class="kri-arc"><svg viewBox="0 0 76 76" id="ks2"></svg><div class="kri-v cw">1.24%</div></div><div class="kri-name">NPL 비율</div><div class="kri-chg cr">▲ 0.08%p</div></div>
+    <div class="kri-card"><div class="kri-arc"><svg viewBox="0 0 76 76" id="ks3"></svg><div class="kri-v cw">8,420억</div></div><div class="kri-name">VaR (99%, 1일)</div><div class="kri-chg cr">▲ 340억 WoW</div></div>
+    <div class="kri-card"><div class="kri-arc"><svg viewBox="0 0 76 76" id="ks4"></svg><div class="kri-v ca">2.18%</div></div><div class="kri-name">NIM (순이자마진)</div><div class="kri-chg cr">▼ 0.04%p</div></div>
+    <div class="kri-card"><div class="kri-arc"><svg viewBox="0 0 76 76" id="ks5"></svg><div class="kri-v cg">73%</div></div><div class="kri-name">예대율</div><div class="kri-chg cg">▼ 0.5%p 안정</div></div>
+  </div>
+</div>
+<div class="p p2">
+  <div class="plabel">AI 전염(Contagion) 리스크 지도 — 자회사 위기 전파 시뮬레이션</div>
+  <div style="height:230px"><svg style="width:100%;height:100%" id="cSvg" viewBox="0 0 580 220"></svg></div>
+  <div class="cleg"><span><span class="ldot2" style="background:#c0162f"></span>고위험</span><span><span class="ldot2" style="background:#d95f02"></span>중위험</span><span><span class="ldot2" style="background:#00966d"></span>정상</span><span style="margin-left:auto;color:var(--dim)">선 두께 = 익스포저 규모</span></div>
+</div>
+<div class="p">
+  <div class="plabel">AI 스트레스 시나리오 극장</div>
+  <div class="stabs"><div class="stab on" onclick="setScen(0,this)">금리+200bp</div><div class="stab" onclick="setScen(1,this)">환율+15%</div><div class="stab" onclick="setScen(2,this)">PF동시부실</div><div class="stab" onclick="setScen(3,this)">복합충격</div></div>
+  <div class="sbars" id="sbars"></div>
+</div>
+<div class="p p2">
+  <div class="plabel">AI 경영진 브리핑 — 자연어 리스크 해설</div>
+  <div class="narr-box">
+    <div class="narr-txt" id="narrTxt"><span class="thinking"><span class="tdots"><span></span><span></span><span></span></span>&nbsp;AI 분석 중...</span></div>
+    <div class="narr-ft"><div class="narr-src">MODEL: CLAUDE · 실시간 데이터 기준</div><button class="regen" id="regenBtn" onclick="genNarr()">↺ 새로 분석</button></div>
+  </div>
+</div>
+<div class="p">
+  <div class="plabel">규제 컴플라이언스 레이더</div>
+  <div class="ritem"><div class="rname">BIS 자기자본</div><div class="rbar"><div class="rfill" style="width:92%;background:#00966d"></div></div><div class="rpct cg">92%</div></div>
+  <div class="ritem"><div class="rname">LCR</div><div class="rbar"><div class="rfill" style="width:88%;background:#00966d"></div></div><div class="rpct cg">88%</div></div>
+  <div class="ritem"><div class="rname">NSFR</div><div class="rbar"><div class="rfill" style="width:85%;background:#1a6fd4"></div></div><div class="rpct ca">85%</div></div>
+  <div class="ritem"><div class="rname">레버리지비율</div><div class="rbar"><div class="rfill" style="width:78%;background:#1a6fd4"></div></div><div class="rpct ca">78%</div></div>
+  <div class="ritem"><div class="rname">대손충당금</div><div class="rbar"><div class="rfill" style="width:71%;background:#d95f02"></div></div><div class="rpct cw">71%</div></div>
+  <div class="ritem"><div class="rname">집중위험한도</div><div class="rbar"><div class="rfill" style="width:65%;background:#d95f02"></div></div><div class="rpct cw">65%</div></div>
+  <div class="ritem"><div class="rname">FSS 지도비율</div><div class="rbar"><div class="rfill" style="width:58%;background:#d95f02"></div></div><div class="rpct cw">58%</div></div>
+  <div style="margin-top:11px;padding:8px 10px;background:rgba(154,111,0,0.06);border:1px solid rgba(154,111,0,0.20);border-radius:3px">
+    <div style="font-size:9px;color:#9a6f00;font-family:'DM Mono',monospace;margin-bottom:3px">⚠ FSS 현장검사 예정</div>
+    <div style="font-size:11px">D-23일 · AI가 12개 지적 가능 항목 사전 탐지 완료</div>
+  </div>
+</div>
+<div class="p p2">
+  <div class="plabel">테일 리스크 히트맵 — 3년 월별 극단 손실 분포</div>
+  <div id="hmWrap"></div>
+</div>
+<div class="p p3">
+  <div class="plabel">숨겨진 상관관계 매트릭스 — AI 발견 비선형 연계</div>
+  <div class="mwrap"><table class="mtbl" id="corrMat"></table></div>
+  <div style="margin-top:8px;font-size:10px;color:var(--muted)">💡 <span class="cg">녹색</span> = 양의 상관 &nbsp;|&nbsp; <span class="cr">적색</span> = 음의 상관 &nbsp;|&nbsp; <span class="cw">테두리</span> = AI 이상 감지</div>
+</div>
+<div class="shdr">여수신 현황 · 대형여신 취급 · 뱅크런 조기경보 모니터링</div>
+<div class="p p2">
+  <div class="plabel">여수신 현황 — 잔액 추이 및 AI 이상 감지</div>
+  <div class="ds-kpi">
+    <div class="ds-card" style="background:rgba(26,111,212,0.05);border-color:rgba(26,111,212,0.14)"><div style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:3px">총 여신 잔액</div><div class="ds-val ca">247.3<span style="font-size:12px;margin-left:2px">조원</span></div><div style="font-size:10px;color:#00966d;margin-top:2px">▲ 1.8조 MoM (+0.73%)</div></div>
+    <div class="ds-card" style="background:rgba(0,150,109,0.05);border-color:rgba(0,150,109,0.14)"><div style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:3px">총 수신 잔액</div><div class="ds-val cg">338.7<span style="font-size:12px;margin-left:2px">조원</span></div><div style="font-size:10px;color:#00966d;margin-top:2px">▲ 0.4조 MoM (+0.12%)</div></div>
+    <div class="ds-card" style="background:rgba(217,95,2,0.05);border-color:rgba(217,95,2,0.14)"><div style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:3px">예대율</div><div class="ds-val cw">73.0<span style="font-size:12px;margin-left:2px">%</span></div><div style="font-size:10px;color:#00966d;margin-top:2px">규제한도 100% 대비 안정</div></div>
+    <div class="ds-card" style="background:rgba(154,111,0,0.05);border-color:rgba(154,111,0,0.14)"><div style="font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:3px">NIM</div><div class="ds-val cgo">2.18<span style="font-size:12px;margin-left:2px">%</span></div><div style="font-size:10px;color:#c0162f;margin-top:2px">▼ 0.04%p MoM 하락 추세</div></div>
+  </div>
+  <div style="margin-bottom:10px"><div style="font-size:9px;color:var(--dim);font-family:'DM Mono',monospace;margin-bottom:6px">여신 포트폴리오 구성</div><div id="loanPort"></div></div>
+  <div><div style="font-size:9px;color:var(--dim);font-family:'DM Mono',monospace;margin-bottom:6px">수신 조달 구성</div><div id="depPort"></div></div>
+  <div style="margin-top:11px;padding:9px 11px;background:rgba(217,95,2,0.05);border:1px solid rgba(217,95,2,0.17);border-radius:4px;display:flex;align-items:flex-start;gap:8px">
+    <span style="font-size:13px;flex-shrink:0">⚠️</span>
+    <div style="font-size:11px;line-height:1.65"><span style="font-size:9px;font-family:'DM Mono',monospace;color:#d95f02;display:block;margin-bottom:2px">AI 이상 감지</span>가계여신 변동금리 비중 <span class="cr" style="font-weight:600">68.4%</span> 상승 — 금리 상승 시 연체율 동반 증가 패턴 포착. 기업여신 단기차환 집중 <span class="cw" style="font-weight:600">3개월 내 만기 12.3조원</span> AI 경보</div>
+  </div>
+</div>
+<div class="p">
+  <div class="plabel">월별 여수신 잔액 추이 (12개월)</div>
+  <canvas id="dsChart" width="240" height="185" style="width:100%"></canvas>
+  <div style="display:flex;gap:12px;margin-top:7px;font-size:10px;font-family:'DM Mono',monospace;color:var(--muted)">
+    <span><span style="display:inline-block;width:10px;height:3px;background:#1a6fd4;border-radius:2px;vertical-align:middle;margin-right:3px"></span>여신</span>
+    <span><span style="display:inline-block;width:10px;height:3px;background:#00966d;border-radius:2px;vertical-align:middle;margin-right:3px"></span>수신</span>
+  </div>
+</div>
+<div class="p p3">
+  <div class="plabel">대형여신 취급 현황 — 건별 모니터링 (AI 리스크 스코어링)</div>
+  <div style="overflow-x:auto"><table class="lct" id="lcTable"></table></div>
+  <div class="lc-sum">
+    <div class="lc-stat" style="background:rgba(192,22,47,0.05);border-color:rgba(192,22,47,0.14)"><div class="lc-stat-lbl cr">요주의 이상</div><span class="lc-stat-val cr">7건</span><span style="font-size:10px;color:var(--muted)">&nbsp;총 2.84조</span></div>
+    <div class="lc-stat" style="background:rgba(217,95,2,0.05);border-color:rgba(217,95,2,0.14)"><div class="lc-stat-lbl cw">만기 30일 이내</div><span class="lc-stat-val cw">12건</span><span style="font-size:10px;color:var(--muted)">&nbsp;총 4.17조</span></div>
+    <div class="lc-stat" style="background:rgba(26,111,212,0.05);border-color:rgba(26,111,212,0.14)"><div class="lc-stat-lbl ca">이번달 신규 취급</div><span class="lc-stat-val ca">9건</span><span style="font-size:10px;color:var(--muted)">&nbsp;총 3.62조</span></div>
+    <div class="lc-stat" style="background:rgba(0,150,109,0.05);border-color:rgba(0,150,109,0.14)"><div class="lc-stat-lbl cg">자기자본 대비 한도 여유</div><span class="lc-stat-val cg">68%</span><span style="font-size:10px;color:var(--muted)">&nbsp;잔여</span></div>
+    <div class="lc-stat" style="margin-left:auto;max-width:290px;background:rgba(192,22,47,0.04);border:1.5px solid rgba(192,22,47,0.20)"><div class="lc-stat-lbl cr">⚡ AI 업종 집중도 경고</div><div style="font-size:11px;line-height:1.6;margin-top:3px">건설·부동산 여신 비중 <span class="cr" style="font-weight:600">22.1%</span> — FSS 집중한도 <span class="cw">20%</span> 초과. 즉시 여신심사 강화 필요</div></div>
+  </div>
+</div>
+<div class="p p2">
+  <div class="plabel">뱅크런 조기경보 — AI 실시간 유동성 이탈 감지 (12개 선행지표)</div>
+  <div class="br-gauge-wrap">
+    <svg width="82" height="82" viewBox="0 0 82 82" style="flex-shrink:0"><circle cx="41" cy="41" r="34" fill="none" stroke="rgba(26,111,212,0.10)" stroke-width="6"/><circle cx="41" cy="41" r="34" fill="none" stroke="#1a6fd4" stroke-width="6" stroke-dasharray="213" stroke-dashoffset="153" stroke-linecap="round" transform="rotate(-90 41 41)"/><text x="41" y="37" text-anchor="middle" font-family="DM Serif Display,serif" font-size="16" fill="#1a6fd4">28</text><text x="41" y="50" text-anchor="middle" font-family="DM Mono,monospace" font-size="7" fill="rgba(20,50,100,0.45)">위험지수</text></svg>
+    <div style="flex:1"><div style="font-size:14px;font-weight:600;margin-bottom:4px">뱅크런 통합 위험지수: <span class="ca">낮음 (STABLE)</span></div><div style="font-size:11px;color:var(--muted);line-height:1.7">AI 12개 선행지표 실시간 분석 중. 현재 대규모 수신 이탈 조짐 없음. 단, SNS 불안심리 지수 3일 연속 소폭 상승 — 사전 모니터링 강화 권고.</div></div>
+  </div>
+  <div style="font-size:9px;color:var(--dim);font-family:'DM Mono',monospace;margin-bottom:7px">12개 선행지표 실시간</div>
+  <div class="br-inds" id="brInds"></div>
+</div>
+<div class="p">
+  <div class="plabel">일별 수신이탈 & SNS 불안지수 (30일)</div>
+  <canvas id="brChart" width="240" height="145" style="width:100%;margin-bottom:10px"></canvas>
+  <div style="font-size:9px;color:var(--dim);font-family:'DM Mono',monospace;margin-bottom:7px">채널별 이탈 현황 (당월)</div>
+  <div id="chWithdraw" style="margin-bottom:11px"></div>
+  <div style="padding:8px;background:rgba(154,111,0,0.05);border:1px solid rgba(154,111,0,0.17);border-radius:4px">
+    <div style="font-size:9px;font-family:'DM Mono',monospace;color:#9a6f00;margin-bottom:5px">📡 SNS · 뉴스 감성 분석</div>
+    <div id="snsBox"></div>
+  </div>
+</div>
+</div><!-- /grid -->
+</div><!-- /v0 -->
+
+
+<!-- CHAT -->
+  <div style="padding:24px 28px">
+    <div style="margin-bottom:20px"><div style="font-family:'DM Serif Display',serif;font-size:20px;margin-bottom:4px">시장 리스크 현황</div><div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Market Risk Dashboard · AI 실시간 분석</div></div>
+    <div class="metric-row">
+      <div class="metric-card"><div class="lbl">VaR (99%, 1일)</div><div class="val cw">8,420억</div><div class="chg cr">▲ 340억 WoW</div></div>
+      <div class="metric-card"><div class="lbl">CVaR (기대 손실)</div><div class="val cr">1.24조</div><div class="chg cr">▲ 580억 WoW</div></div>
+      <div class="metric-card"><div class="lbl">DV01 (금리 민감도)</div><div class="val cw">42.3억/bp</div><div class="chg cw">▲ 2.1억</div></div>
+      <div class="metric-card"><div class="lbl">FX 순포지션</div><div class="val ca">USD +2.8억</div><div class="chg cg">적정 범위</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <div style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:16px">
+        <div class="plabel">금리 리스크 — 만기별 갭 현황</div>
+        <canvas id="gapChart" width="500" height="200" style="width:100%"></canvas>
+      </div>
+      <div style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:16px">
+        <div class="plabel">시장 변동성 추이 (30일)</div>
+        <canvas id="volChart" width="500" height="200" style="width:100%"></canvas>
+      </div>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:16px;margin-bottom:16px">
+      <div class="plabel">자산군별 VaR 분해 — AI 기여도 분석</div>
+      <div style="display:flex;flex-direction:column;gap:8px" id="varDecomp"></div>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:16px">
+      <div class="plabel">AI 시장 리스크 인사이트</div>
+      <div id="mktInsight" style="font-size:12px;line-height:1.8;color:var(--text)"><span class="thinking"><span class="tdots"><span></span><span></span><span></span></span>&nbsp;분석 중...</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== VIEW 2: 신용 리스크 ========== -->
+<div class="view view-wrap" id="v2">
+  <div style="padding:24px 28px">
+    <div style="margin-bottom:20px"><div style="font-family:'DM Serif Display',serif;font-size:20px;margin-bottom:4px">신용 리스크 현황</div><div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Credit Risk Dashboard · AI 포트폴리오 분석</div></div>
+    <div class="metric-row">
+      <div class="metric-card"><div class="lbl">NPL 비율</div><div class="val cw">1.24%</div><div class="chg cr">▲ 0.08%p MoM</div></div>
+      <div class="metric-card"><div class="lbl">연체율 (1개월+)</div><div class="val cw">0.87%</div><div class="chg cr">▲ 0.05%p</div></div>
+      <div class="metric-card"><div class="lbl">대손충당금 적립률</div><div class="val cg">142%</div><div class="chg cg">▲ 3%p 양호</div></div>
+      <div class="metric-card"><div class="lbl">예상손실 (EL)</div><div class="val cw">4,820억</div><div class="chg cr">▲ 280억 QoQ</div></div>
+    </div>
+    <div class="seg-grid">
+      <div class="seg-card"><div style="font-size:10px;color:var(--dim);font-family:'DM Mono',monospace;margin-bottom:8px">가계여신 NPL 추이</div><canvas id="nplHH" width="300" height="120" style="width:100%"></canvas></div>
+      <div class="seg-card"><div style="font-size:10px;color:var(--dim);font-family:'DM Mono',monospace;margin-bottom:8px">기업여신 NPL 추이</div><canvas id="nplCorp" width="300" height="120" style="width:100%"></canvas></div>
+      <div class="seg-card"><div style="font-size:10px;color:var(--dim);font-family:'DM Mono',monospace;margin-bottom:8px">업종별 여신 집중도</div><canvas id="sectorConc" width="300" height="120" style="width:100%"></canvas></div>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:16px;margin-bottom:16px">
+      <div class="plabel">신용등급별 포트폴리오 분포 — 등급 이동 AI 모니터링</div>
+      <div id="ratingDist" style="display:flex;flex-direction:column;gap:7px"></div>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:16px">
+      <div class="plabel">AI 신용 리스크 인사이트</div>
+      <div id="crdInsight" style="font-size:12px;line-height:1.8"><span class="thinking"><span class="tdots"><span></span><span></span><span></span></span>&nbsp;분석 중...</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== VIEW 3: 규제 준수 ========== -->
+<div class="view view-wrap" id="v3">
+  <div style="padding:24px 28px">
+    <div style="margin-bottom:20px"><div style="font-family:'DM Serif Display',serif;font-size:20px;margin-bottom:4px">규제 준수 현황</div><div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Regulatory Compliance · FSS/FSC/BCBS 통합 모니터링</div></div>
+    <div class="reg-grid">
+      <div class="reg-card">
+        <div class="reg-card-hdr"><div class="reg-title">바젤 III 자본 규제</div><span class="reg-status" style="background:rgba(0,150,109,0.09);color:#00966d">COMPLIANT</span></div>
+        <div class="ritem"><div class="rname">CET1 비율</div><div class="rbar"><div class="rfill" style="width:88%;background:#00966d"></div></div><div class="rpct cg">13.1%</div></div>
+        <div class="ritem"><div class="rname">Tier1 비율</div><div class="rbar"><div class="rfill" style="width:90%;background:#00966d"></div></div><div class="rpct cg">13.8%</div></div>
+        <div class="ritem"><div class="rname">총자본비율</div><div class="rbar"><div class="rfill" style="width:95%;background:#00966d"></div></div><div class="rpct cg">14.2%</div></div>
+        <div class="ritem"><div class="rname">레버리지비율</div><div class="rbar"><div class="rfill" style="width:78%;background:#1a6fd4"></div></div><div class="rpct ca">5.2%</div></div>
+        <div style="margin-top:10px;padding:8px;background:rgba(0,150,109,0.05);border:1px solid rgba(0,150,109,0.15);border-radius:3px;font-size:11px">규제 최저기준 대비 <span class="cg" style="font-weight:600">여유 2.7%p</span> 확보. 경기대응완충자본 0.5% 추가 요건 검토 필요.</div>
+      </div>
+      <div class="reg-card">
+        <div class="reg-card-hdr"><div class="reg-title">유동성 규제 (LCR/NSFR)</div><span class="reg-status" style="background:rgba(0,150,109,0.09);color:#00966d">COMPLIANT</span></div>
+        <div class="ritem"><div class="rname">LCR</div><div class="rbar"><div class="rfill" style="width:86%;background:#00966d"></div></div><div class="rpct cg">128%</div></div>
+        <div class="ritem"><div class="rname">NSFR</div><div class="rbar"><div class="rfill" style="width:82%;background:#00966d"></div></div><div class="rpct cg">112%</div></div>
+        <div class="ritem"><div class="rname">순안정자금비율</div><div class="rbar"><div class="rfill" style="width:79%;background:#1a6fd4"></div></div><div class="rpct ca">108%</div></div>
+        <div style="margin-top:10px;padding:8px;background:rgba(26,111,212,0.05);border:1px solid rgba(26,111,212,0.15);border-radius:3px;font-size:11px">AI: 금리 상승 시 LCR <span class="cw">-18%p</span> 하락 시뮬레이션. 여유버퍼 28%p로 충격 흡수 가능.</div>
+      </div>
+      <div class="reg-card">
+        <div class="reg-card-hdr"><div class="reg-title">FSS 검사 대비 현황</div><span class="reg-status" style="background:rgba(217,95,2,0.09);color:#d95f02">D-23일</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px" id="fssItems"></div>
+      </div>
+      <div class="reg-card">
+        <div class="reg-card-hdr"><div class="reg-title">대손충당금 · 여신건전성</div><span class="reg-status" style="background:rgba(217,95,2,0.09);color:#d95f02">주의 요망</span></div>
+        <div class="ritem"><div class="rname">정상</div><div class="rbar"><div class="rfill" style="width:93%;background:#00966d"></div></div><div class="rpct cg">93.1%</div></div>
+        <div class="ritem"><div class="rname">요주의</div><div class="rbar"><div class="rfill" style="width:32%;background:#d95f02"></div></div><div class="rpct cw">3.2%</div></div>
+        <div class="ritem"><div class="rname">고정</div><div class="rbar"><div class="rfill" style="width:19%;background:#c0162f"></div></div><div class="rpct cr">1.9%</div></div>
+        <div class="ritem"><div class="rname">회수의문</div><div class="rbar"><div class="rfill" style="width:11%;background:#c0162f"></div></div><div class="rpct cr">1.1%</div></div>
+        <div class="ritem"><div class="rname">추정손실</div><div class="rbar"><div class="rfill" style="width:7%;background:#c0162f"></div></div><div class="rpct cr">0.7%</div></div>
+        <div style="margin-top:10px;padding:8px;background:rgba(192,22,47,0.04);border:1px solid rgba(192,22,47,0.15);border-radius:3px;font-size:11px">고정이하 여신 <span class="cr" style="font-weight:600">3.7%</span> — AI 예측: 3개월 내 <span class="cw">+0.4%p</span> 추가 상승 가능성</div>
+      </div>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:16px;margin-top:16px">
+      <div class="plabel">AI 규제 준수 인사이트</div>
+      <div id="regInsight" style="font-size:12px;line-height:1.8"><span class="thinking"><span class="tdots"><span></span><span></span><span></span></span>&nbsp;분석 중...</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== VIEW 4: 미래 시나리오 ========== -->
+<div class="view view-wrap" id="v4">
+  <div style="padding:24px 28px">
+    <div style="margin-bottom:20px"><div style="font-family:'DM Serif Display',serif;font-size:20px;margin-bottom:4px">미래 시나리오 분석</div><div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Forward-Looking Scenarios · AI 시뮬레이션 엔진</div></div>
+    <div class="scen-grid">
+      <div class="scen-card" style="border-left:3px solid #1a6fd4">
+        <div class="scen-title ca">기준 시나리오 (Base Case)</div>
+        <div class="scen-sub">현 추세 지속, 완만한 경기 회복</div>
+        <div class="ritem"><div class="rname">자기자본비율</div><div class="rbar"><div class="rfill" style="width:90%;background:#1a6fd4"></div></div><div class="rpct ca">14.5%</div></div>
+        <div class="ritem"><div class="rname">NPL 비율</div><div class="rbar"><div class="rfill" style="width:25%;background:#00966d"></div></div><div class="rpct cg">1.15%</div></div>
+        <div class="ritem"><div class="rname">NIM</div><div class="rbar"><div class="rfill" style="width:55%;background:#1a6fd4"></div></div><div class="rpct ca">2.22%</div></div>
+        <div style="margin-top:10px;font-size:11px;color:var(--muted)">AI 발생 확률: <span class="ca" style="font-weight:600">48%</span></div>
+      </div>
+      <div class="scen-card" style="border-left:3px solid #d95f02">
+        <div class="scen-title cw">비관 시나리오 (Adverse)</div>
+        <div class="scen-sub">금리 급등 + PF 부실 복합 충격</div>
+        <div class="ritem"><div class="rname">자기자본비율</div><div class="rbar"><div class="rfill" style="width:72%;background:#d95f02"></div></div><div class="rpct cw">12.8%</div></div>
+        <div class="ritem"><div class="rname">NPL 비율</div><div class="rbar"><div class="rfill" style="width:58%;background:#d95f02"></div></div><div class="rpct cw">2.90%</div></div>
+        <div class="ritem"><div class="rname">NIM</div><div class="rbar"><div class="rfill" style="width:38%;background:#d95f02"></div></div><div class="rpct cw">1.83%</div></div>
+        <div style="margin-top:10px;font-size:11px;color:var(--muted)">AI 발생 확률: <span class="cw" style="font-weight:600">31%</span></div>
+      </div>
+      <div class="scen-card" style="border-left:3px solid #c0162f">
+        <div class="scen-title cr">극단 시나리오 (Severe)</div>
+        <div class="scen-sub">글로벌 금융위기 수준, 복합 붕괴</div>
+        <div class="ritem"><div class="rname">자기자본비율</div><div class="rbar"><div class="rfill" style="width:52%;background:#c0162f"></div></div><div class="rpct cr">10.4%</div></div>
+        <div class="ritem"><div class="rname">NPL 비율</div><div class="rbar"><div class="rfill" style="width:82%;background:#c0162f"></div></div><div class="rpct cr">4.10%</div></div>
+        <div class="ritem"><div class="rname">NIM</div><div class="rbar"><div class="rfill" style="width:28%;background:#c0162f"></div></div><div class="rpct cr">1.56%</div></div>
+        <div style="margin-top:10px;font-size:11px;color:var(--muted)">AI 발생 확률: <span class="cr" style="font-weight:600">14%</span></div>
+      </div>
+      <div class="scen-card" style="border-left:3px solid #00966d">
+        <div class="scen-title cg">낙관 시나리오 (Upside)</div>
+        <div class="scen-sub">금리 안정 + 경기 빠른 회복</div>
+        <div class="ritem"><div class="rname">자기자본비율</div><div class="rbar"><div class="rfill" style="width:98%;background:#00966d"></div></div><div class="rpct cg">15.8%</div></div>
+        <div class="ritem"><div class="rname">NPL 비율</div><div class="rbar"><div class="rfill" style="width:18%;background:#00966d"></div></div><div class="rpct cg">0.90%</div></div>
+        <div class="ritem"><div class="rname">NIM</div><div class="rbar"><div class="rfill" style="width:68%;background:#00966d"></div></div><div class="rpct cg">2.45%</div></div>
+        <div style="margin-top:10px;font-size:11px;color:var(--muted)">AI 발생 확률: <span class="cg" style="font-weight:600">7%</span></div>
+      </div>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:16px;margin-bottom:16px">
+      <div class="plabel">5년 자본 경로 시뮬레이션 — 시나리오별 비교</div>
+      <canvas id="scenChart" width="1100" height="220" style="width:100%"></canvas>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:16px">
+      <div class="plabel">AI 시나리오 종합 브리핑</div>
+      <div id="scenInsight" style="font-size:12px;line-height:1.8"><span class="thinking"><span class="tdots"><span></span><span></span><span></span></span>&nbsp;분석 중...</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- CHAT -->
+<button class="ask-btn" onclick="toggleChat()">🧠</button>
+<div class="chat-panel hidden" id="chatPanel">
+  <div class="chat-hdr"><span style="font-size:15px">🤖</span><div><div style="font-size:13px;font-weight:500">Risk AI 어시스턴트</div><div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">CLAUDE POWERED · 경영진 전용</div></div></div>
+  <div class="chat-msgs" id="chatMsgs">
+    <div class="msg ai"><div class="msg-bub">안녕하세요, 회장님. 은행지주 통합 리스크 AI 어시스턴트입니다. 자유롭게 질문하세요.</div></div>
+    <div class="qq-wrap">
+      <button class="qq" onclick="qask('현재 가장 긴급한 리스크 3가지는?')">긴급 리스크 TOP3</button>
+      <button class="qq" onclick="qask('금리 인상 시 자본 충격은?')">금리 충격</button>
+      <button class="qq" onclick="qask('뱅크런 위험 현황 분석')">뱅크런 분석</button>
+      <button class="qq" onclick="qask('대형여신 요주의 건 핵심 요약')">대형여신 요약</button>
+      <button class="qq" onclick="qask('FSS 검사 대비 주요 리스크는?')">FSS 검사 대비</button>
+    </div>
+  </div>
+  <div class="chat-inp-row">
+    <input class="chat-inp" id="chatInp" placeholder="리스크 관련 질문을 입력하세요..." onkeydown="if(event.key==='Enter')sendChat()">
+    <button class="chat-send" id="chatSend" onclick="sendChat()">↑</button>
+  </div>
+</div>
+
+<script>
+// CLOCK
+setInterval(()=>{const n=new Date();document.getElementById('clock').textContent=n.toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'})},1000);
+
+// TAB SWITCH
+let activeTab=0;
+function switchTab(idx,el){
+  document.querySelectorAll('.navtab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('v'+idx).classList.add('active');
+  if(idx===1&&!window._mktDone){renderMarket();window._mktDone=true;}
+  if(idx===2&&!window._crdDone){renderCredit();window._crdDone=true;}
+  if(idx===3&&!window._regDone){renderReg();window._regDone=true;}
+  if(idx===4&&!window._scenDone){renderScen();window._scenDone=true;}
+  activeTab=idx;
+}
+
+// KRI ARCS
+[{p:.85,c:'#00966d'},{p:.80,c:'#00966d'},{p:.55,c:'#d95f02'},{p:.65,c:'#d95f02'},{p:.50,c:'#1a6fd4'},{p:.60,c:'#00966d'}].forEach((k,i)=>{
+  const s=document.getElementById('ks'+i);if(!s)return;
+  const r=32,cx=38,cy=38,sa=Math.PI,ea=Math.PI+Math.PI*k.p;
+  const x1=cx+r*Math.cos(sa),y1=cy+r*Math.sin(sa),x2=cx+r*Math.cos(ea),y2=cy+r*Math.sin(ea);
+  s.innerHTML=`<path d="M ${cx-r} ${cy} A ${r} ${r} 0 0 1 ${cx+r} ${cy}" stroke="rgba(20,60,140,0.09)" stroke-width="5" fill="none"/><path d="M ${x1} ${y1} A ${r} ${r} 0 ${k.p>.5?1:0} 1 ${x2} ${y2}" stroke="${k.c}" stroke-width="5" fill="none" stroke-linecap="round"/>`;
+});
+
+// CONTAGION MAP
+const nodes=[{id:'지주',x:290,y:110,r:21,c:'#1a6fd4',rk:72},{id:'은행',x:145,y:52,r:18,c:'#d95f02',rk:81},{id:'증권',x:435,y:52,r:15,c:'#d95f02',rk:75},{id:'보험',x:460,y:175,r:14,c:'#00966d',rk:44},{id:'카드',x:115,y:175,r:13,c:'#c0162f',rk:88},{id:'캐피탈',x:290,y:198,r:12,c:'#d95f02',rk:68},{id:'PF신탁',x:195,y:140,r:12,c:'#c0162f',rk:91},{id:'해외법인',x:390,y:130,r:11,c:'#1a6fd4',rk:52}];
+const edges=[{s:0,t:1,w:5},{s:0,t:2,w:4},{s:0,t:3,w:3},{s:0,t:4,w:4},{s:0,t:5,w:3},{s:1,t:4,w:3},{s:1,t:6,w:4},{s:2,t:7,w:2},{s:5,t:6,w:3}];
+const sv=document.getElementById('cSvg');
+edges.forEach(e=>{const a=nodes[e.s],b=nodes[e.t],l=document.createElementNS('http://www.w3.org/2000/svg','line');l.setAttribute('x1',a.x);l.setAttribute('y1',a.y);l.setAttribute('x2',b.x);l.setAttribute('y2',b.y);l.setAttribute('stroke','rgba(20,60,140,0.13)');l.setAttribute('stroke-width',e.w);sv.appendChild(l);});
+nodes.forEach(n=>{const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+  const gl=document.createElementNS('http://www.w3.org/2000/svg','circle');gl.setAttribute('cx',n.x);gl.setAttribute('cy',n.y);gl.setAttribute('r',n.r+5);gl.setAttribute('fill',n.c);gl.setAttribute('opacity','0.10');g.appendChild(gl);
+  const ci=document.createElementNS('http://www.w3.org/2000/svg','circle');ci.setAttribute('cx',n.x);ci.setAttribute('cy',n.y);ci.setAttribute('r',n.r);ci.setAttribute('fill',n.c);ci.setAttribute('opacity','0.82');g.appendChild(ci);
+  const tx=document.createElementNS('http://www.w3.org/2000/svg','text');tx.setAttribute('x',n.x);tx.setAttribute('y',n.y-n.r-3);tx.setAttribute('text-anchor','middle');tx.setAttribute('class','node-lbl');tx.textContent=n.id+' '+n.rk;g.appendChild(tx);sv.appendChild(g);});
+
+// STRESS
+const scens=[[{n:'NPL 비율',v:2.8,u:'%',m:5,c:'#d95f02'},{n:'자기자본 감소',v:1.2,u:'조',m:3,c:'#c0162f'},{n:'NIM 하락',v:.35,u:'%p',m:1,c:'#d95f02'},{n:'LCR 하락',v:18,u:'%p',m:50,c:'#1a6fd4'},{n:'주가 EL 손실',v:820,u:'억',m:2000,c:'#9a6f00'}],[{n:'NPL 비율',v:1.9,u:'%',m:5,c:'#d95f02'},{n:'외화손실',v:2.4,u:'조',m:5,c:'#c0162f'},{n:'환헤지 비용',v:.18,u:'%p',m:.5,c:'#d95f02'},{n:'LCR 하락',v:9,u:'%p',m:50,c:'#1a6fd4'},{n:'해외법인 손실',v:430,u:'억',m:2000,c:'#9a6f00'}],[{n:'NPL 비율',v:4.1,u:'%',m:5,c:'#c0162f'},{n:'충당금 추가',v:3.8,u:'조',m:5,c:'#c0162f'},{n:'PF 손실',v:2.1,u:'조',m:5,c:'#d95f02'},{n:'LCR 하락',v:28,u:'%p',m:50,c:'#d95f02'},{n:'자본비율 하락',v:1.9,u:'%p',m:5,c:'#c0162f'}],[{n:'NPL 비율',v:4.8,u:'%',m:5,c:'#c0162f'},{n:'총 자본 손실',v:5.2,u:'조',m:7,c:'#c0162f'},{n:'NIM 하락',v:.62,u:'%p',m:1,c:'#c0162f'},{n:'LCR 하락',v:41,u:'%p',m:50,c:'#c0162f'},{n:'CET1 하락',v:3.1,u:'%p',m:5,c:'#c0162f'}]];
+function setScen(i,el){document.querySelectorAll('.stab').forEach(t=>t.classList.remove('on'));el.classList.add('on');document.getElementById('sbars').innerHTML=scens[i].map(r=>`<div class="srow"><div class="sname">${r.n}</div><div class="strack"><div class="sfill" style="width:${Math.min(100,r.v/r.m*100)}%;background:${r.c}"></div></div><div class="sval" style="color:${r.c}">${r.v}${r.u}</div></div>`).join('');}
+setScen(0,document.querySelector('.stab'));
+
+// HEATMAP
+const hmos=['1','2','3','4','5','6','7','8','9','10','11','12'],hyrs=['2022','2023','2024','2025'];
+function hcol(v){return v<.2?`rgba(0,150,109,${.3+v*1.5})`:v<.5?`rgba(26,111,212,${.25+v})`:v<.75?`rgba(217,95,2,${.35+v*.7})`:`rgba(192,22,47,${.45+v*.5})`;}
+let hh='<div style="display:flex"><div style="margin-right:6px">'+hyrs.map(y=>`<div class="hm-yr">${y}</div>`).join('')+'</div><div style="flex:1"><div class="hm-months">'+hmos.map(m=>`<div class="hm-mo">${m}월</div>`).join('')+'</div>'+hyrs.map(()=>'<div class="hm-grid">'+hmos.map(()=>{const v=Math.random()*.9+.05,a=Math.random()>.88;return`<div class="hm-cell" style="background:${hcol(v)};${a?'outline:1.5px solid #9a6f00':''}"></div>`;}).join('')+'</div>').join('')+'</div></div>';
+document.getElementById('hmWrap').innerHTML=hh;
+
+// MATRIX
+const assets=['기업여신','가계여신','PF','주식','채권','외화','파생','부동산'];
+let mh='<tr><th></th>'+assets.map(a=>`<th>${a}</th>`).join('')+'</tr>';
+assets.forEach((a,i)=>{mh+=`<tr><th>${a}</th>`+assets.map((_,j)=>{if(i===j)return'<td style="background:rgba(20,60,140,0.07)">—</td>';const v=(Math.random()*1.8-.9).toFixed(2),abs=Math.abs(v),col=v>=0?`rgba(0,150,109,${abs*.8})`:`rgba(192,22,47,${abs*.8})`,an=abs>.7&&Math.random()>.6;return`<td style="background:${col};${an?'outline:1.5px solid #d95f02':''}">${v}</td>`;}).join('')+'</tr>';});
+document.getElementById('corrMat').innerHTML=mh;
+
+// PORTFOLIO BARS
+function portBar(id,items){const el=document.getElementById(id);if(!el)return;el.innerHTML='<div class="port-bar">'+items.map(x=>`<div style="width:${x.p}%;background:${x.c};height:100%"></div>`).join('')+'</div><div class="port-leg">'+items.map(x=>`<span class="port-li"><span class="port-dot" style="background:${x.c}"></span>${x.n} ${x.p}%</span>`).join('')+'</div>';}
+portBar('loanPort',[{n:'가계주택',p:31.2,c:'#1a6fd4'},{n:'가계기타',p:14.8,c:'#4a9ae0'},{n:'기업중소',p:22.4,c:'#00966d'},{n:'기업대기업',p:9.5,c:'#2ec89a'},{n:'건설부동산',p:14.1,c:'#d95f02'},{n:'PF',p:4.8,c:'#c0162f'},{n:'기타',p:3.2,c:'#9a6f00'}]);
+portBar('depPort',[{n:'요구불',p:18.4,c:'#1a6fd4'},{n:'저축성',p:34.7,c:'#4a9ae0'},{n:'정기예금',p:28.3,c:'#00966d'},{n:'CD/RP',p:8.1,c:'#9a6f00'},{n:'외화',p:6.2,c:'#7b5fa0'},{n:'기타',p:4.3,c:'rgba(20,60,140,0.2)'}]);
+
+// DS CHART
+(function(){const cv=document.getElementById('dsChart');if(!cv)return;const ctx=cv.getContext('2d'),W=cv.width,H=cv.height,pd={t:14,r:10,b:30,l:42};const mos=['5월','6월','7월','8월','9월','10월','11월','12월','1월','2월','3월','4월'],loan=[231,233,236,238,239,241,243,244,244,245,246,247],dep=[322,325,328,330,331,333,334,335,336,337,338,339];const all=[...loan,...dep],mn=Math.min(...all)-6,mx=Math.max(...all)+6,sx=i=>pd.l+i*(W-pd.l-pd.r)/(mos.length-1),sy=v=>pd.t+(1-(v-mn)/(mx-mn))*(H-pd.t-pd.b);ctx.clearRect(0,0,W,H);for(let i=0;i<5;i++){const y=pd.t+i*(H-pd.t-pd.b)/4;ctx.strokeStyle='rgba(20,60,140,0.07)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pd.l,y);ctx.lineTo(W-pd.r,y);ctx.stroke();ctx.fillStyle='rgba(20,50,100,0.38)';ctx.font='9px DM Mono,monospace';ctx.textAlign='right';ctx.fillText(Math.round(mx-(mx-mn)*i/4)+'조',pd.l-3,y+3);}mos.forEach((m,i)=>{if(i%2===0||i===mos.length-1){ctx.fillStyle='rgba(20,50,100,0.38)';ctx.font='9px DM Mono,monospace';ctx.textAlign='center';ctx.fillText(m,sx(i),H-6);}});[[loan,'#1a6fd4','rgba(26,111,212,0.14)'],[dep,'#00966d','rgba(0,150,109,0.10)']].forEach(([d,col,gc])=>{ctx.beginPath();d.forEach((v,i)=>{i===0?ctx.moveTo(sx(i),sy(v)):ctx.lineTo(sx(i),sy(v));});ctx.lineTo(sx(d.length-1),H-pd.b);ctx.lineTo(sx(0),H-pd.b);ctx.closePath();const g=ctx.createLinearGradient(0,pd.t,0,H-pd.b);g.addColorStop(0,gc);g.addColorStop(1,'rgba(255,255,255,0)');ctx.fillStyle=g;ctx.fill();ctx.beginPath();d.forEach((v,i)=>{i===0?ctx.moveTo(sx(i),sy(v)):ctx.lineTo(sx(i),sy(v));});ctx.strokeStyle=col;ctx.lineWidth=2;ctx.stroke();});})();
+
+// LARGE CREDIT TABLE
+const lcData=[{r:1,n:'(주)한국대형건설',s:'건설',a:'8,500억',m:'2025-07-15',rt:'4.85%',g:'BBB+',cl:'정상',sc:72,st:'warn'},{r:2,n:'A그룹 주력계열사',s:'제조',a:'7,200억',m:'2025-08-30',rt:'5.10%',g:'A-',cl:'정상',sc:41,st:'ok'},{r:3,n:'대형부동산PF신탁',s:'부동산',a:'6,800억',m:'2025-06-20',rt:'6.20%',g:'BB',cl:'요주의',sc:88,st:'danger'},{r:4,n:'B해운그룹 지주',s:'해운',a:'5,400억',m:'2025-09-10',rt:'5.55%',g:'BBB',cl:'정상',sc:65,st:'warn'},{r:5,n:'C조선중공업',s:'조선',a:'4,900억',m:'2026-01-05',rt:'4.70%',g:'A',cl:'정상',sc:59,st:'warn'},{r:6,n:'수도권복합개발PF',s:'부동산',a:'4,600억',m:'2025-07-01',rt:'6.80%',g:'BB-',cl:'요주의',sc:91,st:'danger'},{r:7,n:'D유통그룹 본사',s:'유통',a:'3,800억',m:'2025-10-20',rt:'4.90%',g:'A-',cl:'정상',sc:38,st:'ok'},{r:8,n:'E플랫폼 테크',s:'IT',a:'3,200억',m:'2026-03-15',rt:'4.40%',g:'A+',cl:'정상',sc:22,st:'ok'},{r:9,n:'F물류 특수목적법인',s:'물류',a:'2,900억',m:'2025-08-05',rt:'5.30%',g:'BBB-',cl:'정상',sc:55,st:'warn'},{r:10,n:'G호텔리조트',s:'관광',a:'2,600억',m:'2025-11-30',rt:'5.65%',g:'BB+',cl:'요주의',sc:77,st:'warn'}];
+document.getElementById('lcTable').innerHTML='<thead><tr><th>#</th><th>차주명</th><th>업종</th><th>여신액</th><th>만기일</th><th>금리</th><th>신용등급</th><th>자산분류</th><th>AI리스크</th><th>상태</th></tr></thead><tbody>'+lcData.map(r=>{const sc=r.sc>=80?'#c0162f':r.sc>=60?'#d95f02':'#00966d',sb=r.sc>=80?'rgba(192,22,47,0.08)':r.sc>=60?'rgba(217,95,2,0.08)':'rgba(0,150,109,0.08)',nc=r.cl==='정상'?'#00966d':'#c0162f',badge=r.st==='danger'?`<span class="badge" style="background:rgba(192,22,47,0.09);color:#c0162f">요주의</span>`:r.st==='warn'?`<span class="badge" style="background:rgba(217,95,2,0.09);color:#d95f02">모니터링</span>`:`<span class="badge" style="background:rgba(0,150,109,0.09);color:#00966d">정상</span>`,rb=r.st==='danger'?'background:rgba(192,22,47,0.025)':'',mc=r.m<'2025-07-31'?'color:#c0162f':'color:var(--muted)';return`<tr style="${rb}"><td style="color:var(--dim);font-family:'DM Mono',monospace">${r.r}</td><td style="font-weight:500">${r.n}</td><td style="color:var(--muted);font-size:10px;font-family:'DM Mono',monospace">${r.s}</td><td style="font-family:'DM Mono',monospace;font-weight:500">${r.a}</td><td style="font-family:'DM Mono',monospace;font-size:10px;${mc}">${r.m}</td><td style="font-family:'DM Mono',monospace">${r.rt}</td><td style="font-family:'DM Mono',monospace">${r.g}</td><td style="color:${nc};font-weight:500">${r.cl}</td><td><div class="ai-bw"><div class="ai-bt"><div class="ai-bf" style="width:${r.sc}%;background:${sc}"></div></div><span class="ai-sp" style="color:${sc};background:${sb}">${r.sc}</span></div></td><td>${badge}</td></tr>`;}).join('')+'</tbody>';
+
+// BANKRUN
+const brinds=[{n:'일일 수신 순유출',v:'△ 824억',st:'ok',d:'전일 대비 정상 범위'},{n:'MO채널 이탈률',v:'0.08%',st:'ok',d:'기준치 0.5% 하회'},{n:'대규모 인출 건수',v:'23건',st:'ok',d:'일평균 수준'},{n:'인터넷뱅킹 접속',v:'+4.2%',st:'ok',d:'이벤트성 소폭 증가'},{n:'SNS 불안심리 지수',v:'34점',st:'warn',d:'3일 연속 소폭 상승 ↗'},{n:'언론 부정 보도',v:'7건',st:'warn',d:'전주 대비 +2건 증가'},{n:'기관투자자 수신',v:'정상',st:'ok',d:'이상 없음'},{n:'외국인 수신 동향',v:'정상',st:'ok',d:'순유입 유지'},{n:'콜금리 스프레드',v:'+12bp',st:'ok',d:'정상 범위 내'},{n:'CDS 프리미엄',v:'52bp',st:'ok',d:'전주 대비 +2bp'},{n:'은행채 스프레드',v:'+18bp',st:'warn',d:'전월 대비 확대 추세'},{n:'타행 대비 이탈',v:'정상',st:'ok',d:'업권 평균 수준'}];
+document.getElementById('brInds').innerHTML=brinds.map(x=>{const c=x.st==='warn'?'#d95f02':'#00966d',bg=x.st==='warn'?'rgba(217,95,2,0.05)':'rgba(0,150,109,0.04)',bd=x.st==='warn'?'rgba(217,95,2,0.17)':'rgba(0,150,109,0.12)';return`<div class="br-ind" style="background:${bg};border-color:${bd}"><div class="br-ind-dot" style="background:${c}"></div><div><div style="font-size:10px;font-weight:500;margin-bottom:1px">${x.n}</div><div style="font-family:'DM Mono',monospace;font-size:11px;color:${c}">${x.v}</div><div style="font-size:9px;color:var(--dim);margin-top:1px">${x.d}</div></div></div>`;}).join('');
+
+// BANKRUN CHART
+(function(){const cv=document.getElementById('brChart');if(!cv)return;const ctx=cv.getContext('2d'),W=cv.width,H=cv.height,pd={t:12,r:10,b:26,l:46},days=30;const out=Array.from({length:days},(_,i)=>Math.round(-180+Math.sin(i/3)*140+(Math.random()-.5)*280)),sns=Array.from({length:days},(_,i)=>Math.round(20+Math.sin(i/4)*8+i*.4+(Math.random()-.5)*5));const mn=Math.min(...out)-70,mx=Math.max(...out)+70,sx=i=>pd.l+i*(W-pd.l-pd.r)/(days-1),sy=v=>pd.t+(1-(v-mn)/(mx-mn))*(H-pd.t-pd.b),sySns=v=>pd.t+(1-v/100)*(H-pd.t-pd.b);ctx.clearRect(0,0,W,H);const zy=sy(0);ctx.strokeStyle='rgba(20,60,140,0.14)';ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(pd.l,zy);ctx.lineTo(W-pd.r,zy);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='rgba(20,50,100,0.35)';ctx.font='8px DM Mono,monospace';ctx.textAlign='right';ctx.fillText('0',pd.l-3,zy+3);const bw=(W-pd.l-pd.r)/days*.52;out.forEach((v,i)=>{const x=sx(i)-bw/2,y0=sy(0),y1=sy(v);ctx.fillStyle=v>0?'rgba(192,22,47,0.48)':'rgba(0,150,109,0.38)';ctx.fillRect(x,Math.min(y0,y1),bw,Math.abs(y0-y1)||1);});ctx.beginPath();ctx.strokeStyle='rgba(154,111,0,0.8)';ctx.lineWidth=1.5;sns.forEach((v,i)=>{i===0?ctx.moveTo(sx(i),sySns(v)):ctx.lineTo(sx(i),sySns(v));});ctx.stroke();ctx.fillStyle='rgba(20,50,100,0.38)';ctx.font='8px DM Mono,monospace';ctx.textAlign='center';[0,7,14,21,29].forEach(i=>ctx.fillText('D-'+(29-i),sx(i),H-5));})();
+
+// CHANNEL WITHDRAW
+document.getElementById('chWithdraw').innerHTML=[{n:'인터넷·모바일',a:'1,240억',p:48,c:'#1a6fd4'},{n:'ATM/CD기',a:'620억',p:24,c:'#00966d'},{n:'창구',a:'480억',p:19,c:'#d95f02'},{n:'전화·기타',a:'230억',p:9,c:'#9a6f00'}].map(x=>`<div class="ch-row"><div class="ch-name">${x.n}</div><div class="ch-track"><div class="ch-fill" style="width:${x.p}%;background:${x.c}"></div></div><div class="ch-val">${x.a}</div></div>`).join('');
+document.getElementById('snsBox').innerHTML=[{pl:'트위터/X',se:'중립',sc:34,tr:'↗',c:'#d95f02',kw:'"대출금리" "예금해지"'},{pl:'네이버뉴스',se:'긍정',sc:62,tr:'→',c:'#00966d',kw:'"실적발표" "배당"'},{pl:'다음카페',se:'우려',sc:28,tr:'↘',c:'#1a6fd4',kw:'"PF부실" "금리인상"'}].map(x=>`<div class="sns-row" style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--border)"><div style="font-size:9px;font-family:'DM Mono',monospace;color:var(--muted);width:68px;flex-shrink:0">${x.pl}</div><div style="font-size:10px;font-weight:500;width:28px;color:${x.c}">${x.se}</div><div style="flex:1;height:5px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="width:${x.sc}%;height:100%;background:${x.c};border-radius:3px"></div></div><div style="font-family:'DM Mono',monospace;font-size:11px;width:16px;text-align:center;color:${x.c}">${x.tr}</div><div style="font-size:9px;color:var(--dim);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${x.kw}</div></div>`).join('');
+
+// -------- MARKET RISK VIEW --------
+function renderMarket(){
+  // Gap chart
+  (function(){const cv=document.getElementById('gapChart');if(!cv)return;const ctx=cv.getContext('2d'),W=cv.width,H=cv.height,pd={t:16,r:16,b:30,l:54};const lbls=['1M이내','1-3M','3-6M','6M-1Y','1-3Y','3-5Y','5Y+'];const asset=[18.2,24.6,32.1,28.4,42.3,38.7,62.8],liab=[22.4,31.2,28.6,34.1,38.2,30.4,55.1];const allV=[...asset,...liab],mn=0,mx=Math.max(...allV)*1.15;const bw=(W-pd.l-pd.r)/(lbls.length*2.5),gap=bw*.15;const sx=i=>pd.l+(W-pd.l-pd.r)/(lbls.length)*(i+.5),sy=v=>pd.t+(1-v/mx)*(H-pd.t-pd.b);ctx.clearRect(0,0,W,H);for(let i=0;i<5;i++){const y=pd.t+i*(H-pd.t-pd.b)/4;ctx.strokeStyle='rgba(20,60,140,0.07)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pd.l,y);ctx.lineTo(W-pd.r,y);ctx.stroke();ctx.fillStyle='rgba(20,50,100,0.38)';ctx.font='9px DM Mono,monospace';ctx.textAlign='right';ctx.fillText(Math.round(mx-mx*i/4)+'조',pd.l-3,y+3);}lbls.forEach((l,i)=>{const x=sx(i);ctx.fillStyle='rgba(26,111,212,0.75)';ctx.fillRect(x-bw-gap/2,sy(asset[i]),bw,H-pd.b-sy(asset[i]));ctx.fillStyle='rgba(217,95,2,0.65)';ctx.fillRect(x+gap/2,sy(liab[i]),bw,H-pd.b-sy(liab[i]));ctx.fillStyle='rgba(20,50,100,0.38)';ctx.font='9px DM Mono,monospace';ctx.textAlign='center';ctx.fillText(l,x,H-6);});ctx.fillStyle='#1a6fd4';ctx.fillRect(pd.l,H-20,10,8);ctx.fillStyle='rgba(20,50,100,0.5)';ctx.font='9px DM Mono,monospace';ctx.textAlign='left';ctx.fillText('자산',pd.l+14,H-13);ctx.fillStyle='#d95f02';ctx.fillRect(pd.l+50,H-20,10,8);ctx.fillStyle='rgba(20,50,100,0.5)';ctx.fillText('부채',pd.l+64,H-13);})();
+  // Vol chart
+  (function(){const cv=document.getElementById('volChart');if(!cv)return;const ctx=cv.getContext('2d'),W=cv.width,H=cv.height,pd={t:16,r:16,b:30,l:46},days=30;const vol=Array.from({length:days},(_,i)=>+(0.8+Math.sin(i/4)*.3+Math.random()*.2).toFixed(2));const mn=Math.min(...vol)-.1,mx=Math.max(...vol)+.1,sx=i=>pd.l+i*(W-pd.l-pd.r)/(days-1),sy=v=>pd.t+(1-(v-mn)/(mx-mn))*(H-pd.t-pd.b);ctx.clearRect(0,0,W,H);for(let i=0;i<4;i++){const y=pd.t+i*(H-pd.t-pd.b)/3;ctx.strokeStyle='rgba(20,60,140,0.07)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pd.l,y);ctx.lineTo(W-pd.r,y);ctx.stroke();}ctx.beginPath();vol.forEach((v,i)=>{i===0?ctx.moveTo(sx(i),sy(v)):ctx.lineTo(sx(i),sy(v));});ctx.lineTo(sx(days-1),H-pd.b);ctx.lineTo(sx(0),H-pd.b);ctx.closePath();const g=ctx.createLinearGradient(0,pd.t,0,H-pd.b);g.addColorStop(0,'rgba(192,22,47,0.18)');g.addColorStop(1,'rgba(192,22,47,0.01)');ctx.fillStyle=g;ctx.fill();ctx.beginPath();vol.forEach((v,i)=>{i===0?ctx.moveTo(sx(i),sy(v)):ctx.lineTo(sx(i),sy(v));});ctx.strokeStyle='#c0162f';ctx.lineWidth=2;ctx.stroke();[0,7,14,21,29].forEach(i=>{ctx.fillStyle='rgba(20,50,100,0.38)';ctx.font='8px DM Mono,monospace';ctx.textAlign='center';ctx.fillText('D-'+(29-i),sx(i),H-5);});})();
+  // VaR decomp
+  const varD=[{n:'금리',v:3840,t:8420,c:'#c0162f'},{n:'주식',v:1820,t:8420,c:'#d95f02'},{n:'FX',v:1240,t:8420,c:'#9a6f00'},{n:'크레딧',v:980,t:8420,c:'#1a6fd4'},{n:'상품',v:320,t:8420,c:'#00966d'},{n:'분산효과',v:-780,t:8420,c:'rgba(20,60,140,0.3)'}];
+  document.getElementById('varDecomp').innerHTML=varD.map(x=>`<div style="display:flex;align-items:center;gap:10px"><div style="width:70px;font-size:11px;color:var(--muted);flex-shrink:0">${x.n}</div><div style="flex:1;height:7px;background:var(--s3);border-radius:4px;overflow:hidden"><div style="width:${Math.max(0,Math.abs(x.v)/x.t*100)}%;height:100%;background:${x.c};border-radius:4px"></div></div><div style="font-family:'DM Mono',monospace;font-size:11px;width:68px;text-align:right;color:${x.c}">${x.v>0?'+':''}${x.v.toLocaleString()}억</div></div>`).join('');
+  // AI insight
+  callAI('mktInsight','시장 리스크 관점에서 VaR 8,420억(+340억WoW), DV01 42.3억/bp, 금리 갭 리스크, FX 포지션 상황을 종합해 회장님께 3-4문장으로 핵심 인사이트와 액션 아이템을 보고하세요.');
+}
+
+// -------- CREDIT RISK VIEW --------
+function renderCredit(){
+  function miniLine(id,data,col){const cv=document.getElementById(id);if(!cv)return;const ctx=cv.getContext('2d'),W=cv.width,H=cv.height,pd={t:10,r:10,b:22,l:38};const mn=Math.min(...data)*.95,mx=Math.max(...data)*1.05,sx=i=>pd.l+i*(W-pd.l-pd.r)/(data.length-1),sy=v=>pd.t+(1-(v-mn)/(mx-mn))*(H-pd.t-pd.b);ctx.clearRect(0,0,W,H);ctx.beginPath();data.forEach((v,i)=>{i===0?ctx.moveTo(sx(i),sy(v)):ctx.lineTo(sx(i),sy(v));});ctx.lineTo(sx(data.length-1),H-pd.b);ctx.lineTo(sx(0),H-pd.b);ctx.closePath();const g=ctx.createLinearGradient(0,pd.t,0,H-pd.b);g.addColorStop(0,col.replace('1)','.18)'));g.addColorStop(1,col.replace('1)','.01)'));ctx.fillStyle=g;ctx.fill();ctx.beginPath();data.forEach((v,i)=>{i===0?ctx.moveTo(sx(i),sy(v)):ctx.lineTo(sx(i),sy(v));});ctx.strokeStyle=col;ctx.lineWidth=2;ctx.stroke();['1Q','2Q','3Q','4Q','1Q','2Q','3Q','4Q'].forEach((l,i)=>{ctx.fillStyle='rgba(20,50,100,0.38)';ctx.font='8px DM Mono,monospace';ctx.textAlign='center';ctx.fillText(l,sx(i),H-5);});}
+  miniLine('nplHH',[0.62,0.65,0.71,0.78,0.84,0.89,0.95,1.02],'rgba(192,22,47,1)');
+  miniLine('nplCorp',[1.12,1.15,1.18,1.20,1.22,1.25,1.28,1.35],'rgba(217,95,2,1)');
+  // sector conc
+  (function(){const cv=document.getElementById('sectorConc');if(!cv)return;const ctx=cv.getContext('2d'),W=cv.width,H=cv.height,pd={t:8,r:8,b:28,l:52};const sectors=['가계주택','기업중소','건설부동산','기업대기업','PF','기타'],vals=[31.2,22.4,14.1,9.5,4.8,18.0],cols=['#1a6fd4','#00966d','#d95f02','#4a9ae0','#c0162f','rgba(20,60,140,0.3)'];const mx=35,bh=(H-pd.t-pd.b)/sectors.length*.7,gap=(H-pd.t-pd.b)/sectors.length;ctx.clearRect(0,0,W,H);sectors.forEach((s,i)=>{const y=pd.t+i*gap+(gap-bh)/2,w=(vals[i]/mx)*(W-pd.l-pd.r);ctx.fillStyle=cols[i];ctx.fillRect(pd.l,y,w,bh);ctx.fillStyle='rgba(20,50,100,0.45)';ctx.font='9px DM Mono,monospace';ctx.textAlign='right';ctx.fillText(s,pd.l-4,y+bh/2+3);ctx.textAlign='left';ctx.fillText(vals[i]+'%',pd.l+w+4,y+bh/2+3);});})();
+  // rating dist
+  const ratings=[{g:'AAA',p:8.2,c:'#00966d'},{g:'AA',p:14.5,c:'#2ec89a'},{g:'A',p:22.8,c:'#1a6fd4'},{g:'BBB',p:28.4,c:'#4a9ae0'},{g:'BB',p:15.6,c:'#d95f02'},{g:'B이하',p:7.3,c:'#c0162f'},{g:'무등급',p:3.2,c:'rgba(20,60,140,0.3)'}];
+  document.getElementById('ratingDist').innerHTML=ratings.map(x=>`<div style="display:flex;align-items:center;gap:9px"><div style="width:40px;font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);flex-shrink:0">${x.g}</div><div style="flex:1;height:7px;background:var(--s3);border-radius:4px;overflow:hidden"><div style="width:${x.p}%;height:100%;background:${x.c};border-radius:4px"></div></div><div style="font-family:'DM Mono',monospace;font-size:10px;width:36px;text-align:right;color:${x.c}">${x.p}%</div></div>`).join('');
+  callAI('crdInsight','신용 리스크 관점에서 NPL 1.24%(+0.08%p), 가계여신 NPL 상승 추세, BBB이하 비중 51.3%, 건설부동산 집중도 14.1%+PF 4.8%=18.9% 상황을 종합해 회장님께 3-4문장으로 핵심 인사이트와 액션 아이템을 보고하세요.');
+}
+
+// -------- REGULATORY VIEW --------
+function renderReg(){
+  const fssItems=[{lbl:'PF 사업성 평가 기준',st:'warn',txt:'3개 사업장 기준 미충족 가능성'},{lbl:'변동금리 여신 공시',st:'warn',txt:'68.4% 비중 사전 소명 필요'},{lbl:'내부등급법 적정성',st:'ok',txt:'검증 완료'},{lbl:'대손충당금 적립',st:'warn',txt:'추가 적립 가능성 검토 중'},{lbl:'유동성 스트레스 테스트',st:'ok',txt:'통과'},{lbl:'내부통제 프로세스',st:'warn',txt:'야간 이상 승인 건 소명 필요'},{lbl:'집중위험 한도 준수',st:'danger',txt:'건설부동산 22.1% > 한도 20%'},{lbl:'자산건전성 분류',st:'ok',txt:'기준 충족'}];
+  document.getElementById('fssItems').innerHTML=fssItems.map(x=>{const c=x.st==='danger'?'#c0162f':x.st==='warn'?'#d95f02':'#00966d',bg=x.st==='danger'?'rgba(192,22,47,0.05)':x.st==='warn'?'rgba(217,95,2,0.05)':'rgba(0,150,109,0.04)',bd=x.st==='danger'?'rgba(192,22,47,0.18)':x.st==='warn'?'rgba(217,95,2,0.18)':'rgba(0,150,109,0.12)';return`<div style="display:flex;align-items:flex-start;gap:7px;padding:6px 8px;background:${bg};border:1px solid ${bd};border-radius:3px;margin-bottom:4px"><div style="width:7px;height:7px;border-radius:50%;background:${c};flex-shrink:0;margin-top:3px"></div><div><div style="font-size:10px;font-weight:500">${x.lbl}</div><div style="font-size:9px;color:var(--dim);margin-top:1px">${x.txt}</div></div></div>`;}).join('');
+  callAI('regInsight','규제 준수 관점에서 FSS 현장검사 D-23일, 건설부동산 집중도 22.1%(한도 20% 초과), BIS 14.2%(양호), LCR 128%, 대손충당금 142%, 고정이하여신 3.7% 상황을 종합해 회장님께 3-4문장으로 핵심 인사이트와 즉시 조치 필요 항목을 보고하세요.');
+}
+
+// -------- SCENARIO VIEW --------
+function renderScen(){
+  (function(){const cv=document.getElementById('scenChart');if(!cv)return;const ctx=cv.getContext('2d'),W=cv.width,H=cv.height,pd={t:16,r:16,b:36,l:54};const yrs=['2025','2026','2027','2028','2029','2030'];const series=[{lbl:'기준',d:[14.2,14.5,14.7,15.0,15.3,15.8],c:'#1a6fd4',dash:[]},{lbl:'비관',d:[14.2,13.4,12.8,12.5,12.9,13.2],c:'#d95f02',dash:[6,3]},{lbl:'극단',d:[14.2,12.6,10.4,10.1,10.5,10.9],c:'#c0162f',dash:[3,3]},{lbl:'낙관',d:[14.2,14.8,15.2,15.5,15.9,16.4],c:'#00966d',dash:[8,4]}];const allV=series.flatMap(s=>s.d),mn=Math.min(...allV)-0.5,mx=Math.max(...allV)+0.5,sx=i=>pd.l+i*(W-pd.l-pd.r)/(yrs.length-1),sy=v=>pd.t+(1-(v-mn)/(mx-mn))*(H-pd.t-pd.b);ctx.clearRect(0,0,W,H);for(let i=0;i<5;i++){const y=pd.t+i*(H-pd.t-pd.b)/4;ctx.strokeStyle='rgba(20,60,140,0.07)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pd.l,y);ctx.lineTo(W-pd.r,y);ctx.stroke();ctx.fillStyle='rgba(20,50,100,0.38)';ctx.font='9px DM Mono,monospace';ctx.textAlign='right';ctx.fillText((mx-( mx-mn)*i/4).toFixed(1)+'%',pd.l-3,y+3);}yrs.forEach((y,i)=>{ctx.fillStyle='rgba(20,50,100,0.38)';ctx.font='9px DM Mono,monospace';ctx.textAlign='center';ctx.fillText(y,sx(i),H-8);});series.forEach(s=>{ctx.beginPath();ctx.setLineDash(s.dash);s.d.forEach((v,i)=>{i===0?ctx.moveTo(sx(i),sy(v)):ctx.lineTo(sx(i),sy(v));});ctx.strokeStyle=s.c;ctx.lineWidth=2;ctx.stroke();ctx.setLineDash([]);ctx.beginPath();ctx.arc(sx(s.d.length-1),sy(s.d[s.d.length-1]),4,0,Math.PI*2);ctx.fillStyle=s.c;ctx.fill();});let lx=pd.l;series.forEach(s=>{ctx.fillStyle=s.c;ctx.fillRect(lx,H-22,16,3);ctx.fillStyle='rgba(20,50,100,0.5)';ctx.font='9px DM Mono,monospace';ctx.textAlign='left';ctx.fillText(s.lbl,lx+20,H-15);lx+=70;});})();
+  callAI('scenInsight','미래 시나리오 분석 관점에서 기준(확률48%)/비관(31%)/극단(14%)/낙관(7%) 시나리오를 고려할 때, 현재 은행지주의 자본 경로와 리스크 관리 전략에 대해 회장님께 3-4문장으로 전략적 시사점과 권고사항을 보고하세요.');
+}
+
+// AI CALL HELPER
+async function callAI(elementId, prompt){
+  const el=document.getElementById(elementId);if(!el)return;
+  el.innerHTML='<span class="thinking"><span class="tdots"><span></span><span></span><span></span></span>&nbsp;AI 분석 중...</span>';
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:'한국 은행지주회사 회장 전용 AI 리스크 어시스턴트. 경영진 수준의 한국어로 답변.',messages:[{role:'user',content:prompt}]})});
+    const d=await res.json(),t=d.content?.[0]?.text||'결과를 가져올 수 없습니다.';
+    el.innerHTML=t.replace(/(\d+[\.,]?\d*[%조억원bp]+)/g,'<span class="nw">$1</span>').replace(/(긴급|즉시|주의|위험|경보|부도)/g,'<span class="nw">$1</span>').replace(/(양호|안정|개선)/g,'<span class="nh">$1</span>');
+  }catch{el.innerHTML='AI 서버 연결 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.';}
+}
+
+// AI NARRATIVE
+async function genNarr(){
+  const btn=document.getElementById('regenBtn'),box=document.getElementById('narrTxt');
+  btn.disabled=true;
+  box.innerHTML='<span class="thinking"><span class="tdots"><span></span><span></span><span></span></span>&nbsp;AI 분석 중...</span>';
+  await callAI('narrTxt','당신은 한국 은행지주회사 CRO AI 어시스턴트입니다. 오늘 리스크 현황: AI리스크오라클 72점(ELEVATED,+4.2pt), BIS 14.2%, NPL 1.24%(+0.08%p), VaR 8,420억(+340억), 부동산PF 3개소 부도가능성 64%, 금리+200bp시 자본 1.2조 감소, FSS 현장검사 D-23일, 조선해운 집중도 2016패턴 73%유사, 여신 247.3조(예대율73%), 대형여신 요주의 7건 2.84조, 뱅크런 위험지수 28(STABLE). 회장님께 5-6문장, 경영진 대화체, 핵심 인사이트 3가지 + Action Item 포함하여 브리핑하세요.');
+  btn.disabled=false;
+}
+setTimeout(genNarr,600);
+
+// LIVE ORACLE
+let bs=72;setInterval(()=>{bs+=(Math.random()-.48)*.4;bs=Math.max(65,Math.min(82,bs));const el=document.getElementById('oScore');if(el)el.textContent=Math.round(bs);},3000);
+
+// CHAT
+let co=false;
+function toggleChat(){co=!co;document.getElementById('chatPanel').classList.toggle('hidden',!co);}
+function qask(q){document.getElementById('chatInp').value=q;sendChat();}
+async function sendChat(){
+  const inp=document.getElementById('chatInp'),q=inp.value.trim();if(!q)return;inp.value='';
+  const msgs=document.getElementById('chatMsgs');
+  msgs.innerHTML+=`<div class="msg user"><div class="msg-bub">${q}</div></div><div class="msg ai" id="aiT"><div class="msg-bub"><span class="thinking"><span class="tdots"><span></span><span></span><span></span></span></span></div></div>`;
+  msgs.scrollTop=msgs.scrollHeight;document.getElementById('chatSend').disabled=true;
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:'한국 은행지주회사 회장 전용 AI 리스크 어시스턴트. 현황: 오라클72점, BIS14.2%, NPL1.24%, VaR8420억, PF부도경보64%, 금리충격자본1.2조감소, FSS검사D-23일, 여신247.3조, 예대율73%, 대형여신요주의7건, 뱅크런지수28(STABLE). 2-4문장, 경영진 수준 한국어.',messages:[{role:'user',content:q}]})});
+    const d=await res.json(),reply=d.content?.[0]?.text||'응답 오류';
+    document.getElementById('aiT').outerHTML=`<div class="msg ai"><div class="msg-bub">${reply}</div></div>`;
+  }catch{document.getElementById('aiT').outerHTML=`<div class="msg ai"><div class="msg-bub">연결 오류. 잠시 후 다시 시도해 주세요.</div></div>`;}
+  msgs.scrollTop=msgs.scrollHeight;document.getElementById('chatSend').disabled=false;
+}
+</script>
+</body>
+</html>

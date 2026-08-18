@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>평판리스크 관리 AI Agent</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+ body{font-family:'Pretendard','Malgun Gothic',system-ui,sans-serif}
+ .tab-active{background:#0f172a;color:#fff}
+ .lv-L4{background:#fee2e2;color:#991b1b;border-color:#f87171}
+ .lv-L3{background:#ffedd5;color:#9a3412;border-color:#fb923c}
+ .lv-L2{background:#fef3c7;color:#92400e;border-color:#fcd34d}
+ .lv-L1{background:#e0f2fe;color:#075985;border-color:#7dd3fc}
+ .st-정상{background:#dcfce7;color:#166534}.st-주의{background:#fef9c3;color:#854d0e}
+ .st-경계{background:#ffedd5;color:#9a3412}.st-심각{background:#fee2e2;color:#991b1b}
+ table.dense th,table.dense td{padding:6px 8px;font-size:12px;white-space:nowrap}
+ .sticky-h th{position:sticky;top:0;background:#f1f5f9;z-index:5}
+ tr.clickable:hover{background:#eff6ff;cursor:pointer}
+ .scroll-x{overflow:auto}
+ ::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
+ @media print{.no-print{display:none!important}}
+ .pulse{animation:p 1.8s infinite}@keyframes p{0%,100%{opacity:1}50%{opacity:.45}}
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+
+<!-- 실행 오버레이 -->
+<div id="ov" class="fixed inset-0 bg-slate-900/95 z-50 flex items-center justify-center no-print">
+ <div class="w-[600px] bg-slate-800 rounded-xl p-7 border border-slate-700 shadow-2xl">
+  <div class="flex items-center gap-3 mb-5">
+   <div class="w-9 h-9 rounded-lg bg-rose-500 flex items-center justify-center text-white font-bold">RR</div>
+   <div><div class="text-white font-semibold">Reputational Risk Sentinel Agent</div>
+   <div class="text-slate-400 text-xs">평판리스크 상시탐지·평가·대응 에이전트 v0.9 (PoC)</div></div>
+  </div>
+  <div id="alog" class="space-y-2 text-sm"></div>
+  <div class="mt-5 h-1.5 bg-slate-700 rounded overflow-hidden"><div id="abar" class="h-full bg-rose-500 w-0 transition-all duration-300"></div></div>
+ </div>
+</div>
+
+<header class="bg-slate-900 text-white px-6 py-3 flex items-center justify-between">
+ <div class="flex items-center gap-3">
+  <div class="w-8 h-8 rounded bg-rose-500 flex items-center justify-center text-sm font-bold">RR</div>
+  <div><div class="font-semibold text-[15px]">평판리스크 관리 AI Agent <span class="text-slate-400 font-normal text-xs">Reputational Risk Sentinel</span></div>
+  <div class="text-[11px] text-slate-400">기준시각 2025-06-30 18:00 · 모니터링 30일 · 수집채널 8종 · <span class="text-amber-400">Mock-up / 가상데이터 (실제 금융회사·사건과 무관)</span></div></div>
+ </div>
+ <div class="flex gap-2 no-print">
+  <button onclick="window.print()" class="px-3 py-1.5 text-xs rounded bg-slate-700 hover:bg-slate-600">리포트 출력</button>
+  <button onclick="rerun()" class="px-3 py-1.5 text-xs rounded bg-rose-600 hover:bg-rose-500">재탐지 실행</button>
+ </div>
+</header>
+
+<div id="alertBar" class="no-print"></div>
+
+<nav class="bg-white border-b px-4 flex gap-1 text-sm no-print sticky top-0 z-20 overflow-x-auto">
+ <button data-tab="dash" class="tab px-3.5 py-2.5 rounded-t tab-active whitespace-nowrap">종합대시보드</button>
+ <button data-tab="radar" class="tab px-3.5 py-2.5 rounded-t hover:bg-slate-100 whitespace-nowrap">이슈 레이더</button>
+ <button data-tab="detail" class="tab px-3.5 py-2.5 rounded-t hover:bg-slate-100 whitespace-nowrap">이슈 상세</button>
+ <button data-tab="media" class="tab px-3.5 py-2.5 rounded-t hover:bg-slate-100 whitespace-nowrap">미디어·소셜</button>
+ <button data-tab="voc" class="tab px-3.5 py-2.5 rounded-t hover:bg-slate-100 whitespace-nowrap">소비자·민원</button>
+ <button data-tab="kri" class="tab px-3.5 py-2.5 rounded-t hover:bg-slate-100 whitespace-nowrap">KRI·조기경보</button>
+ <button data-tab="crisis" class="tab px-3.5 py-2.5 rounded-t hover:bg-slate-100 whitespace-nowrap">위기대응</button>
+ <button data-tab="chat" class="tab px-3.5 py-2.5 rounded-t hover:bg-slate-100 whitespace-nowrap">AI 질의</button>
+ <button data-tab="method" class="tab px-3.5 py-2.5 rounded-t hover:bg-slate-100 whitespace-nowrap">방법론</button>
+</nav>
+
+<main class="p-5 max-w-[1640px] mx-auto">
+
+<!-- ========= 대시보드 ========= -->
+<section id="tab-dash" class="tabpage">
+ <div class="grid grid-cols-12 gap-4 mb-4">
+  <div class="col-span-3 bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-[11px] text-slate-500">평판리스크지수 (RRI)</div>
+   <div id="rriBox" class="mt-1"></div>
+   <div id="rriSub" class="text-[11px] text-slate-400 mt-2 leading-snug"></div>
+  </div>
+  <div class="col-span-5 bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-sm font-semibold mb-1">RRI 구성 5축 <span class="text-[11px] font-normal text-slate-500">(높을수록 위험)</span></div>
+   <canvas id="chRadar" height="150"></canvas>
+  </div>
+  <div class="col-span-4 bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-sm font-semibold mb-1">RRI 12개월 추이</div>
+   <canvas id="chRRI" height="150"></canvas>
+  </div>
+ </div>
+
+ <div class="grid grid-cols-6 gap-3 mb-4" id="kpi"></div>
+
+ <div class="grid grid-cols-12 gap-4 mb-4">
+  <div class="col-span-5 bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-sm font-semibold mb-1">이슈 확산도 × 영향도 매트릭스 <span class="text-[11px] font-normal text-slate-500">(버블=언급량)</span></div>
+   <canvas id="chMatrix" height="230"></canvas>
+  </div>
+  <div class="col-span-4 bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-sm font-semibold mb-1">일별 언급량 · 부정감성 비율 (30일)</div>
+   <canvas id="chDaily" height="230"></canvas>
+  </div>
+  <div class="col-span-3 bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-sm font-semibold mb-1">카테고리별 이슈 분포</div>
+   <canvas id="chCat" height="230"></canvas>
+  </div>
+ </div>
+
+ <div class="grid grid-cols-12 gap-4">
+  <div class="col-span-7 bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-sm font-semibold mb-3">우선대응 이슈 <span class="text-[11px] font-normal text-slate-500">(RRS 상위 · 클릭 시 상세)</span></div>
+   <div class="space-y-2 max-h-[420px] overflow-auto pr-1" id="topIss"></div>
+  </div>
+  <div class="col-span-5 space-y-4">
+   <div class="bg-white rounded-lg border shadow-sm p-4">
+    <div class="text-sm font-semibold mb-3">KRI 신호등 <span class="text-[11px] font-normal text-slate-500">(임계 초과 지표)</span></div>
+    <div class="scroll-x max-h-[200px]"><table class="dense w-full text-left" id="tblKriMini"></table></div>
+   </div>
+   <div class="bg-white rounded-lg border shadow-sm p-4">
+    <div class="text-sm font-semibold mb-2">에스컬레이션 현황</div>
+    <div id="escBox" class="space-y-2"></div>
+   </div>
+  </div>
+ </div>
+</section>
+
+<!-- ========= 이슈 레이더 ========= -->
+<section id="tab-radar" class="tabpage hidden">
+ <div class="bg-white rounded-lg border shadow-sm p-4">
+  <div class="flex items-end justify-between mb-3 gap-3 flex-wrap">
+   <div><div class="text-sm font-semibold">탐지 이슈 목록 <span id="issCnt" class="font-normal text-slate-500"></span></div>
+   <div class="text-[11px] text-slate-500 mt-1">RRS(Reputational Risk Score) = 확산도×0.4 + 영향도×0.45 + 감성강도×0.15 → 에스컬레이션 등급 자동 판정</div></div>
+   <div class="flex gap-3 text-xs items-center">
+    <label>등급<select id="fEsc" class="border rounded px-2 py-1 ml-1"><option value="">전체</option><option>L4</option><option>L3</option><option>L2</option><option>L1</option></select></label>
+    <label>카테고리<select id="fCat" class="border rounded px-2 py-1 ml-1"></select></label>
+    <label>단계<select id="fStage" class="border rounded px-2 py-1 ml-1"><option value="">전체</option><option>탐지</option><option>평가</option><option>대응</option><option>모니터링</option><option>종결</option></select></label>
+    <button onclick="csv()" class="px-2.5 py-1 bg-slate-700 text-white rounded">CSV</button>
+   </div>
+  </div>
+  <div class="scroll-x max-h-[620px]"><table class="dense w-full text-left sticky-h" id="tblIss"></table></div>
+ </div>
+</section>
+
+<!-- ========= 이슈 상세 ========= -->
+<section id="tab-detail" class="tabpage hidden">
+ <div class="flex gap-4">
+  <div class="w-[250px] bg-white rounded-lg border shadow-sm p-3 shrink-0">
+   <div class="text-xs font-semibold text-slate-500 mb-2">이슈 목록</div>
+   <div id="dnav" class="space-y-1 max-h-[760px] overflow-auto"></div>
+  </div>
+  <div class="flex-1" id="dbody"></div>
+ </div>
+</section>
+
+<!-- ========= 미디어·소셜 ========= -->
+<section id="tab-media" class="tabpage hidden">
+ <div class="grid grid-cols-4 gap-3 mb-4" id="medKpi"></div>
+ <div class="grid grid-cols-12 gap-4 mb-4">
+  <div class="col-span-5 bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-sm font-semibold mb-1">채널별 감성 분포</div><canvas id="chChan" height="200"></canvas></div>
+  <div class="col-span-4 bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-sm font-semibold mb-1">매체 등급별 보도 건수</div><canvas id="chTier" height="200"></canvas></div>
+  <div class="col-span-3 bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-sm font-semibold mb-2">부정 키워드 Top</div><div id="kwBox" class="flex flex-wrap gap-1.5 pt-1"></div></div>
+ </div>
+ <div class="bg-white rounded-lg border shadow-sm p-4">
+  <div class="flex justify-between items-center mb-3">
+   <div class="text-sm font-semibold">수집 콘텐츠 원문 목록 <span class="text-[11px] font-normal text-slate-500">(본행 관련성 판정 통과 건)</span></div>
+   <div class="flex gap-1.5 text-xs" id="medFilter"></div>
+  </div>
+  <div class="scroll-x max-h-[520px]"><table class="dense w-full text-left sticky-h" id="tblMed"></table></div>
+ </div>
+</section>
+
+<!-- ========= 소비자·민원 ========= -->
+<section id="tab-voc" class="tabpage hidden">
+ <div class="grid grid-cols-5 gap-3 mb-4" id="vocKpi"></div>
+ <div class="grid grid-cols-12 gap-4 mb-4">
+  <div class="col-span-5 bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-sm font-semibold mb-1">분기별 민원 접수 추이</div><canvas id="chVocT" height="190"></canvas></div>
+  <div class="col-span-4 bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-sm font-semibold mb-1">유형별 민원 구성 (당분기)</div><canvas id="chVocC" height="190"></canvas></div>
+  <div class="col-span-3 bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-sm font-semibold mb-1">상품군별 민원율 (10만계좌당)</div><canvas id="chVocP" height="190"></canvas></div>
+ </div>
+ <div class="grid grid-cols-2 gap-4">
+  <div class="bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-sm font-semibold mb-3">민원 상세 (2025-2Q)</div>
+   <div class="scroll-x max-h-[400px]"><table class="dense w-full text-left sticky-h" id="tblVoc"></table></div></div>
+  <div class="bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-sm font-semibold mb-3">소비자보호 지표 · 평가등급 시뮬레이션</div>
+   <div id="cpBox"></div></div>
+ </div>
+</section>
+
+<!-- ========= KRI ========= -->
+<section id="tab-kri" class="tabpage hidden">
+ <div class="bg-white rounded-lg border shadow-sm p-4 mb-4">
+  <div class="flex justify-between items-end mb-3">
+   <div><div class="text-sm font-semibold">평판리스크 KRI 모니터링</div>
+   <div class="text-[11px] text-slate-500 mt-1">임계치 초과 시 자동 조기경보 발령 · 3개월 연속 '주의' 이상 시 등급 상향</div></div>
+   <div id="kriSum" class="flex gap-2 text-xs"></div>
+  </div>
+  <div class="scroll-x"><table class="dense w-full text-left" id="tblKri"></table></div>
+ </div>
+ <div class="grid grid-cols-2 gap-4">
+  <div class="bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-sm font-semibold mb-2">조기경보 발령 이력</div>
+   <div class="scroll-x"><table class="dense w-full text-left" id="tblEw"></table></div></div>
+  <div class="bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-sm font-semibold mb-2">KRI 임계 초과 → 연계 이슈 매핑</div>
+   <div id="kriLink" class="space-y-2 text-xs"></div></div>
+ </div>
+</section>
+
+<!-- ========= 위기대응 ========= -->
+<section id="tab-crisis" class="tabpage hidden">
+ <div class="bg-white rounded-lg border shadow-sm p-4 mb-4">
+  <div class="text-sm font-semibold mb-3">에스컬레이션 체계 및 현재 활성 이슈 배치</div>
+  <div class="grid grid-cols-4 gap-3" id="escLadder"></div>
+ </div>
+ <div class="grid grid-cols-12 gap-4">
+  <div class="col-span-5 bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-sm font-semibold mb-2">대응 플레이북</div>
+   <select id="pbSel" class="w-full border rounded px-2 py-1.5 text-xs mb-3" onchange="renderPb()"></select>
+   <div id="pbBox" class="space-y-2"></div>
+  </div>
+  <div class="col-span-7 bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-sm font-semibold mb-2">대응 메시지 초안 생성 <span class="text-[11px] font-normal text-slate-500">(Mock-up: 템플릿 기반)</span></div>
+   <div class="flex gap-2 mb-3">
+    <select id="msgIss" class="flex-1 border rounded px-2 py-1.5 text-xs"></select>
+    <select id="msgCh" class="border rounded px-2 py-1.5 text-xs">
+     <option>보도자료</option><option>홈페이지 공지</option><option>콜센터 응대 스크립트</option><option>임직원 공유(내부)</option><option>SNS/공식채널</option></select>
+    <button onclick="genMsg()" class="px-3 py-1.5 bg-rose-600 text-white rounded text-xs">초안 생성</button>
+   </div>
+   <div id="msgBox" class="border rounded bg-slate-50 p-3 text-[13px] leading-relaxed min-h-[300px] whitespace-pre-wrap"></div>
+   <div class="text-[11px] text-slate-400 mt-2">※ 생성 초안은 검토용 참고자료이며, 대외 배포 전 홍보부·준법감시부 검토 필수</div>
+  </div>
+ </div>
+</section>
+
+<!-- ========= AI 질의 ========= -->
+<section id="tab-chat" class="tabpage hidden">
+ <div class="bg-white rounded-lg border shadow-sm p-4 max-w-[1020px]">
+  <div class="text-sm font-semibold mb-1">평판리스크 질의응답</div>
+  <div class="text-[11px] text-slate-500 mb-3">※ Mock-up: 사전 정의 패턴에 대해 실제 산출된 지수·이슈 데이터를 근거로 응답</div>
+  <div id="cbox" class="h-[430px] overflow-auto border rounded p-3 bg-slate-50 space-y-3 text-sm"></div>
+  <div class="flex gap-2 mt-3">
+   <input id="cin" class="flex-1 border rounded px-3 py-2 text-sm" placeholder="예) RRI가 왜 경계 단계야?" onkeydown="if(event.key==='Enter')send()">
+   <button onclick="send()" class="px-4 py-2 bg-rose-600 text-white rounded text-sm">전송</button></div>
+  <div class="flex gap-2 mt-2 flex-wrap text-xs" id="qq"></div>
+ </div>
+</section>
+
+<!-- ========= 방법론 ========= -->
+<section id="tab-method" class="tabpage hidden">
+ <div class="grid grid-cols-2 gap-4">
+  <div class="bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-sm font-semibold mb-3">RRI 산출 방법론</div>
+   <div class="scroll-x"><table class="dense w-full text-left" id="tblAxis"></table></div>
+   <div class="mt-3 text-xs bg-slate-50 rounded p-3 leading-relaxed">
+    <b>RRI</b> = Σ(축별 지수 × 가중치), 0~100 (높을수록 위험)<br>
+    등급: 0~25 <b class="text-emerald-600">정상</b> · 26~45 <b class="text-amber-600">주의</b> · 46~65 <b class="text-orange-600">경계</b> · 66~100 <b class="text-rose-600">심각</b><br><br>
+    <b>RRS</b>(이슈별) = 확산도×0.40 + 영향도×0.45 + |감성|×0.15<br>
+    에스컬레이션: RRS ≥ 80 → <b>L4</b> · ≥ 65 → <b>L3</b> · ≥ 45 → <b>L2</b> · &lt; 45 → <b>L1</b><br>
+    <span class="text-slate-500">단, Tier1 부정보도 3건 이상 또는 규제개입 확률 70% 이상은 최소 L3 강제 적용</span>
+   </div>
+  </div>
+  <div class="bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-sm font-semibold mb-3">데이터 수집 채널 및 처리 파이프라인</div>
+   <div class="scroll-x"><table class="dense w-full text-left" id="tblSrc"></table></div>
+   <div class="mt-3 text-xs bg-slate-50 rounded p-3 leading-relaxed">
+    <b>처리 단계</b><br>
+    ① 수집(Crawl/API) → ② 중복제거·본행 관련성 판정(동명 타사·계열 분리) → ③ 감성분석(문장단위 −100~+100) → ④ 주제분류(8 카테고리) → ⑤ 이슈 클러스터링(유사도 기반 병합) → ⑥ 확산·영향 평가 → ⑦ 에스컬레이션 판정 → ⑧ 플레이북 매칭·초안 생성
+   </div>
+   <div class="mt-3 text-xs border-t pt-3 text-slate-600 leading-relaxed">
+    <b class="text-slate-800">평판리스크의 성격</b><br>
+    평판리스크는 독립 리스크가 아닌 <b>2차 리스크(Secondary Risk)</b>로, 신용·시장·운영·컴플라이언스 리스크 사건이 이해관계자 인식을 통해 증폭되어 발현. 따라서 ① 1차 리스크와의 연계 관리 ② 발현 전 선행지표(KRI) 모니터링 ③ 발현 후 확산 통제(위기대응)의 3단 체계가 필요.
+   </div>
+  </div>
+ </div>
+ <div class="bg-white rounded-lg border shadow-sm p-4 mt-4">
+  <div class="text-sm font-semibold mb-3">이해관계자별 영향 평가 기준</div>
+  <div class="scroll-x"><table class="dense w-full text-left" id="tblStk"></table></div>
+ </div>
+</section>
+
+</main>
+<footer class="text-center text-xs text-slate-400 py-6">Reputational Risk Sentinel Agent · Mock-up (가상데이터) · 실제 금융회사·상품·사건과 무관 · 대외 배포 금지</footer>
+
+<script>
+/* ============ 파라미터 ============ */
+const BASE='2025-06-30';
+const W={media:.25,social:.20,cust:.25,reg:.20,intn:.10};
+
+/* ============ 데이터 (전부 가상) ============ */
+const IC=['id','title','cat','src','occur','detect','dept','mentions','m7','spread','impact','sent','tier1','stage','fin','regProb','churn','voc','link1','owner','kw','desc','stk','tl'];
+const ISS_RAW=[
+['ISS-2506-01','고위험 지수연계 투자상품(HS-ELF 시리즈) 원금손실 관련 불완전판매 논란','소비자보호','민원+언론','2025-05-28','2025-06-09','자산관리부',4820,3150,84,88,-72,7,'대응',420,88,3200,412,'운영리스크(불완전판매)','평판리스크부',
+ '불완전판매,원금손실,고령투자자,설명의무,배상',
+ '해외지수 연계 파생결합펀드 만기 도래분 손실 확정에 따라 고령 투자자 중심 민원 급증. 「설명의무 위반」「고위험 상품 부적합 권유」 주장이 온라인 커뮤니티·유튜브를 통해 확산되었으며, 주요 일간지 7건 부정보도. 금융당국 현장검사 착수 검토 보도 존재.',
+ [92,78,88,55,90,60],
+ [['2025-05-28','자산관리부','만기 손실 확정 및 고객 통지 개시','완료'],['2025-06-09','평판리스크부','민원 급증 탐지 → 이슈 등록(L2)','완료'],['2025-06-14','평판리스크부','Tier1 부정보도 3건 초과 → L3 상향','완료'],['2025-06-18','경영진','위기대응위원회 소집, L4 상향 및 TF 구성','완료'],['2025-06-22','홍보부','대고객 안내문 및 보도참고자료 배포','완료'],['2025-06-26','소비자보호총괄','자율배상 기준안 마련 착수','진행'],['2025-07-10','준법감시부','판매과정 전수 점검 및 결과 보고','예정']]],
+['ISS-2506-02','모바일뱅킹 앱 접속장애 반복 발생 (6월 중 3회)','IT·정보보호','SNS+언론','2025-06-18','2025-06-18','디지털채널부',2140,1680,76,58,-64,3,'대응',38,42,850,186,'운영리스크(시스템장애)','디지털채널부',
+ '앱장애,접속불가,이체실패,보상,전산',
+ '월급일·카드결제일 집중 시간대에 앱 접속장애 3회 반복. 총 누적 장애 4시간 20분. SNS 실시간 확산 속도가 매우 빠르며(탐지 후 6시간 내 언급 1,200건), 「또 먹통」 프레임으로 과거 장애와 묶여 보도. 경쟁사 대비 안정성 비교 기사 발생.',
+ [85,52,70,45,72,30],
+ [['2025-06-18','디지털채널부','1차 장애 발생(52분) 및 복구','완료'],['2025-06-18','평판리스크부','SNS 언급 급증 탐지 → 이슈 등록','완료'],['2025-06-19','홍보부','홈페이지 사과 공지 및 보상기준 안내','완료'],['2025-06-25','디지털채널부','3차 장애 발생 → L3 상향','완료'],['2025-06-27','IT본부','근본원인 분석(RCA) 및 증설 계획 수립','진행'],['2025-07-15','IT본부','인증모듈 이중화 완료','예정']]],
+['ISS-2505-03','영업점 직원의 고객자금 횡령 사건 (형사고발)','임직원·내부통제','언론','2025-05-14','2025-05-20','기업영업부',1580,320,58,74,-68,4,'모니터링',85,65,240,42,'운영리스크(내부사기)','준법감시부',
+ '횡령,내부통제,직원사고,금융사고,고발',
+ '영업점 직원이 3년간 고객 자금 8.5억원을 횡령한 사실 적발. 자체 감사 통해 발견·즉시 형사고발하였으나, 「내부통제 부실」 프레임의 사설·칼럼 보도 발생. 금융당국 내부통제 관련 제재 가능성 존재. 언급량은 감소 추세.',
+ [70,72,85,80,65,40],
+ [['2025-05-14','감사부','자체 감사 중 이상거래 발견','완료'],['2025-05-16','준법감시부','형사고발 및 금융당국 보고','완료'],['2025-05-20','평판리스크부','언론보도 확산 → 이슈 등록(L3)','완료'],['2025-05-23','홍보부','사실관계 및 재발방지 대책 공표','완료'],['2025-06-10','준법감시부','전 영업점 자금관리 특별점검 완료','완료'],['2025-06-30','평판리스크부','언급량 정상화 → L2 하향, 모니터링 전환','완료']]],
+['ISS-2506-04','중소기업 대출 관련 구속성 영업(꺾기) 의혹 제기','영업관행','언론+제보','2025-06-11','2025-06-13','기업영업부',960,540,54,66,-58,2,'평가',60,72,180,58,'컴플라이언스리스크','준법감시부',
+ '꺾기,구속성영업,중소기업,부당권유,불공정',
+ '중소기업 대출 실행 시 예금·보험 가입을 사실상 강요했다는 차주 제보가 경제지 단독보도. 국정감사 이슈화 가능성 언급. 자체 점검 착수했으나 영업점 단위 관행 여부 확인 중.',
+ [65,58,82,60,60,45],
+ [['2025-06-11','—','경제지 단독보도','완료'],['2025-06-13','평판리스크부','이슈 등록 및 사실확인 요청','완료'],['2025-06-17','기업영업부','최근 12개월 연계판매 데이터 추출','완료'],['2025-06-24','준법감시부','영업점 표본 점검(30개점) 진행','진행'],['2025-07-08','준법감시부','점검결과 및 개선방안 보고','예정']]],
+['ISS-2506-05','고령자 점포 축소 관련 금융접근성 논란','ESG·사회','언론+시민단체','2025-06-05','2025-06-07','채널전략부',720,280,46,42,-52,2,'대응',12,35,420,26,'전략리스크','채널전략부',
+ '점포폐쇄,고령자,금융접근성,디지털소외,지역사회',
+ '상반기 영업점 18개 통폐합 계획에 대해 지역 시민단체가 「고령자 금융접근성 저해」성명 발표. 지역 일간지·방송 보도. 감독당국의 점포폐쇄 사전영향평가 절차 준수 여부가 쟁점.',
+ [58,35,68,30,50,88],
+ [['2025-06-05','—','시민단체 성명 발표','완료'],['2025-06-07','평판리스크부','이슈 등록','완료'],['2025-06-13','채널전략부','사전영향평가 결과 및 대체수단 공개','완료'],['2025-06-20','채널전략부','고령자 특화 이동점포 3대 운영 발표','완료'],['2025-07-31','채널전략부','지역 협의체 정례화','예정']]],
+['ISS-2506-06','제3자 위탁업체 개인정보 관리 미비 의심 신고','IT·정보보호','내부제보','2025-06-21','2025-06-23','정보보호부',180,150,22,68,-40,0,'평가',150,58,0,4,'운영리스크(정보보호)','정보보호부',
+ '개인정보,위탁,유출의심,정보보호,과징금',
+ '마케팅 위탁업체의 고객정보 접근권한 관리 미비 정황이 내부제보로 접수. 실제 유출 여부 확인 중이며 외부 공개 전 단계. 확인 시 개인정보보호법상 과징금 및 대규모 평판 훼손 가능. 사전 대응 필요성 매우 높음.',
+ [88,62,90,40,25,20],
+ [['2025-06-21','—','내부제보 접수','완료'],['2025-06-23','정보보호부','긴급 실태조사 착수, 권한 즉시 차단','완료'],['2025-06-27','정보보호부','포렌식 분석 의뢰 (외부 전문기관)','진행'],['2025-07-05','정보보호부','유출 여부 확정 및 신고 여부 판단','예정'],['2025-07-05','평판리스크부','유출 확정 시 L4 사전 시나리오 준비','예정']]],
+['ISS-2506-07','콜센터 상담 연결 지연 및 응대 불만 확산','소비자보호','SNS','2025-06-02','2025-06-10','고객지원부',890,420,52,34,-56,0,'대응',5,18,320,94,'운영리스크(프로세스)','고객지원부',
+ '콜센터,연결지연,응대불만,ARS,상담원',
+ 'ARS 개편 후 상담원 연결 평균 대기 8분 40초로 악화. 커뮤니티 중심 불만 게시물 확산. 개별 사안은 경미하나 누적 언급량이 많고 고객경험 전반 부정 인식으로 전이 우려.',
+ [78,25,42,55,38,20],
+ [['2025-06-02','—','ARS 개편 시행','완료'],['2025-06-10','평판리스크부','커뮤니티 불만 급증 탐지','완료'],['2025-06-16','고객지원부','상담인력 25명 증원 및 ARS 단계 축소','완료'],['2025-06-28','고객지원부','평균 대기 3분 20초로 개선 확인','완료']]],
+['ISS-2506-08','보이스피싱 피해 배상 거절 관련 소비자 분쟁','소비자보호','민원+SNS','2025-06-14','2025-06-16','개인영업부',640,380,44,46,-60,1,'대응',28,38,150,72,'운영리스크(외부사기)','소비자보호총괄',
+ '보이스피싱,배상거절,이상거래탐지,금융사기,분쟁조정',
+ '보이스피싱 피해자에 대해 FDS 미작동 책임을 인정하지 않아 배상을 거절한 사례가 언론 제보. 「은행 책임회피」 프레임. 분쟁조정 신청 다수 접수. 유사 사례 확대 가능성.',
+ [82,42,72,38,55,35],
+ [['2025-06-14','—','피해자 언론 제보','완료'],['2025-06-16','평판리스크부','이슈 등록','완료'],['2025-06-21','소비자보호총괄','유사 거절사례 32건 재검토 착수','진행'],['2025-06-27','개인영업부','FDS 룰 보완 및 배상기준 재정비','진행'],['2025-07-20','소비자보호총괄','재검토 결과 및 자율조정 결과 보고','예정']]],
+['ISS-2506-09','주주총회 이사 선임 관련 지배구조 논란','지배구조','언론','2025-03-25','2025-06-03','이사회사무국',380,110,32,52,-38,1,'모니터링',0,30,0,2,'전략리스크','이사회사무국',
+ '지배구조,사외이사,이사회,독립성,의결권',
+ '사외이사 선임 절차의 독립성에 대해 의결권 자문기관이 반대 권고. 외국인 주주 일부 반대의견 표명. 언론 언급량은 낮으나 IR·투자자 관계 측면 리스크. 지배구조 모범관행 이행 관련 감독당국 관심 지속.',
+ [25,72,58,35,35,15],
+ [['2025-03-25','—','의결권 자문기관 반대 권고','완료'],['2025-06-03','평판리스크부','지배구조 모범관행 점검 계기 이슈 등록','완료'],['2025-06-20','이사회사무국','사외이사 후보추천 절차 개선안 이사회 보고','완료'],['2025-09-30','이사회사무국','지배구조 연차보고서 공시','예정']]],
+['ISS-2506-10','석탄발전 프로젝트 파이낸싱 관련 환경단체 캠페인','ESG·사회','SNS+시민단체','2025-06-08','2025-06-12','투자금융부',450,260,40,36,-48,1,'평가',0,22,0,3,'ESG리스크','ESG전략부',
+ '석탄금융,탈석탄,ESG,기후,그린워싱',
+ '해외 석탄화력 발전 프로젝트 참여 이력에 대해 환경단체가 「탈석탄 선언 위반」주장 캠페인 전개. SNS 해시태그 확산 및 그린워싱 지적. 글로벌 ESG 평가등급 영향 가능.',
+ [42,68,45,30,45,75],
+ [['2025-06-08','—','환경단체 캠페인 개시','완료'],['2025-06-12','평판리스크부','이슈 등록','완료'],['2025-06-19','ESG전략부','기존 약정 잔액 및 이행경로 사실확인','완료'],['2025-07-15','ESG전략부','탈석탄 로드맵 갱신 및 공표 검토','예정']]],
+['ISS-2506-11','신용대출 금리 산정 오류에 따른 이자 과다수취 환급','소비자보호','자체발견','2025-04-20','2025-06-02','개인영업부',210,60,20,40,-44,0,'대응',22,45,0,38,'운영리스크(프로세스)','개인영업부',
+ '금리오류,이자환급,과다수취,시스템,자체신고',
+ '가산금리 산정 로직 오류로 4,120건 이자 과다수취 확인. 자체 발견 후 감독당국 자율신고 및 환급 진행 중. 선제적 대응으로 언론 확산은 제한적이나 공표 시 부정보도 가능.',
+ [55,32,62,28,25,15],
+ [['2025-04-20','개인영업부','내부점검 중 오류 발견','완료'],['2025-05-08','준법감시부','감독당국 자율신고','완료'],['2025-06-02','평판리스크부','환급 공표 대비 이슈 등록','완료'],['2025-06-25','개인영업부','환급 완료율 88% (3,626건)','진행'],['2025-07-31','개인영업부','환급 완료 및 시스템 검증체계 개선','예정']]],
+['ISS-2506-12','임직원 익명 커뮤니티 조직문화 관련 부정 게시물 증가','임직원·내부통제','SNS','2025-05-10','2025-06-06','인사부',520,240,36,26,-54,0,'모니터링',0,10,0,0,'인적리스크','인사부',
+ '조직문화,성과압박,이직,직장내갈등,평판',
+ '익명 직장인 커뮤니티에서 실적 압박·영업 강요 관련 부정 게시물 증가. 채용 브랜드 및 우수인력 이탈 리스크. 언론 인용 보도 시 확산 가능. 상반기 이직률 상승과 상관관계 확인.',
+ [30,28,32,88,42,18],
+ [['2025-05-10','—','커뮤니티 부정 게시물 증가 시작','완료'],['2025-06-06','평판리스크부','이슈 등록 및 인사부 통보','완료'],['2025-06-20','인사부','조직문화 진단 설문 실시 (응답률 71%)','완료'],['2025-07-25','인사부','진단결과 기반 개선과제 도출','예정']]]
+];
+const ISS=ISS_RAW.map(r=>{const o={};IC.forEach((c,i)=>o[c]=r[i]);o.kw=o.kw.split(',');return o;});
+
+/* 미디어 콘텐츠 */
+const MC=['date','ch','tier','outlet','title','sent','reach','iss'];
+const MED_RAW=[
+['2025-06-26','언론',1,'종합일간A','"설명 못 들었다" HS-ELF 손실 고객 집단 민원…금감원 검사 검토',-82,180000,'ISS-2506-01'],
+['2025-06-24','방송',1,'지상파방송B','고위험 상품 손실 확정…고령 투자자 피해 호소',-78,420000,'ISS-2506-01'],
+['2025-06-23','언론',2,'경제일간C','파생결합펀드 손실 확대…판매사 배상 책임 공방',-64,52000,'ISS-2506-01'],
+['2025-06-20','언론',1,'통신사D','금융당국, 고위험상품 판매과정 전수 점검 방침',-58,96000,'ISS-2506-01'],
+['2025-06-19','커뮤니티',3,'투자자커뮤니티E','ELF 손실 인증합니다 (스크린샷)',-88,14000,'ISS-2506-01'],
+['2025-06-18','유튜브',3,'금융채널F','원금 반토막…은행이 말 안 해준 3가지',-85,232000,'ISS-2506-01'],
+['2025-06-16','언론',2,'온라인매체G','판매사 자율배상 논의 착수…기준 두고 이견',-42,18000,'ISS-2506-01'],
+['2025-06-27','언론',1,'종합일간A','또 앱 먹통…한 달 새 세 번째',-76,165000,'ISS-2506-02'],
+['2025-06-25','SNS',3,'X(옛 트위터)','급여일에 이체 안 됨. 진짜 이 은행 왜 이러나',-80,32000,'ISS-2506-02'],
+['2025-06-25','언론',2,'IT전문매체H','인증모듈 병목이 원인…증설 지연 지적',-62,22000,'ISS-2506-02'],
+['2025-06-19','언론',3,'온라인매체I','앱 장애 보상 어떻게 받나…기준 정리',-18,9000,'ISS-2506-02'],
+['2025-06-18','커뮤니티',3,'생활커뮤니티J','오늘 은행앱 되는 사람 있나요?',-72,26000,'ISS-2506-02'],
+['2025-06-15','언론',1,'종합일간K','[사설] 반복되는 은행 금융사고, 내부통제 어디 갔나',-80,140000,'ISS-2505-03'],
+['2025-06-02','언론',2,'경제일간C','직원 횡령 8.5억…자체 적발 후 고발',-56,44000,'ISS-2505-03'],
+['2025-05-23','언론',1,'통신사D','은행, 재발방지 대책 발표…전 영업점 특별점검',-22,88000,'ISS-2505-03'],
+['2025-05-21','방송',1,'지상파방송B','3년간 고객 돈 빼돌린 직원…어떻게 가능했나',-74,380000,'ISS-2505-03'],
+['2025-06-11','언론',2,'경제일간L','[단독] 대출 조건으로 예금 가입 강요 정황',-70,58000,'ISS-2506-04'],
+['2025-06-17','언론',3,'온라인매체G','꺾기 의혹에 은행 "자체 점검 중"',-38,12000,'ISS-2506-04'],
+['2025-06-22','언론',2,'경제일간C','국감 앞두고 은행 영업관행 다시 도마 위',-52,40000,'ISS-2506-04'],
+['2025-06-05','언론',2,'지역일간M','시민단체 "고령자 금융접근성 훼손" 점포 폐쇄 반대',-58,16000,'ISS-2506-05'],
+['2025-06-20','언론',3,'지역방송N','이동점포 도입…"실효성은 지켜봐야"',-12,20000,'ISS-2506-05'],
+['2025-06-13','언론',3,'온라인매체I','은행, 점포폐쇄 사전영향평가 결과 공개',6,8000,'ISS-2506-05'],
+['2025-06-12','커뮤니티',3,'고객커뮤니티O','전화 30분 기다렸다가 끊었습니다',-68,11000,'ISS-2506-07'],
+['2025-06-20','SNS',3,'인스타그램','콜센터 개선됐다는데 아직 멀었음',-50,7000,'ISS-2506-07'],
+['2025-06-14','언론',2,'경제일간L','보이스피싱 피해자 "은행이 책임 없다더라"',-72,46000,'ISS-2506-08'],
+['2025-06-24','언론',3,'온라인매체G','분쟁조정 신청 잇따라…FDS 책임 범위 쟁점',-46,13000,'ISS-2506-08'],
+['2025-06-03','언론',2,'경제일간C','의결권 자문사 반대 권고…사외이사 독립성 논란',-44,38000,'ISS-2506-09'],
+['2025-06-20','언론',3,'온라인매체I','후보추천 절차 개선안 이사회 보고',10,6000,'ISS-2506-09'],
+['2025-06-08','SNS',3,'환경단체 채널','#탈석탄약속지켜라 캠페인 시작',-66,42000,'ISS-2506-10'],
+['2025-06-18','언론',2,'환경전문매체P','탈석탄 선언 후에도 석탄 PF 잔액 존재',-58,15000,'ISS-2506-10'],
+['2025-06-15','커뮤니티',3,'직장인커뮤니티Q','실적 압박 이 정도면 그냥 영업직',-62,19000,'ISS-2506-12'],
+['2025-06-22','커뮤니티',3,'직장인커뮤니티Q','올해 우리 부서만 5명 나갔다',-58,14000,'ISS-2506-12'],
+['2025-06-28','언론',3,'온라인매체I','은행권 상반기 이자이익 증가…상생금융 압박 지속',-24,11000,''],
+['2025-06-21','언론',2,'경제일간C','은행 ESG 채권 발행 확대…긍정 평가',48,26000,''],
+['2025-06-10','언론',3,'온라인매체G','청년 주거지원 대출 출시…금리 우대',56,9000,''],
+['2025-06-17','SNS',3,'X(옛 트위터)','창구 직원분 정말 친절하셨다',72,3000,''],
+['2025-06-05','언론',2,'경제일간L','은행 사회공헌 500억 출연…소상공인 지원',52,31000,''],
+['2025-06-29','언론',1,'통신사D','금융권 소비자보호 실태평가 강화 예고',-16,84000,'']
+];
+const MED=MED_RAW.map(r=>{const o={};MC.forEach((c,i)=>o[c]=r[i]);return o;});
+
+/* 민원 */
+const VOC=[
+ {t:'투자상품 불완전판매',p:'금융투자상품',n:412,pq:96,fss:'판매',day:22.4,acc:38},
+ {t:'전산장애·이체오류',p:'전자금융',n:186,pq:64,fss:'전자금융',day:9.2,acc:74},
+ {t:'보이스피싱 배상',p:'수신',n:72,pq:58,fss:'사기피해',day:31.5,acc:26},
+ {t:'대출 금리·수수료',p:'여신',n:158,pq:142,fss:'여신',day:12.8,acc:62},
+ {t:'콜센터 응대',p:'채널',n:94,pq:38,fss:'기타',day:5.4,acc:81},
+ {t:'예금 상품설명',p:'수신',n:66,pq:70,fss:'수신',day:8.1,acc:70},
+ {t:'구속성 영업 의혹',p:'여신',n:58,pq:12,fss:'여신',day:26.0,acc:22},
+ {t:'카드·결제',p:'카드',n:112,pq:118,fss:'카드',day:7.6,acc:76},
+ {t:'외환·송금',p:'외환',n:44,pq:40,fss:'외환',day:10.2,acc:68},
+ {t:'점포 운영·접근성',p:'채널',n:26,pq:8,fss:'기타',day:6.0,acc:54},
+ {t:'개인정보·마케팅 동의',p:'기타',n:38,pq:30,fss:'기타',day:11.0,acc:60},
+ {t:'기타',p:'기타',n:84,pq:78,fss:'기타',day:9.0,acc:66}
+];
+const VOC_HIST=[['2023-3Q',742],['2023-4Q',768],['2024-1Q',810],['2024-2Q',796],['2024-3Q',854],['2024-4Q',902],['2025-1Q',1088],['2025-2Q',1350]];
+const PROD_RATE=[['금융투자상품',86.4],['전자금융',12.8],['여신',9.6],['카드',7.2],['수신',3.4],['외환',5.1]];
+
+/* KRI */
+const KRI=[
+ {id:'K01',n:'금감원 접수 민원 건수',u:'건/분기',cat:'소비자',v:1350,w:1000,c:1200,d:1400,dir:'up',h:[854,902,1088,1180,1265,1350],own:'소비자보호총괄'},
+ {id:'K02',n:'민원 증가율(전년동기)',u:'%',cat:'소비자',v:69.6,w:20,c:40,d:60,dir:'up',h:[8.2,15.4,34.3,44.1,56.0,69.6],own:'소비자보호총괄'},
+ {id:'K03',n:'민원 평균 처리기간',u:'일',cat:'소비자',v:14.2,w:12,c:15,d:20,dir:'up',h:[10.1,10.8,11.6,12.4,13.5,14.2],own:'소비자보호총괄'},
+ {id:'K04',n:'불완전판매 의심 건수',u:'건/월',cat:'소비자',v:78,w:30,c:50,d:80,dir:'up',h:[18,24,36,52,66,78],own:'준법감시부'},
+ {id:'K05',n:'부정 언론보도 비율',u:'%',cat:'미디어',v:71.1,w:40,c:55,d:70,dir:'up',h:[38.2,41.0,46.5,58.2,64.8,71.1],own:'홍보부'},
+ {id:'K06',n:'Tier1 매체 부정보도 건수',u:'건/월',cat:'미디어',v:9,w:3,c:5,d:8,dir:'up',h:[2,2,3,5,7,9],own:'홍보부'},
+ {id:'K07',n:'SNS 부정감성 비율',u:'%',cat:'소셜',v:64.5,w:35,c:50,d:65,dir:'up',h:[32.4,34.8,40.2,51.6,58.4,64.5],own:'평판리스크부'},
+ {id:'K08',n:'SNS 언급량 급증지수',u:'배',cat:'소셜',v:3.8,w:1.5,c:2.5,d:4.0,dir:'up',h:[1.1,1.2,1.6,2.4,3.1,3.8],own:'평판리스크부'},
+ {id:'K09',n:'전산장애 발생시간',u:'분/월',cat:'IT',v:260,w:60,c:120,d:240,dir:'up',h:[15,22,48,55,110,260],own:'IT본부'},
+ {id:'K10',n:'임직원 금융사고 건수',u:'건/반기',cat:'내부',v:2,w:1,c:2,d:4,dir:'up',h:[0,1,1,1,2,2],own:'준법감시부'},
+ {id:'K11',n:'미스터리쇼핑 종합점수',u:'점',cat:'소비자',v:74.2,w:85,c:80,d:75,dir:'down',h:[88.4,86.2,84.0,80.6,77.5,74.2],own:'소비자보호총괄'},
+ {id:'K12',n:'주요고객 계좌 해지율',u:'%',cat:'고객',v:2.14,w:1.5,c:2.0,d:2.8,dir:'up',h:[1.22,1.28,1.44,1.66,1.92,2.14],own:'마케팅부'},
+ {id:'K13',n:'임직원 자발적 이직률',u:'%',cat:'내부',v:6.8,w:5.0,c:6.5,d:8.0,dir:'up',h:[4.2,4.5,5.1,5.8,6.2,6.8],own:'인사부'},
+ {id:'K14',n:'브랜드 신뢰도 조사지수',u:'점',cat:'고객',v:61.5,w:70,c:65,d:60,dir:'down',h:[74.2,73.0,71.4,68.2,64.6,61.5],own:'마케팅부'},
+ {id:'K15',n:'감독당국 제재·검사 건수',u:'건/반기',cat:'규제',v:3,w:1,c:2,d:4,dir:'up',h:[1,1,2,2,3,3],own:'준법감시부'},
+ {id:'K16',n:'ESG 평가등급 (외부기관)',u:'등급점',cat:'규제',v:68,w:75,c:70,d:65,dir:'down',h:[78,77,75,73,70,68],own:'ESG전략부'}
+];
+
+const RRI_HIST=[['2024-07',24],['2024-08',26],['2024-09',28],['2024-10',27],['2024-11',31],['2024-12',33],['2025-01',35],['2025-02',34],['2025-03',38],['2025-04',43],['2025-05',49],['2025-06',0]];
+
+const EW=[
+ ['2025-06-27','K09 전산장애 발생시간','심각','260분 (임계 240분)','IT본부','장애 원인분석 및 증설계획 제출 요구'],
+ ['2025-06-26','K06 Tier1 부정보도','심각','9건 (임계 8건)','홍보부','언론 대응 강화, 사실관계 자료 배포'],
+ ['2025-06-25','K01 민원 건수','심각','1,350건 (임계 1,400건 근접)','소비자보호총괄','민원 원인별 개선 TF 가동'],
+ ['2025-06-20','K04 불완전판매 의심','심각','78건 (임계 80건 근접)','준법감시부','판매과정 전수점검 착수'],
+ ['2025-06-18','K08 SNS 급증지수','경계','3.8배 (임계 4.0배 근접)','평판리스크부','실시간 모니터링 주기 4h→1h 단축'],
+ ['2025-06-15','K11 미스터리쇼핑','경계','74.2점 (임계 75점)','소비자보호총괄','판매직원 재교육 및 재점검'],
+ ['2025-06-10','K14 브랜드 신뢰도','경계','61.5점 (임계 60점 근접)','마케팅부','브랜드 회복 커뮤니케이션 계획 수립'],
+ ['2025-06-05','K02 민원 증가율','심각','69.6% (임계 60%)','소비자보호총괄','근본원인 분석 보고'],
+ ['2025-05-22','K10 임직원 금융사고','경계','2건 (임계 2건)','준법감시부','자금관리 특별점검'],
+ ['2025-05-14','K12 주요고객 해지율','경계','1.92% (임계 2.0% 근접)','마케팅부','이탈 고객 인터뷰 및 원인분석']
+];
+
+const PLAYBOOK={
+ '소비자보호':[['0~4h','평판리스크부','이슈 등록·사실관계 1차 확인·확산 모니터링 개시(1h 주기)'],['4~24h','소비자보호총괄','피해 규모·대상 고객 특정, 유사사례 전수 추출'],['1~3일','홍보부·법무','대외 메시지 확정(사과/사실관계/구제절차), 콜센터 스크립트 배포'],['3~7일','소비자보호총괄','자율배상·구제 기준안 수립, 감독당국 사전 협의'],['7~30일','준법감시부','판매·처리 프로세스 전수 점검, 재발방지 대책 이사회 보고'],['30일+','평판리스크부','언급량·민원 정상화 확인 후 등급 하향, 사후 리뷰(Lessons Learned)']],
+ 'IT·정보보호':[['0~1h','IT본부','장애 등급 판정, 복구 착수, 상황실 가동'],['0~2h','디지털채널부','앱·홈페이지 장애 안내 게시, 대체채널 안내'],['2~6h','홍보부','SNS 실시간 응대, 보도 대응 메시지 배포'],['1일','디지털채널부','피해 거래 특정 및 보상 기준 공지'],['3~7일','IT본부','근본원인 분석(RCA) 및 재발방지 대책'],['7일+','정보보호부','유사 취약점 점검, 감독당국 보고(해당 시)']],
+ '임직원·내부통제':[['0~4h','감사부','사실관계 확정, 관련자 직무배제·자금 동결'],['4~24h','준법감시부','감독당국 보고 및 형사고발 여부 판단'],['1~2일','홍보부','선제적 사실 공표 + 재발방지 대책 동시 발표'],['2~7일','감사부','동일 유형 전 영업점 특별점검'],['7~30일','준법감시부','내부통제 개선방안 이사회 보고, 책임 소재 정리'],['30일+','인사부','조직문화·성과체계 점검']],
+ '영업관행':[['0~1일','준법감시부','제기 사실 확인, 관련 데이터 즉시 보전'],['1~3일','해당 사업부','거래 표본 분석 및 관행 여부 판단'],['3~7일','홍보부','확인된 사실 범위 내 대응(추측성 부인 금지)'],['1~4주','준법감시부','영업점 표본 점검, 위규 시 자율신고 검토'],['1개월+','해당 사업부','영업 프로세스 개선 및 KPI 조정']],
+ 'ESG·사회':[['0~2일','ESG전략부','제기 사항 사실확인, 기존 약정·정책 이행경로 정리'],['2~5일','홍보부·ESG','투명한 이행 현황 공개(잔액·종료시점 포함)'],['1~2주','ESG전략부','이해관계자 대화 채널 개설(시민단체·지역사회)'],['1개월','ESG전략부','정책 로드맵 갱신·공표'],['분기','IR','ESG 평가기관 대응 및 공시 반영']],
+ '지배구조':[['0~3일','이사회사무국','제기 쟁점 정리 및 절차 적법성 검토'],['3~7일','IR','기관투자자·자문기관 개별 설명'],['1~4주','이사회사무국','절차 개선안 이사회 보고'],['분기','이사회사무국','지배구조 모범관행 이행계획 공시']]
+};
+
+const AXIS_DEF=[
+ ['미디어','25%','부정보도 비율, Tier1 부정보도 건수, 도달량 가중','언론 크롤링(일 3회)'],
+ ['소셜','20%','부정감성 비율, 언급량 급증지수, 커뮤니티 확산도','SNS·커뮤니티 API(실시간)'],
+ ['소비자','25%','민원 건수·증가율, 처리기간, 미스터리쇼핑, 불완전판매 의심','민원시스템 연동(일)'],
+ ['규제','20%','제재·검사 건수, 규제개입 확률, ESG 평가등급','준법감시 시스템·공시(수시)'],
+ ['내부','10%','임직원 금융사고, 이직률, 익명커뮤니티 부정 게시물','인사시스템·커뮤니티(주)']
+];
+const SRC_DEF=[
+ ['언론(일간·경제·방송·통신)','약 120개 매체','일 3회','기사 본문·헤드라인 감성, 매체 Tier 가중'],
+ ['온라인 커뮤니티','주요 15개','1시간','게시물·댓글 감성, 확산 속도(시간당 증가율)'],
+ ['SNS (X·인스타·페이스북)','공개 계정','실시간','해시태그, 인용·공유 수'],
+ ['동영상 플랫폼','유튜브 등','일 1회','조회수·좋아요·댓글 감성'],
+ ['민원·VOC','내부 민원시스템','일 1회','유형·상품군 분류, 처리기간'],
+ ['감독당국 공시·보도','금융당국','수시','제재·검사·정책 방향'],
+ ['임직원 익명 커뮤니티','주요 2개','주 1회','조직문화 관련 부정 신호'],
+ ['IR·투자자 채널','자문기관 리포트','수시','의결권 권고, ESG 평가']
+];
+const STK_DEF=[
+ ['고객','거래 중단·이탈, 상품 해지, 민원·분쟁 제기','해지율, 민원건수, NPS'],
+ ['투자자','주가·조달금리, 의결권 반대, ESG 평가 하락','주가 변동, CDS, 자문기관 권고'],
+ ['감독당국','검사·제재, 인가·승인 지연, 정책 압박','검사 착수, 제재 건수'],
+ ['임직원','사기 저하, 우수인력 이탈, 채용 브랜드 훼손','이직률, 조직문화 진단'],
+ ['언론','부정 프레임 고착, 반복 인용, 사설·칼럼 확산','부정보도 비율, Tier1 건수'],
+ ['지역사회·시민단체','캠페인·성명, 지자체 관계 악화','캠페인 건수, 협의체 갈등']
+];
+
+/* ============ 계산 ============ */
+const cl=(v,a,b)=>Math.max(a,Math.min(b,v));
+const fmt=n=>Number(n||0).toLocaleString();
+const f1=n=>Number(n).toFixed(1);
+let AX={},RRI=0,DAILY=[];
+
+function calc(){
+ // 이슈 RRS + 에스컬레이션
+ ISS.forEach(i=>{
+  i.rrs=Math.round(i.spread*.40+i.impact*.45+Math.abs(i.sent)*.15);
+  let e = i.rrs>=80?'L4':i.rrs>=65?'L3':i.rrs>=45?'L2':'L1';
+  const ord={L1:1,L2:2,L3:3,L4:4};
+  if((i.tier1>=3||i.regProb>=70)&&ord[e]<3) {e='L3';i.forced=true;}
+  i.esc=e;
+  i.velo=i.mentions?Math.round(i.m7/(i.mentions/4.3)*100):0; // 최근7일 비중 기반 속도
+ });
+ // 미디어 축
+ const neg=MED.filter(m=>m.sent<-20), t1n=neg.filter(m=>m.tier===1);
+ const negR=neg.length/MED.length*100;
+ const reachN=neg.reduce((t,m)=>t+m.reach,0), reachA=MED.reduce((t,m)=>t+m.reach,0);
+ AX.media=Math.round(cl(negR*.55+t1n.length*3.2+(reachN/reachA*100)*.28,0,100));
+ // 소셜 축
+ const soc=MED.filter(m=>['SNS','커뮤니티','유튜브'].includes(m.ch));
+ const sNeg=soc.filter(m=>m.sent<-20).length/soc.length*100;
+ const spike=KRI.find(k=>k.id==='K08').v;
+ AX.social=Math.round(cl(sNeg*.55+spike*8,0,100));
+ // 소비자 축
+ const k1=KRI.find(k=>k.id==='K01'),k2=KRI.find(k=>k.id==='K02'),k3=KRI.find(k=>k.id==='K03'),k11=KRI.find(k=>k.id==='K11');
+ AX.cust=Math.round(cl(cl(k1.v/k1.d*100,0,100)*.35+cl(k2.v/k2.d*100,0,100)*.25+cl(k3.v/k3.d*100,0,100)*.15+cl((100-k11.v)/(100-k11.d)*100,0,100)*.25,0,100));
+ // 규제 축
+ const maxReg=Math.max(...ISS.map(i=>i.regProb));
+ const k15=KRI.find(k=>k.id==='K15'),k16=KRI.find(k=>k.id==='K16');
+ AX.reg=Math.round(cl(maxReg*.45+k15.v/k15.d*100*.30+cl((80-k16.v)/(80-k16.d)*100,0,100)*.25,0,100));
+ // 내부 축
+ const k10=KRI.find(k=>k.id==='K10'),k13=KRI.find(k=>k.id==='K13');
+ AX.intn=Math.round(cl(k10.v/k10.d*100*.45+k13.v/k13.d*100*.35+20,0,100));
+ RRI=Math.round(AX.media*W.media+AX.social*W.social+AX.cust*W.cust+AX.reg*W.reg+AX.intn*W.intn);
+ RRI_HIST[RRI_HIST.length-1][1]=RRI;
+ // KRI 상태
+ KRI.forEach(k=>{
+  const up=k.dir==='up';
+  k.st = up ? (k.v>=k.d?'심각':k.v>=k.c?'경계':k.v>=k.w?'주의':'정상')
+            : (k.v<=k.d?'심각':k.v<=k.c?'경계':k.v<=k.w?'주의':'정상');
+  const p=k.h[k.h.length-2];
+  k.chg=p? ((k.v-p)/Math.abs(p)*100):0;
+ });
+ // 일별 언급량 (결정적)
+ DAILY=[];
+ for(let d=1;d<=30;d++){
+  const dt=`2025-06-${String(d).padStart(2,'0')}`;
+  let base=60+Math.round(Math.abs(Math.sin(d*1.7))*30);
+  let extra=0,neg=0.38;
+  if(d>=9){extra+=Math.round(90*Math.min(1,(d-8)/6));neg+=.12;}
+  if(d>=14&&d<=26){extra+=110;neg+=.08;}
+  if(d>=18){extra+=Math.round(140*(d>=25?1:0.5));neg+=.06;}
+  if(d>=25&&d<=28){extra+=180;neg+=.05;}
+  DAILY.push({d:dt,n:base+extra,neg:Math.round(cl(neg,0,.92)*100)});
+ }
+}
+const gradeRRI=v=>v<=25?['정상','text-emerald-600','bg-emerald-500']:v<=45?['주의','text-amber-600','bg-amber-500']:v<=65?['경계','text-orange-600','bg-orange-500']:['심각','text-rose-600','bg-rose-500'];
+
+/* ============ 렌더 ============ */
+let CH={};
+function render(){
+ calc();
+ const g=gradeRRI(RRI);
+ // 경보 배너
+ const l4=ISS.filter(i=>i.esc==='L4'&&i.stage!=='종결');
+ const l3=ISS.filter(i=>i.esc==='L3'&&i.stage!=='종결');
+ document.getElementById('alertBar').innerHTML = (l4.length||RRI>65)?
+  `<div class="bg-rose-600 text-white px-6 py-2 text-sm flex items-center gap-3">
+    <span class="w-2 h-2 rounded-full bg-white pulse"></span>
+    <b>위기대응 경보</b>
+    <span>RRI ${RRI}점 (${g[0]}) · L4 이슈 ${l4.length}건 / L3 ${l3.length}건 · 위기대응위원회 소집 요건 충족</span>
+    <button onclick="switchTab('crisis')" class="ml-auto px-2.5 py-1 bg-white/20 rounded text-xs hover:bg-white/30">위기대응 탭 이동</button></div>`
+  : (RRI>45? `<div class="bg-orange-500 text-white px-6 py-2 text-sm flex items-center gap-3"><span class="w-2 h-2 rounded-full bg-white pulse"></span><b>주의 경보</b><span>RRI ${RRI}점 (${g[0]}) · L3 이슈 ${l3.length}건</span></div>`:'');
+
+ // RRI 박스
+ document.getElementById('rriBox').innerHTML=`
+  <div class="flex items-end gap-2"><div class="text-[42px] font-bold leading-none ${g[1]}">${RRI}</div>
+  <div class="pb-1"><span class="px-2 py-0.5 rounded text-xs font-semibold st-${g[0]}">${g[0]}</span></div></div>
+  <div class="mt-3 h-2.5 bg-slate-200 rounded relative overflow-hidden">
+   <div class="absolute h-full ${g[2]}" style="width:${RRI}%"></div>
+   <div class="absolute h-full w-px bg-slate-400" style="left:25%"></div>
+   <div class="absolute h-full w-px bg-slate-400" style="left:45%"></div>
+   <div class="absolute h-full w-px bg-slate-400" style="left:65%"></div>
+  </div>
+  <div class="flex justify-between text-[9px] text-slate-400 mt-0.5"><span>0</span><span>25</span><span>45</span><span>65</span><span>100</span></div>`;
+ const prev=RRI_HIST[RRI_HIST.length-2][1];
+ document.getElementById('rriSub').innerHTML=`전월 ${prev}점 → <b class="${RRI>prev?'text-rose-600':'text-emerald-600'}">${RRI>prev?'+':''}${RRI-prev}p</b> · 6개월 연속 상승<br>최대 기여축: ${Object.entries({미디어:AX.media*W.media,소셜:AX.social*W.social,소비자:AX.cust*W.cust,규제:AX.reg*W.reg,내부:AX.intn*W.intn}).sort((a,b)=>b[1]-a[1])[0][0]}`;
+
+ // KPI
+ const act=ISS.filter(i=>i.stage!=='종결');
+ const totFin=ISS.reduce((t,i)=>t+i.fin,0);
+ const negR=MED.filter(m=>m.sent<-20).length/MED.length*100;
+ document.getElementById('kpi').innerHTML=[
+  ['활성 이슈',`${act.length}건`,`L4 ${l4.length} / L3 ${l3.length} / L2 ${ISS.filter(i=>i.esc==='L2'&&i.stage!=='종결').length} / L1 ${ISS.filter(i=>i.esc==='L1'&&i.stage!=='종결').length}`,'text-slate-800'],
+  ['30일 언급량',fmt(DAILY.reduce((t,d)=>t+d.n,0)),`전월비 +214% · 일평균 ${Math.round(DAILY.reduce((t,d)=>t+d.n,0)/30)}건`,'text-slate-800'],
+  ['부정보도 비율',f1(negR)+'%',`Tier1 부정 ${MED.filter(m=>m.tier===1&&m.sent<-20).length}건 · 임계 70% 초과`,'text-rose-600'],
+  ['민원 (2025-2Q)',fmt(VOC.reduce((t,v)=>t+v.n,0))+'건',`전분기비 +${f1((VOC.reduce((t,v)=>t+v.n,0)/VOC.reduce((t,v)=>t+v.pq,0)-1)*100)}%`,'text-rose-600'],
+  ['KRI 임계초과',`${KRI.filter(k=>k.st==='심각').length}+${KRI.filter(k=>k.st==='경계').length}`,`심각 ${KRI.filter(k=>k.st==='심각').length} / 경계 ${KRI.filter(k=>k.st==='경계').length} (총 ${KRI.length})`,'text-orange-600'],
+  ['추정 재무영향',fmt(totFin)+'억',`직접비용·배상·과징금 추정 합계`,'text-slate-800']
+ ].map(([t,v,s,c])=>`<div class="bg-white rounded-lg border shadow-sm p-3">
+  <div class="text-[11px] text-slate-500">${t}</div><div class="text-xl font-bold mt-0.5 ${c}">${v}</div>
+  <div class="text-[10px] text-slate-400 mt-1 leading-snug">${s}</div></div>`).join('');
+
+ Object.values(CH).forEach(c=>c&&c.destroy());CH={};
+ const noL={plugins:{legend:{display:false}}};
+ CH.radar=new Chart(document.getElementById('chRadar'),{type:'radar',
+  data:{labels:['미디어','소셜','소비자','규제','내부'],datasets:[
+   {label:'당월',data:[AX.media,AX.social,AX.cust,AX.reg,AX.intn],borderColor:'#e11d48',backgroundColor:'rgba(225,29,72,.18)',pointRadius:3},
+   {label:'전월',data:[Math.round(AX.media*.83),Math.round(AX.social*.79),Math.round(AX.cust*.86),Math.round(AX.reg*.9),Math.round(AX.intn*.92)],borderColor:'#94a3b8',backgroundColor:'rgba(148,163,184,.12)',pointRadius:2}]},
+  options:{scales:{r:{min:0,max:100,ticks:{stepSize:25,font:{size:8}},pointLabels:{font:{size:11}}}},plugins:{legend:{labels:{boxWidth:9,font:{size:10}}}}}});
+ CH.rri=new Chart(document.getElementById('chRRI'),{type:'line',
+  data:{labels:RRI_HIST.map(x=>x[0].slice(2)),datasets:[{data:RRI_HIST.map(x=>x[1]),borderColor:'#e11d48',backgroundColor:'rgba(225,29,72,.12)',fill:true,tension:.3,pointRadius:2}]},
+  options:{...noL,scales:{y:{min:0,max:80,ticks:{font:{size:9}}},x:{ticks:{font:{size:8}}}}}});
+ CH.mx=new Chart(document.getElementById('chMatrix'),{type:'bubble',
+  data:{datasets:['L4','L3','L2','L1'].map((L,i)=>({label:L,
+   data:ISS.filter(x=>x.esc===L).map(x=>({x:x.spread,y:x.impact,r:Math.max(5,Math.sqrt(x.mentions)/6),id:x.id,t:x.title})),
+   backgroundColor:['rgba(225,29,72,.6)','rgba(249,115,22,.6)','rgba(245,158,11,.55)','rgba(14,165,233,.5)'][i]}))},
+  options:{plugins:{legend:{labels:{boxWidth:9,font:{size:10}}},tooltip:{callbacks:{label:c=>[c.raw.id,c.raw.t.slice(0,32),`확산 ${c.raw.x} / 영향 ${c.raw.y}`]}}},
+   scales:{x:{min:0,max:100,title:{display:true,text:'확산도',font:{size:10}},ticks:{font:{size:9}}},y:{min:0,max:100,title:{display:true,text:'영향도',font:{size:10}},ticks:{font:{size:9}}}}}});
+ CH.dy=new Chart(document.getElementById('chDaily'),{
+  data:{labels:DAILY.map(d=>d.d.slice(8)),datasets:[
+   {type:'bar',label:'언급량',data:DAILY.map(d=>d.n),backgroundColor:'#cbd5e1',yAxisID:'y'},
+   {type:'line',label:'부정비율(%)',data:DAILY.map(d=>d.neg),borderColor:'#e11d48',pointRadius:0,tension:.3,yAxisID:'y1'}]},
+  options:{plugins:{legend:{labels:{boxWidth:9,font:{size:10}}}},scales:{y:{ticks:{font:{size:9}}},y1:{position:'right',min:0,max:100,grid:{display:false},ticks:{font:{size:9}}},x:{ticks:{font:{size:8},maxTicksLimit:10}}}}});
+ const cats=[...new Set(ISS.map(i=>i.cat))];
+ CH.cat=new Chart(document.getElementById('chCat'),{type:'doughnut',
+  data:{labels:cats,datasets:[{data:cats.map(c=>ISS.filter(i=>i.cat===c).length),backgroundColor:['#e11d48','#f97316','#0ea5e9','#8b5cf6','#10b981','#64748b','#f59e0b']}]},
+  options:{plugins:{legend:{position:'bottom',labels:{boxWidth:9,font:{size:9}}}}}});
+
+ // Top 이슈
+ document.getElementById('topIss').innerHTML=ISS.slice().sort((a,b)=>b.rrs-a.rrs).slice(0,7).map(i=>`
+  <div onclick="openD('${i.id}')" class="border rounded p-3 hover:bg-slate-50 cursor-pointer">
+   <div class="flex items-center gap-2 mb-1.5">
+    <span class="text-[10px] px-1.5 py-0.5 rounded border font-semibold lv-${i.esc}">${i.esc}</span>
+    <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-white">RRS ${i.rrs}</span>
+    <span class="text-[10px] text-slate-500">${i.cat} · ${i.dept}</span>
+    <span class="text-[10px] ml-auto px-1.5 py-0.5 rounded bg-slate-100">${i.stage}</span></div>
+   <div class="text-[12.5px] font-medium leading-snug mb-1.5">${i.title}</div>
+   <div class="flex gap-4 text-[10px] text-slate-500">
+    <span>언급 ${fmt(i.mentions)} (7일 ${fmt(i.m7)})</span><span>감성 <b class="text-rose-600">${i.sent}</b></span>
+    <span>Tier1 부정 ${i.tier1}건</span><span>규제개입 ${i.regProb}%</span><span>재무 ${fmt(i.fin)}억</span></div>
+  </div>`).join('');
+
+ // KRI mini
+ const bad=KRI.filter(k=>k.st!=='정상').sort((a,b)=>({심각:0,경계:1,주의:2}[a.st]-{심각:0,경계:1,주의:2}[b.st]));
+ document.getElementById('tblKriMini').innerHTML=`<thead class="bg-slate-100"><tr><th>지표</th><th class="text-right">현재</th><th class="text-right">임계</th><th class="text-center">상태</th></tr></thead><tbody>`+
+  bad.slice(0,8).map(k=>`<tr class="border-b"><td>${k.n}</td><td class="text-right font-semibold">${k.v}${k.u.startsWith('%')?'%':''}</td>
+  <td class="text-right text-slate-500">${k.d}</td><td class="text-center"><span class="px-1.5 rounded st-${k.st}">${k.st}</span></td></tr>`).join('')+'</tbody>';
+
+ // 에스컬레이션 박스
+ document.getElementById('escBox').innerHTML=['L4','L3','L2','L1'].map(L=>{
+  const l=ISS.filter(i=>i.esc===L&&i.stage!=='종결');
+  const nm={L4:'심각 · 위기대응위원회(CEO)',L3:'경계 · 평판리스크협의체',L2:'주의 · 평판리스크부+홍보부',L1:'관심 · 소관부서 자체'}[L];
+  return `<div class="flex items-center gap-2 text-xs border rounded p-2 lv-${L}">
+   <span class="font-bold w-6">${L}</span><span class="flex-1">${nm}</span><span class="font-bold">${l.length}건</span></div>`;}).join('');
+
+ renderIss();renderDnav();openD(ISS.slice().sort((a,b)=>b.rrs-a.rrs)[0].id,1);
+ renderMedia();renderVoc();renderKri();renderCrisis();renderMethod();initChat();
+}
+
+/* --- 이슈 레이더 --- */
+function renderIss(){
+ const fc=document.getElementById('fCat');
+ if(!fc.options.length){fc.innerHTML='<option value="">전체</option>'+[...new Set(ISS.map(i=>i.cat))].map(c=>`<option>${c}</option>`).join('');
+  ['fEsc','fCat','fStage'].forEach(id=>document.getElementById(id).onchange=renderIss);}
+ const v=id=>document.getElementById(id).value;
+ const L=ISS.filter(i=>(!v('fEsc')||i.esc===v('fEsc'))&&(!v('fCat')||i.cat===v('fCat'))&&(!v('fStage')||i.stage===v('fStage'))).sort((a,b)=>b.rrs-a.rrs);
+ document.getElementById('issCnt').textContent=`(${L.length}/${ISS.length}건)`;
+ document.getElementById('tblIss').innerHTML=`<thead><tr><th>이슈ID</th><th>등급</th><th class="text-right">RRS</th><th>카테고리</th><th>이슈</th><th>소관</th><th>탐지일</th><th class="text-right">확산</th><th class="text-right">영향</th><th class="text-right">감성</th><th class="text-right">언급(7일)</th><th class="text-right">속도</th><th class="text-right">Tier1</th><th class="text-right">규제%</th><th class="text-right">재무(억)</th><th>단계</th><th>연계리스크</th></tr></thead><tbody>`+
+  L.map(i=>`<tr class="border-b clickable" onclick="openD('${i.id}')">
+   <td class="font-mono">${i.id}</td>
+   <td><span class="px-1.5 py-0.5 rounded border font-semibold lv-${i.esc}">${i.esc}${i.forced?'*':''}</span></td>
+   <td class="text-right font-bold">${i.rrs}</td><td>${i.cat}</td>
+   <td class="max-w-[330px] truncate" title="${i.title}">${i.title}</td><td>${i.dept}</td><td>${i.detect}</td>
+   <td class="text-right">${i.spread}</td><td class="text-right">${i.impact}</td>
+   <td class="text-right ${i.sent<-55?'text-rose-600 font-semibold':''}">${i.sent}</td>
+   <td class="text-right">${fmt(i.mentions)} <span class="text-slate-400">(${fmt(i.m7)})</span></td>
+   <td class="text-right ${i.velo>150?'text-rose-600 font-semibold':''}">${i.velo}%</td>
+   <td class="text-right ${i.tier1>=3?'text-rose-600 font-semibold':''}">${i.tier1}</td>
+   <td class="text-right ${i.regProb>=70?'text-rose-600 font-semibold':''}">${i.regProb}</td>
+   <td class="text-right">${fmt(i.fin)}</td>
+   <td><span class="px-1.5 rounded bg-slate-100">${i.stage}</span></td>
+   <td class="text-slate-500">${i.link1}</td></tr>`).join('')+'</tbody>';
+}
+function csv(){
+ const h=['이슈ID','등급','RRS','카테고리','이슈','소관부서','탐지일','확산도','영향도','감성','누적언급','7일언급','Tier1부정','규제개입%','재무영향(억)','민원건수','단계','연계1차리스크','개요'];
+ const rows=ISS.map(i=>[i.id,i.esc,i.rrs,i.cat,i.title,i.dept,i.detect,i.spread,i.impact,i.sent,i.mentions,i.m7,i.tier1,i.regProb,i.fin,i.voc,i.stage,i.link1,i.desc].map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(','));
+ const b=new Blob(['\uFEFF'+h.join(',')+'\n'+rows.join('\n')],{type:'text/csv'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='평판리스크_이슈리스트.csv';a.click();
+}
+
+/* --- 상세 --- */
+function renderDnav(){
+ document.getElementById('dnav').innerHTML=ISS.slice().sort((a,b)=>b.rrs-a.rrs).map(i=>`
+  <div id="nv-${i.id}" onclick="openD('${i.id}')" class="p-2 rounded cursor-pointer hover:bg-slate-100 text-[11px] border-l-2 border-transparent">
+   <div class="flex gap-1 mb-0.5"><span class="px-1 rounded border font-semibold lv-${i.esc}">${i.esc}</span><span class="text-slate-500">RRS ${i.rrs}</span></div>
+   <div class="line-clamp-2 leading-tight">${i.title}</div></div>`).join('');
+}
+function openD(id,silent){
+ const i=ISS.find(x=>x.id===id);if(!i)return;
+ document.querySelectorAll('#dnav>div').forEach(e=>e.className=e.className.replace(' bg-rose-50 border-rose-500',''));
+ const nv=document.getElementById('nv-'+id);if(nv)nv.className+=' bg-rose-50 border-rose-500';
+ const rel=MED.filter(m=>m.iss===id).sort((a,b)=>a.date<b.date?1:-1);
+ document.getElementById('dbody').innerHTML=`
+ <div class="bg-white rounded-lg border shadow-sm p-4 mb-3">
+  <div class="flex justify-between items-start">
+   <div><div class="flex items-center gap-2 mb-1.5">
+    <span class="px-2 py-0.5 rounded border font-semibold text-xs lv-${i.esc}">${i.esc} ${{L4:'심각',L3:'경계',L2:'주의',L1:'관심'}[i.esc]}</span>
+    <span class="px-2 py-0.5 rounded bg-slate-800 text-white text-xs">RRS ${i.rrs}</span>
+    <span class="text-xs text-slate-500">${i.cat} · 탐지채널 ${i.src}</span>
+    ${i.forced?'<span class="text-[10px] text-rose-600">※ Tier1/규제요건에 의한 등급 강제 상향</span>':''}</div>
+   <div class="text-base font-semibold">${i.title}</div>
+   <div class="text-[11px] text-slate-500 mt-1">${i.id} · 발생 ${i.occur} · 탐지 ${i.detect} · 소관 ${i.dept} · 관리주체 ${i.owner} · 현재단계 <b>${i.stage}</b></div></div>
+   <div class="text-right text-xs"><div class="text-slate-500">추정 재무영향</div><div class="text-lg font-bold">${fmt(i.fin)}억</div></div></div>
+ </div>
+ <div class="grid grid-cols-12 gap-3 mb-3">
+  <div class="col-span-5 bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-xs font-semibold text-slate-500 mb-2">평가 지표</div>
+   <table class="dense w-full">
+    <tr class="border-b"><td class="text-slate-500 w-32">확산도 / 영향도</td><td><b>${i.spread}</b> / <b>${i.impact}</b> (100점)</td></tr>
+    <tr class="border-b"><td class="text-slate-500">감성 점수</td><td class="text-rose-600 font-semibold">${i.sent} <span class="text-slate-400 font-normal">(−100 ~ +100)</span></td></tr>
+    <tr class="border-b"><td class="text-slate-500">누적 언급량</td><td>${fmt(i.mentions)}건 (최근 7일 ${fmt(i.m7)}건)</td></tr>
+    <tr class="border-b"><td class="text-slate-500">확산 속도</td><td class="${i.velo>150?'text-rose-600 font-semibold':''}">${i.velo}% <span class="text-slate-400 font-normal">(주평균 대비)</span></td></tr>
+    <tr class="border-b"><td class="text-slate-500">Tier1 부정보도</td><td class="${i.tier1>=3?'text-rose-600 font-semibold':''}">${i.tier1}건</td></tr>
+    <tr class="border-b"><td class="text-slate-500">규제개입 확률</td><td class="${i.regProb>=70?'text-rose-600 font-semibold':''}">${i.regProb}%</td></tr>
+    <tr class="border-b"><td class="text-slate-500">관련 민원</td><td>${fmt(i.voc)}건</td></tr>
+    <tr class="border-b"><td class="text-slate-500">고객이탈 추정</td><td>${fmt(i.churn)}명</td></tr>
+    <tr><td class="text-slate-500">연계 1차리스크</td><td>${i.link1}</td></tr>
+   </table>
+   <div class="mt-3 pt-3 border-t"><div class="text-xs font-semibold text-slate-500 mb-2">주요 키워드</div>
+    <div class="flex flex-wrap gap-1">${i.kw.map(k=>`<span class="px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 text-[11px] border border-rose-200">#${k}</span>`).join('')}</div></div>
+  </div>
+  <div class="col-span-4 bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-xs font-semibold text-slate-500 mb-2">이해관계자 영향도</div>
+   <canvas id="chStk" height="200"></canvas>
+   <div class="text-[10px] text-slate-400 mt-2 text-center">고객·투자자·감독당국·임직원·언론·지역사회 (0~100)</div>
+  </div>
+  <div class="col-span-3 bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-xs font-semibold text-slate-500 mb-2">AI 종합 판단</div>
+   <div class="text-[12.5px] leading-relaxed text-slate-700">${i.desc}</div>
+   <div class="mt-3 pt-3 border-t text-[11px] text-slate-500">
+    등급 판정: RRS ${i.rrs} = 확산 ${i.spread}×0.40 + 영향 ${i.impact}×0.45 + |감성| ${Math.abs(i.sent)}×0.15
+    ${i.forced?'<br><b class="text-rose-600">강제조건 적용:</b> Tier1 부정보도 '+i.tier1+'건 / 규제개입 '+i.regProb+'%':''}</div>
+  </div>
+ </div>
+ <div class="grid grid-cols-12 gap-3">
+  <div class="col-span-7 bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-xs font-semibold text-slate-500 mb-2">대응 타임라인</div>
+   <div class="space-y-0">${i.tl.map((t,n)=>`
+    <div class="flex gap-3 ${n<i.tl.length-1?'pb-3':''}">
+     <div class="flex flex-col items-center">
+      <div class="w-2.5 h-2.5 rounded-full ${t[3]==='완료'?'bg-emerald-500':t[3]==='진행'?'bg-amber-500':'bg-slate-300'} mt-1"></div>
+      ${n<i.tl.length-1?'<div class="w-px flex-1 bg-slate-200"></div>':''}</div>
+     <div class="flex-1 -mt-0.5">
+      <div class="flex gap-2 items-center"><span class="text-[11px] text-slate-500 font-mono">${t[0]}</span>
+      <span class="text-[10px] px-1.5 rounded bg-slate-100">${t[1]}</span>
+      <span class="text-[10px] px-1.5 rounded ${t[3]==='완료'?'bg-emerald-50 text-emerald-700':t[3]==='진행'?'bg-amber-50 text-amber-700':'bg-slate-50 text-slate-500'}">${t[3]}</span></div>
+      <div class="text-[12.5px] mt-0.5">${t[2]}</div></div></div>`).join('')}</div>
+  </div>
+  <div class="col-span-5 bg-white rounded-lg border shadow-sm p-4">
+   <div class="text-xs font-semibold text-slate-500 mb-2">관련 수집 콘텐츠 <span class="font-normal">(${rel.length}건)</span></div>
+   <div class="scroll-x max-h-[300px]"><table class="dense w-full text-left">
+    <thead class="bg-slate-100 sticky top-0"><tr><th>일자</th><th>채널</th><th>매체</th><th>제목</th><th class="text-right">감성</th></tr></thead>
+    <tbody>${rel.length?rel.map(m=>`<tr class="border-b"><td>${m.date.slice(5)}</td>
+     <td>${m.ch}<span class="text-slate-400">/T${m.tier}</span></td><td>${m.outlet}</td>
+     <td class="max-w-[220px] truncate" title="${m.title}">${m.title}</td>
+     <td class="text-right ${m.sent<-50?'text-rose-600 font-semibold':m.sent>0?'text-emerald-600':''}">${m.sent}</td></tr>`).join('')
+     :'<tr><td colspan="5" class="text-center text-slate-400 py-6">수집 콘텐츠 없음 (내부 탐지 이슈)</td></tr>'}</tbody></table></div>
+   <div class="mt-3 pt-3 border-t"><button onclick="switchTab('crisis');document.getElementById('msgIss').value='${i.id}';document.getElementById('pbSel').value='${PLAYBOOK[i.cat]?i.cat:'소비자보호'}';renderPb();genMsg();" class="w-full py-2 bg-rose-600 text-white rounded text-xs">이 이슈로 플레이북·메시지 초안 생성</button></div>
+  </div>
+ </div>`;
+ if(CH.stk)CH.stk.destroy();
+ CH.stk=new Chart(document.getElementById('chStk'),{type:'radar',
+  data:{labels:['고객','투자자','감독당국','임직원','언론','지역사회'],datasets:[{data:i.stk,borderColor:'#e11d48',backgroundColor:'rgba(225,29,72,.2)',pointRadius:3}]},
+  options:{plugins:{legend:{display:false}},scales:{r:{min:0,max:100,ticks:{stepSize:25,font:{size:8}},pointLabels:{font:{size:10}}}}}});
+ if(!silent)switchTab('detail');
+}
+
+/* --- 미디어 --- */
+let medF='전체';
+function renderMedia(){
+ const neg=MED.filter(m=>m.sent<-20),pos=MED.filter(m=>m.sent>20);
+ document.getElementById('medKpi').innerHTML=[
+  ['수집 콘텐츠',MED.length+'건','언론·SNS·커뮤니티·유튜브 (본행 관련성 판정 통과)'],
+  ['부정 / 긍정',`${neg.length} / ${pos.length}`,`부정비율 ${f1(neg.length/MED.length*100)}% (임계 70%)`],
+  ['Tier1 부정보도',MED.filter(m=>m.tier===1&&m.sent<-20).length+'건','종합일간·방송·통신사 (임계 8건)'],
+  ['부정 도달량 추정',fmt(Math.round(neg.reduce((t,m)=>t+m.reach,0)/10000))+'만',`전체 도달 중 ${f1(neg.reduce((t,m)=>t+m.reach,0)/MED.reduce((t,m)=>t+m.reach,0)*100)}%`]
+ ].map(([t,v,s])=>`<div class="bg-white rounded-lg border shadow-sm p-3"><div class="text-[11px] text-slate-500">${t}</div>
+  <div class="text-xl font-bold mt-0.5">${v}</div><div class="text-[10px] text-slate-400 mt-1">${s}</div></div>`).join('');
+ const chs=[...new Set(MED.map(m=>m.ch))];
+ CH.chan=new Chart(document.getElementById('chChan'),{type:'bar',
+  data:{labels:chs,datasets:[
+   {label:'부정',data:chs.map(c=>MED.filter(m=>m.ch===c&&m.sent<-20).length),backgroundColor:'#e11d48'},
+   {label:'중립',data:chs.map(c=>MED.filter(m=>m.ch===c&&m.sent>=-20&&m.sent<=20).length),backgroundColor:'#cbd5e1'},
+   {label:'긍정',data:chs.map(c=>MED.filter(m=>m.ch===c&&m.sent>20).length),backgroundColor:'#10b981'}]},
+  options:{plugins:{legend:{labels:{boxWidth:9,font:{size:10}}}},scales:{x:{stacked:true,ticks:{font:{size:10}}},y:{stacked:true,ticks:{precision:0}}}}});
+ CH.tier=new Chart(document.getElementById('chTier'),{type:'bar',
+  data:{labels:['Tier1 (종합·방송·통신)','Tier2 (경제·전문지)','Tier3 (온라인·커뮤니티)'],datasets:[
+   {label:'부정',data:[1,2,3].map(t=>MED.filter(m=>m.tier===t&&m.sent<-20).length),backgroundColor:'#e11d48'},
+   {label:'중립·긍정',data:[1,2,3].map(t=>MED.filter(m=>m.tier===t&&m.sent>=-20).length),backgroundColor:'#94a3b8'}]},
+  options:{indexAxis:'y',plugins:{legend:{labels:{boxWidth:9,font:{size:10}}}},scales:{x:{stacked:true,ticks:{precision:0}},y:{stacked:true,ticks:{font:{size:9}}}}}});
+ const kw={};ISS.forEach(i=>i.kw.forEach(k=>kw[k]=(kw[k]||0)+Math.round(i.mentions/i.kw.length)));
+ document.getElementById('kwBox').innerHTML=Object.entries(kw).sort((a,b)=>b[1]-a[1]).slice(0,22)
+  .map(([k,v],n)=>`<span class="px-2 py-1 rounded-full border ${n<4?'bg-rose-100 text-rose-800 border-rose-300 font-semibold':n<10?'bg-orange-50 text-orange-700 border-orange-200':'bg-slate-50 text-slate-600'}" style="font-size:${Math.max(10,14-n*0.15)}px">#${k} <span class="opacity-60">${fmt(v)}</span></span>`).join('');
+ const cats=['전체','언론','방송','SNS','커뮤니티','유튜브'];
+ document.getElementById('medFilter').innerHTML=cats.map(c=>`<button onclick="medF='${c}';renderMedia()" class="px-2.5 py-1 rounded border ${medF===c?'bg-slate-900 text-white':'bg-white'}">${c}</button>`).join('');
+ const rows=MED.filter(m=>medF==='전체'||m.ch===medF).sort((a,b)=>a.date<b.date?1:-1);
+ document.getElementById('tblMed').innerHTML=`<thead><tr><th>일자</th><th>채널</th><th>Tier</th><th>매체</th><th>제목</th><th class="text-right">감성</th><th class="text-right">도달 추정</th><th>연계이슈</th></tr></thead><tbody>`+
+  rows.map(m=>`<tr class="border-b ${m.iss?'clickable':''}" ${m.iss?`onclick="openD('${m.iss}')"`:''}>
+   <td>${m.date}</td><td>${m.ch}</td><td class="text-center">${m.tier===1?'<span class="px-1.5 rounded bg-rose-100 text-rose-800 font-semibold">1</span>':m.tier}</td>
+   <td>${m.outlet}</td><td class="max-w-[430px] truncate" title="${m.title}">${m.title}</td>
+   <td class="text-right font-semibold ${m.sent<-50?'text-rose-600':m.sent<-20?'text-orange-600':m.sent>20?'text-emerald-600':'text-slate-500'}">${m.sent}</td>
+   <td class="text-right">${fmt(m.reach)}</td><td class="font-mono text-slate-500">${m.iss||'-'}</td></tr>`).join('')+'</tbody>';
+}
+
+/* --- VOC --- */
+function renderVoc(){
+ const tot=VOC.reduce((t,v)=>t+v.n,0),pq=VOC.reduce((t,v)=>t+v.pq,0);
+ const wDay=VOC.reduce((t,v)=>t+v.day*v.n,0)/tot, wAcc=VOC.reduce((t,v)=>t+v.acc*v.n,0)/tot;
+ document.getElementById('vocKpi').innerHTML=[
+  ['2025-2Q 민원',fmt(tot)+'건',`전분기 ${fmt(pq)}건 → +${f1((tot/pq-1)*100)}%`,'text-rose-600'],
+  ['최다 유형',VOC.slice().sort((a,b)=>b.n-a.n)[0].t,`${fmt(VOC.slice().sort((a,b)=>b.n-a.n)[0].n)}건 (${f1(VOC.slice().sort((a,b)=>b.n-a.n)[0].n/tot*100)}%)`,'text-slate-800'],
+  ['평균 처리기간',f1(wDay)+'일','임계 15일 · 전분기 12.4일','text-orange-600'],
+  ['민원 수용률',f1(wAcc)+'%','전분기 68.2% → 하락','text-orange-600'],
+  ['10만계좌당 민원율','32.4건','업권 평균 21.6건 대비 1.5배','text-rose-600']
+ ].map(([t,v,s,c])=>`<div class="bg-white rounded-lg border shadow-sm p-3"><div class="text-[11px] text-slate-500">${t}</div>
+  <div class="text-lg font-bold mt-0.5 ${c}">${v}</div><div class="text-[10px] text-slate-400 mt-1">${s}</div></div>`).join('');
+ CH.vt=new Chart(document.getElementById('chVocT'),{type:'bar',
+  data:{labels:VOC_HIST.map(x=>x[0]),datasets:[{label:'민원건수',data:VOC_HIST.map(x=>x[1]),
+   backgroundColor:VOC_HIST.map((x,i)=>i>=6?'#e11d48':'#94a3b8')}]},
+  options:{plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:9}}}}}});
+ const top=VOC.slice().sort((a,b)=>b.n-a.n);
+ CH.vc=new Chart(document.getElementById('chVocC'),{type:'doughnut',
+  data:{labels:top.slice(0,7).map(v=>v.t).concat(['기타 유형']),
+   datasets:[{data:top.slice(0,7).map(v=>v.n).concat([top.slice(7).reduce((t,v)=>t+v.n,0)]),
+   backgroundColor:['#e11d48','#f97316','#f59e0b','#0ea5e9','#8b5cf6','#10b981','#64748b','#cbd5e1']}]},
+  options:{plugins:{legend:{position:'right',labels:{boxWidth:9,font:{size:9}}}}}});
+ CH.vp=new Chart(document.getElementById('chVocP'),{type:'bar',
+  data:{labels:PROD_RATE.map(x=>x[0]),datasets:[{data:PROD_RATE.map(x=>x[1]),backgroundColor:PROD_RATE.map(x=>x[1]>20?'#e11d48':'#0ea5e9')}]},
+  options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{y:{ticks:{font:{size:10}}}}}});
+ document.getElementById('tblVoc').innerHTML=`<thead><tr><th>유형</th><th>상품군</th><th class="text-right">건수</th><th class="text-right">전분기</th><th class="text-right">증감</th><th class="text-right">처리일</th><th class="text-right">수용률</th></tr></thead><tbody>`+
+  VOC.slice().sort((a,b)=>b.n-a.n).map(v=>{const ch=(v.n/v.pq-1)*100;
+  return `<tr class="border-b"><td>${v.t}</td><td>${v.p}</td><td class="text-right font-semibold">${fmt(v.n)}</td>
+  <td class="text-right text-slate-500">${fmt(v.pq)}</td>
+  <td class="text-right ${ch>50?'text-rose-600 font-semibold':ch>0?'text-orange-600':'text-emerald-600'}">${ch>0?'+':''}${f1(ch)}%</td>
+  <td class="text-right ${v.day>15?'text-rose-600':''}">${f1(v.day)}</td>
+  <td class="text-right ${v.acc<40?'text-rose-600':''}">${v.acc}%</td></tr>`}).join('')+
+  `<tr class="bg-slate-50 font-semibold"><td colspan="2">합계</td><td class="text-right">${fmt(VOC.reduce((t,v)=>t+v.n,0))}</td><td class="text-right">${fmt(VOC.reduce((t,v)=>t+v.pq,0))}</td><td class="text-right text-rose-600">+${f1((VOC.reduce((t,v)=>t+v.n,0)/VOC.reduce((t,v)=>t+v.pq,0)-1)*100)}%</td><td colspan="2"></td></tr></tbody>`;
+ const items=[['민원 건수 및 증가율','미흡','민원 1,350건·전년동기 +69.6% (업권 최상위 수준)'],
+  ['민원 처리 노력','보통','평균 처리 14.2일 (임계 15일 근접), 수용률 하락'],
+  ['소비자보호 조직·제도','양호','전담조직 운영, 이사회 보고체계 구비'],
+  ['상품개발·판매 절차','미흡','고위험상품 적합성 확인 미비 지적, 미스터리쇼핑 74.2점'],
+  ['임직원 교육·성과보상','보통','판매 KPI 비중 조정 진행 중'],
+  ['정보공시','양호','상품설명서·수수료 공시 적정']];
+ document.getElementById('cpBox').innerHTML=
+  `<table class="dense w-full text-left mb-3"><thead class="bg-slate-100"><tr><th>평가부문</th><th class="text-center">추정등급</th><th>주요 근거</th></tr></thead><tbody>`+
+  items.map(([a,b,c])=>`<tr class="border-b"><td>${a}</td>
+   <td class="text-center"><span class="px-1.5 rounded ${b==='미흡'?'st-심각':b==='보통'?'st-주의':'st-정상'}">${b}</span></td>
+   <td class="whitespace-normal text-slate-600">${c}</td></tr>`).join('')+'</tbody></table>'+
+  `<div class="bg-rose-50 border border-rose-200 rounded p-3 text-xs leading-relaxed">
+   <b class="text-rose-800">종합 판단</b><br>민원 급증(투자상품 불완전판매 412건 집중)과 판매절차 취약이 결합되어 <b>소비자보호 실태평가 등급 하락 가능성 높음</b>. 등급 하락 시 감독상 불이익 및 추가 평판 훼손으로 연결되므로, ISS-2506-01 자율배상 및 판매절차 개선의 조기 완료가 최우선 과제.
+   <div class="text-[10px] text-slate-500 mt-2">※ 내부 시뮬레이션이며 감독당국 실제 평가와 무관</div></div>`;
+}
+
+/* --- KRI --- */
+function spark(h,dir){
+ const mx=Math.max(...h),mn=Math.min(...h),rg=mx-mn||1;
+ const pts=h.map((v,i)=>`${i*11},${18-((v-mn)/rg)*16}`).join(' ');
+ const bad=dir==='up'?h[h.length-1]>h[0]:h[h.length-1]<h[0];
+ return `<svg width="60" height="20"><polyline points="${pts}" fill="none" stroke="${bad?'#e11d48':'#10b981'}" stroke-width="1.6"/></svg>`;
+}
+function renderKri(){
+ const c={심각:0,경계:0,주의:0,정상:0};KRI.forEach(k=>c[k.st]++);
+ document.getElementById('kriSum').innerHTML=Object.entries(c).map(([k,v])=>
+  `<span class="px-2 py-1 rounded st-${k}">${k} ${v}</span>`).join('');
+ document.getElementById('tblKri').innerHTML=`<thead class="bg-slate-100"><tr><th>ID</th><th>KRI</th><th>구분</th><th class="text-right">현재값</th><th>단위</th><th class="text-right">전월비</th><th>6개월 추이</th><th class="text-right">주의</th><th class="text-right">경계</th><th class="text-right">심각</th><th class="text-center">상태</th><th>관리부서</th></tr></thead><tbody>`+
+  KRI.slice().sort((a,b)=>({심각:0,경계:1,주의:2,정상:3}[a.st]-{심각:0,경계:1,주의:2,정상:3}[b.st])).map(k=>`
+  <tr class="border-b"><td class="font-mono">${k.id}</td><td class="font-medium">${k.n}</td><td>${k.cat}</td>
+  <td class="text-right font-bold">${k.v}</td><td class="text-slate-500">${k.u}</td>
+  <td class="text-right ${(k.dir==='up'?k.chg>0:k.chg<0)?'text-rose-600':'text-emerald-600'}">${k.chg>0?'+':''}${f1(k.chg)}%</td>
+  <td>${spark(k.h,k.dir)}</td>
+  <td class="text-right text-slate-500">${k.w}</td><td class="text-right text-slate-500">${k.c}</td><td class="text-right text-slate-500">${k.d}</td>
+  <td class="text-center"><span class="px-1.5 py-0.5 rounded font-semibold st-${k.st}">${k.st}</span></td>
+  <td>${k.own}</td></tr>`).join('')+'</tbody>';
+ document.getElementById('tblEw').innerHTML=`<thead class="bg-slate-100"><tr><th>발령일</th><th>지표</th><th class="text-center">등급</th><th>내용</th><th>통보부서</th><th>조치 요구</th></tr></thead><tbody>`+
+  EW.map(e=>`<tr class="border-b"><td>${e[0]}</td><td>${e[1]}</td>
+  <td class="text-center"><span class="px-1.5 rounded st-${e[2]}">${e[2]}</span></td>
+  <td>${e[3]}</td><td>${e[4]}</td><td class="whitespace-normal">${e[5]}</td></tr>`).join('')+'</tbody>';
+ const link=[
+  ['K01·K02·K04','ISS-2506-01','투자상품 민원 412건이 전체 민원 증가의 68% 기여 → 해당 이슈 해소가 KRI 정상화의 핵심'],
+  ['K09','ISS-2506-02','6월 전산장애 260분 전량이 앱 접속장애 3회에서 발생'],
+  ['K05·K06','ISS-2506-01, ISS-2506-02, ISS-2505-03','Tier1 부정보도 9건 중 7건이 3개 이슈에 집중'],
+  ['K10','ISS-2505-03','임직원 금융사고 2건 중 1건이 횡령 사건'],
+  ['K11·K14','ISS-2506-01, ISS-2506-07','판매절차·고객응대 품질 저하가 미스터리쇼핑·브랜드지수 동반 하락 유발'],
+  ['K12','ISS-2506-01, ISS-2506-02','주요고객 해지율 상승 구간이 두 이슈 확산 시점과 일치'],
+  ['K13','ISS-2506-12','이직률 상승과 익명커뮤니티 부정 게시물 증가 시점 상관']
+ ];
+ document.getElementById('kriLink').innerHTML=link.map(([k,i,d])=>`
+  <div class="border rounded p-2.5">
+   <div class="flex gap-2 mb-1"><span class="px-1.5 rounded bg-slate-800 text-white font-mono">${k}</span>
+   <span class="font-mono text-rose-700">${i}</span></div>
+   <div class="text-slate-600 leading-snug">${d}</div></div>`).join('');
+}
+
+/* --- 위기대응 --- */
+function renderCrisis(){
+ const cfg=[['L4','심각','위기대응위원회 (CEO 주재)','즉시 소집 · 전사 대응 · 대외 커뮤니케이션 CEO 승인','bg-rose-50 border-rose-300'],
+  ['L3','경계','평판리스크협의체 (CRO·홍보·준법)','24시간 내 소집 · 주 2회 진행보고 · 이사회 보고','bg-orange-50 border-orange-300'],
+  ['L2','주의','평판리스크부 + 홍보부','48시간 내 대응계획 · 주 1회 모니터링 보고','bg-amber-50 border-amber-300'],
+  ['L1','관심','소관부서 자체 대응','부서 자체 조치 · 월 1회 현황 보고','bg-sky-50 border-sky-300']];
+ document.getElementById('escLadder').innerHTML=cfg.map(([L,nm,org,rule,cls])=>{
+  const l=ISS.filter(i=>i.esc===L&&i.stage!=='종결');
+  return `<div class="border-2 rounded-lg p-3 ${cls}">
+   <div class="flex items-center gap-2 mb-1"><span class="text-lg font-bold">${L}</span><span class="font-semibold text-sm">${nm}</span>
+   <span class="ml-auto text-sm font-bold">${l.length}건</span></div>
+   <div class="text-[11px] font-medium mb-1">${org}</div>
+   <div class="text-[10px] text-slate-500 mb-2 leading-snug">${rule}</div>
+   <div class="space-y-1">${l.map(i=>`<div onclick="openD('${i.id}')" class="bg-white/80 rounded px-2 py-1 text-[11px] cursor-pointer hover:bg-white leading-snug">
+    <span class="font-mono text-slate-500">${i.id.slice(-2)}</span> ${i.title.slice(0,30)}${i.title.length>30?'…':''}</div>`).join('')||'<div class="text-[10px] text-slate-400">해당 없음</div>'}</div></div>`}).join('');
+ const ps=document.getElementById('pbSel');
+ if(!ps.options.length){ps.innerHTML=Object.keys(PLAYBOOK).map(k=>`<option>${k}</option>`).join('');}
+ const mi=document.getElementById('msgIss');
+ if(!mi.options.length){mi.innerHTML=ISS.slice().sort((a,b)=>b.rrs-a.rrs).map(i=>`<option value="${i.id}">[${i.esc}] ${i.id} ${i.title.slice(0,34)}</option>`).join('');}
+ renderPb();genMsg();
+}
+function renderPb(){
+ const k=document.getElementById('pbSel').value,pb=PLAYBOOK[k]||[];
+ document.getElementById('pbBox').innerHTML=pb.map((p,n)=>`
+  <div class="flex gap-3 border rounded p-2.5">
+   <div class="w-6 h-6 rounded-full bg-slate-800 text-white text-[11px] flex items-center justify-center shrink-0 font-semibold">${n+1}</div>
+   <div class="flex-1"><div class="flex gap-2 items-center mb-0.5">
+    <span class="text-[11px] px-1.5 rounded bg-rose-100 text-rose-800 font-semibold">${p[0]}</span>
+    <span class="text-[11px] px-1.5 rounded bg-slate-100">${p[1]}</span></div>
+    <div class="text-[12.5px] leading-snug">${p[2]}</div></div></div>`).join('')+
+  `<div class="text-[11px] text-slate-400 mt-2">※ 실제 적용 시 위기관리 매뉴얼 및 비상대응계획(BCP)과 연계</div>`;
+}
+function genMsg(){
+ const i=ISS.find(x=>x.id===document.getElementById('msgIss').value)||ISS[0];
+ const ch=document.getElementById('msgCh').value;
+ const T={
+ '보도자료':`[보도참고자료]  ${i.detect.replace(/-/g,'.')} · 배포 즉시
+
+■ 제목: ${i.cat} 관련 당행 입장 및 조치사항 안내
+
+1. 사실관계
+ ○ ${i.desc.split('.')[0]}.
+ ○ 당행은 ${i.detect} 해당 사안을 인지한 즉시 ${i.owner}를 중심으로 대응체계를 가동하였습니다.
+ ○ 현재까지 확인된 관련 민원은 ${fmt(i.voc)}건이며, 사실관계 확인이 진행 중인 부분은 확정 시 추가 안내드리겠습니다.
+
+2. 당행 조치사항
+${i.tl.filter(t=>t[3]==='완료').map(t=>` ○ (${t[0]}) ${t[2]}`).join('\n')}
+
+3. 향후 계획
+${i.tl.filter(t=>t[3]!=='완료').map(t=>` ○ (${t[0]} 예정) ${t[2]}`).join('\n')||' ○ 재발방지 대책을 수립하여 조속히 시행하겠습니다.'}
+
+4. 입장
+ ○ 당행은 이번 사안으로 불편과 우려를 겪으신 고객님께 깊이 사과드립니다.
+ ○ 확인된 사실에 대해서는 책임을 회피하지 않고, 관련 법규와 절차에 따라 성실히 조치하겠습니다.
+ ○ 고객 신뢰 회복을 최우선 과제로 삼아 근본적인 개선을 추진하겠습니다.
+
+※ 문의: 홍보부
+
+--- AI 검토 의견 ---
+· 확산도 ${i.spread}/영향도 ${i.impact}, Tier1 부정보도 ${i.tier1}건인 상황으로 ${i.tier1>=3?'선제적·구체적 조치 제시가 필수':'과도한 확대 해석을 유발하지 않는 절제된 표현 권고'}
+· ${i.regProb>=70?'규제개입 확률 '+i.regProb+'%로 높음 → 법무·준법감시부 사전 검토 및 감독당국 사전 설명 필수':'감독당국 관심 사안이 될 수 있어 사전 보고 여부 검토 필요'}
+· 추측성 부인·책임 전가 표현 금지, 확인된 사실 범위 내에서만 언급`,
+
+ '홈페이지 공지':`[고객 안내] ${i.cat} 관련 안내 말씀
+
+안녕하십니까, 고객님.
+
+${i.desc.split('.')[0]}과 관련하여 고객님께 불편과 심려를 드린 점 깊이 사과드립니다.
+
+▶ 현재 상황
+ · 당행은 ${i.detect} 해당 사안을 확인하고 즉시 대응에 착수하였습니다.
+ · 관련 부서(${i.dept})를 중심으로 원인 파악 및 조치를 진행하고 있습니다.
+
+▶ 고객님께서 확인하실 사항
+ · 해당 사안과 관련하여 문의사항이 있으신 경우 고객센터(대표번호) 또는 가까운 영업점으로 문의해 주시기 바랍니다.
+ · 피해 또는 불편이 확인된 경우 별도 안내 절차에 따라 신속히 처리하겠습니다.
+
+▶ 조치 계획
+${i.tl.filter(t=>t[3]!=='완료').slice(0,3).map(t=>` · ${t[2]} (${t[0]} 예정)`).join('\n')||' · 재발방지 대책 수립 및 시행'}
+
+앞으로 이러한 일이 재발하지 않도록 절차와 시스템을 근본적으로 점검하겠습니다.
+고객님의 신뢰에 부응하는 은행이 되도록 최선을 다하겠습니다.
+
+${BASE.replace(/-/g,'.')}  ${i.owner}`,
+
+ '콜센터 응대 스크립트':`[콜센터 응대 스크립트] ${i.id} · ${i.cat}
+작성 ${i.owner} · 승인 홍보부/준법감시부 · 대상 전 상담센터
+
+■ 기본 응대 원칙
+ 1) 사과 우선 → 2) 확인된 사실만 안내 → 3) 후속 절차 명확히 고지 → 4) 추측·단정 금지
+
+■ 표준 응대 (1차)
+ "고객님, 먼저 불편을 드려 진심으로 죄송합니다.
+  말씀하신 ${i.kw[0]} 관련 사안은 당행에서도 확인하여 현재 조치가 진행되고 있습니다.
+  고객님 건에 대해서는 접수 후 담당 부서에서 개별적으로 확인하여 안내드리겠습니다."
+
+■ 자주 묻는 질문 대응
+ Q. 은행 책임 아닌가요?
+ A. "책임 여부는 사실관계 확인 절차를 통해 판단됩니다. 회피 없이 확인 결과에 따라 조치하겠다는 것이 당행 입장입니다."
+    ※ 책임 인정/부인 모두 단정하지 말 것
+
+ Q. 언론에 나온 내용이 사실인가요?
+ A. "당행이 공식적으로 확인하여 안내한 내용은 홈페이지 공지에 게시되어 있습니다. 그 외 사항은 확인 중입니다."
+
+ Q. 보상은 언제 받나요?
+ A. "${i.cat==='소비자보호'?'구제·배상 기준이 마련되는 즉시 개별 안내드립니다. 접수하신 순서대로 처리됩니다.':'확인 후 별도 안내드립니다.'}"
+
+■ 즉시 상급 이관(Escalation) 기준
+ · 언론사·기자 문의 → 홍보부 직접 연결
+ · 소송·분쟁조정 언급 → ${i.owner} 전담팀
+ · 감독당국 관련 문의 → 준법감시부
+ · 고성·반복 항의 3회 이상 → 팀장 이관
+
+■ 금지 표현
+ · "저희 책임 아닙니다" · "그건 고객님 잘못입니다" · "언론이 과장한 겁니다" · "보상은 안 됩니다"
+
+※ 현재 등급 ${i.esc} · 관련 민원 ${fmt(i.voc)}건 · 문의 급증 예상 시간대: 09~11시, 13~15시`,
+
+ '임직원 공유(내부)':`[임직원 공유] ${i.id} 대응 관련 안내
+발신 ${i.owner} · 등급 ${i.esc} · ${BASE}
+
+임직원 여러분께,
+
+1. 사안 개요
+ ${i.desc}
+
+2. 현재 대응 현황
+ · 에스컬레이션 등급: ${i.esc} (${{L4:'위기대응위원회 가동',L3:'평판리스크협의체 운영',L2:'평판리스크부·홍보부 대응',L1:'소관부서 자체 대응'}[i.esc]})
+ · 소관: ${i.dept} / 관리주체: ${i.owner}
+ · 완료 조치 ${i.tl.filter(t=>t[3]==='완료').length}건, 진행 ${i.tl.filter(t=>t[3]==='진행').length}건
+
+3. 전 임직원 유의사항
+ ① 대외 문의(언론·SNS 포함)는 반드시 홍보부로 이관하고 개인적으로 답변하지 않습니다.
+ ② SNS·커뮤니티에 본 사안 관련 개인 의견을 게시하지 않습니다.
+ ③ 고객 문의 시 승인된 응대 스크립트만 사용합니다.
+ ④ 내부 자료·통계의 외부 유출은 어떠한 경우에도 금지됩니다.
+
+4. 요청사항
+ · 영업점: 관련 고객 문의 발생 시 지정 양식으로 당일 보고
+ · 본부: 소관 업무 관련 유사 사안 여부 자체 점검 후 회신
+
+고객 신뢰가 우리 은행의 가장 중요한 자산입니다.
+어려운 상황이지만 원칙에 따라 차분하게 대응해 주시기를 부탁드립니다.`,
+
+ 'SNS/공식채널':`[공식채널 게시문 초안] ${i.id}
+※ 게시 전 홍보부 최종 승인 필수 · 댓글 정책 사전 협의
+
+고객님께 안내드립니다.
+
+${i.kw[0]} 관련하여 불편을 드려 죄송합니다.
+당행은 해당 사안을 확인하고 즉시 조치에 착수하였으며,
+${i.tl.filter(t=>t[3]==='완료').slice(-1)[0]?.[2]||'원인 파악과 개선을 진행'}하였습니다.
+
+진행 상황은 홈페이지 공지를 통해 계속 안내드리겠습니다.
+▸ 자세한 내용 보기 (공지 링크)
+▸ 문의: 고객센터
+
+불편을 겪으신 고객님께 다시 한번 사과드립니다.
+
+--- 운영 가이드 ---
+· 게시 후 최초 2시간 집중 모니터링 (부정 댓글 확산 여부)
+· 개별 피해 주장 댓글 → 공개 답변 지양, DM/고객센터 유도
+· 감성 −60 이하 댓글 급증 시 게시 유지 여부 즉시 재판단
+· 현재 SNS 부정감성 ${f1(KRI.find(k=>k.id==='K07').v)}% / 급증지수 ${KRI.find(k=>k.id==='K08').v}배 → ${KRI.find(k=>k.id==='K08').v>3?'확산 국면으로 신중 대응 권고':'게시 적정'}`
+ };
+ document.getElementById('msgBox').textContent=T[ch];
+}
+
+/* --- 방법론 --- */
+function renderMethod(){
+ document.getElementById('tblAxis').innerHTML=`<thead class="bg-slate-100"><tr><th>축</th><th class="text-center">가중</th><th>구성 지표</th><th>데이터원</th><th class="text-right">당월</th><th class="text-center">기여</th></tr></thead><tbody>`+
+  AXIS_DEF.map((a,n)=>{const k=['media','social','cust','reg','intn'][n],v=AX[k],w=[.25,.20,.25,.20,.10][n];
+  return `<tr class="border-b"><td class="font-semibold">${a[0]}</td><td class="text-center">${a[1]}</td>
+  <td class="whitespace-normal">${a[2]}</td><td class="whitespace-normal text-slate-500">${a[3]}</td>
+  <td class="text-right font-bold ${v>65?'text-rose-600':v>45?'text-orange-600':''}">${v}</td>
+  <td class="text-center">${f1(v*w)}p</td></tr>`}).join('')+
+  `<tr class="bg-slate-50 font-bold"><td colspan="4">RRI 종합</td><td class="text-right">${RRI}</td><td class="text-center">${gradeRRI(RRI)[0]}</td></tr></tbody>`;
+ document.getElementById('tblSrc').innerHTML=`<thead class="bg-slate-100"><tr><th>채널</th><th>범위</th><th>수집주기</th><th>추출 지표</th></tr></thead><tbody>`+
+  SRC_DEF.map(s=>`<tr class="border-b"><td class="font-medium">${s[0]}</td><td>${s[1]}</td><td>${s[2]}</td><td class="whitespace-normal text-slate-600">${s[3]}</td></tr>`).join('')+'</tbody>';
+ document.getElementById('tblStk').innerHTML=`<thead class="bg-slate-100"><tr><th>이해관계자</th><th>주요 영향 경로</th><th>측정 지표</th></tr></thead><tbody>`+
+  STK_DEF.map(s=>`<tr class="border-b"><td class="font-medium">${s[0]}</td><td class="whitespace-normal">${s[1]}</td><td class="whitespace-normal text-slate-600">${s[2]}</td></tr>`).join('')+'</tbody>';
+}
+
+/* --- 챗 --- */
+function initChat(){
+ document.getElementById('cbox').innerHTML='';
+ const g=gradeRRI(RRI);
+ bot(`평판리스크 상시탐지가 완료되었습니다.<br>현재 <b>RRI ${RRI}점(${g[0]})</b>, 활성 이슈 <b>${ISS.filter(i=>i.stage!=='종결').length}건</b>(L4 ${ISS.filter(i=>i.esc==='L4').length}건), KRI 임계초과 <b>${KRI.filter(k=>k.st!=='정상'&&k.st!=='주의').length}건</b>입니다. 질문해 주세요.`);
+ const qs=['RRI가 왜 경계 단계야?','가장 위험한 이슈 뭐야?','ISS-2506-01 설명해줘','KRI 중 심각 지표만','민원이 왜 늘었어?','L4 판정 근거가 뭐야?','경영진 보고용 요약','앞으로 뭐부터 해야 해?'];
+ document.getElementById('qq').innerHTML=qs.map(q=>`<button onclick="ask('${q}')" class="px-2 py-1 border rounded bg-slate-50 hover:bg-slate-100">${q}</button>`).join('');
+}
+function bot(h){const b=document.getElementById('cbox');b.innerHTML+=`<div class="flex gap-2"><div class="w-6 h-6 rounded bg-rose-600 text-white text-[10px] flex items-center justify-center shrink-0">AI</div><div class="bg-white border rounded-lg p-2.5 leading-relaxed max-w-[86%]">${h}</div></div>`;b.scrollTop=b.scrollHeight;}
+function me(t){const b=document.getElementById('cbox');b.innerHTML+=`<div class="flex justify-end"><div class="bg-rose-600 text-white rounded-lg p-2.5 max-w-[76%]">${t}</div></div>`;b.scrollTop=b.scrollHeight;}
+function ask(q){document.getElementById('cin').value=q;send();}
+function send(){const e=document.getElementById('cin'),q=e.value.trim();if(!q)return;me(q);e.value='';setTimeout(()=>bot(ans(q)),350);}
+function ans(q){
+ const g=gradeRRI(RRI), top=ISS.slice().sort((a,b)=>b.rrs-a.rrs);
+ const hit=ISS.find(i=>q.toUpperCase().includes(i.id.toUpperCase().slice(-2))&&/ISS/i.test(q))||ISS.find(i=>i.kw.some(k=>q.includes(k)));
+ if(/ISS-/i.test(q)&&hit){
+  return `<b>${hit.id}</b> · ${hit.esc} 등급 (RRS ${hit.rrs})<br><br>
+   <b>${hit.title}</b><br><br>${hit.desc}<br><br>
+   <b>지표</b> 확산 ${hit.spread} / 영향 ${hit.impact} / 감성 ${hit.sent} / Tier1 부정 ${hit.tier1}건 / 규제개입 ${hit.regProb}% / 재무영향 ${fmt(hit.fin)}억 / 민원 ${fmt(hit.voc)}건<br>
+   <b>연계 1차리스크</b> ${hit.link1}<br>
+   <b>진행</b> ${hit.stage} · 완료조치 ${hit.tl.filter(t=>t[3]==='완료').length}건 / 잔여 ${hit.tl.filter(t=>t[3]!=='완료').length}건<br><br>
+   <b>다음 조치</b><br>${hit.tl.filter(t=>t[3]!=='완료').map(t=>`• (${t[0]}) ${t[1]} — ${t[2]}`).join('<br>')||'• 잔여 조치 없음, 모니터링 유지'}`;
+ }
+ if(/RRI|지수|경계|단계/.test(q)){
+  return `RRI는 <b>${RRI}점(${g[0]})</b>이며 전월 ${RRI_HIST[RRI_HIST.length-2][1]}점 대비 <b>+${RRI-RRI_HIST[RRI_HIST.length-2][1]}p</b> 상승, <b>6개월 연속 악화</b>입니다.<br><br>
+  <b>축별 기여</b><br>
+  • 미디어 ${AX.media} × 25% = ${f1(AX.media*.25)}p<br>
+  • 소셜 ${AX.social} × 20% = ${f1(AX.social*.20)}p<br>
+  • 소비자 ${AX.cust} × 25% = ${f1(AX.cust*.25)}p<br>
+  • 규제 ${AX.reg} × 20% = ${f1(AX.reg*.20)}p<br>
+  • 내부 ${AX.intn} × 10% = ${f1(AX.intn*.10)}p<br><br>
+  주요 악화 원인은 <b>투자상품 불완전판매 민원 급증(412건)</b>과 <b>Tier1 부정보도 9건</b>, <b>전산장애 반복(260분)</b>이 동시 발생한 데 있습니다. 특히 소비자 축과 미디어 축이 상호 증폭되는 구조로, 단일 이슈 해소만으로는 지수 회복이 제한적입니다.`;
+ }
+ if(/위험|심각|top|우선|중요/i.test(q)){
+  return `RRS 상위 3건입니다.<br><br>`+top.slice(0,3).map((i,n)=>
+   `<b>${n+1}. [${i.esc}] ${i.id}</b> RRS ${i.rrs}<br>${i.title}<br>
+    <span class="text-slate-600 text-[12px]">확산 ${i.spread}/영향 ${i.impact}/감성 ${i.sent} · 재무 ${fmt(i.fin)}억 · 규제개입 ${i.regProb}%</span>`).join('<br><br>')+
+   `<br><br>이 3건이 전체 추정 재무영향의 <b>${f1(top.slice(0,3).reduce((t,i)=>t+i.fin,0)/ISS.reduce((t,i)=>t+i.fin,0)*100)}%</b>, 30일 언급량의 <b>${f1(top.slice(0,3).reduce((t,i)=>t+i.mentions,0)/ISS.reduce((t,i)=>t+i.mentions,0)*100)}%</b>를 차지합니다.`;
+ }
+ if(/L4|판정|등급|근거/.test(q)){
+  const l4=ISS.filter(i=>i.esc==='L4');
+  return `현재 L4는 <b>${l4.length}건</b>입니다.<br><br>`+l4.map(i=>
+   `<b>${i.id}</b> — RRS ${i.rrs} (≥80 충족)<br>= 확산 ${i.spread}×0.40(${f1(i.spread*.4)}) + 영향 ${i.impact}×0.45(${f1(i.impact*.45)}) + |감성| ${Math.abs(i.sent)}×0.15(${f1(Math.abs(i.sent)*.15)})<br>
+   추가로 Tier1 부정보도 ${i.tier1}건(강제 L3 요건 충족), 규제개입 ${i.regProb}%로 상향 요건 중복 충족.`).join('<br><br>')+
+   `<br><br>L4는 <b>위기대응위원회(CEO 주재) 즉시 소집</b>, 대외 커뮤니케이션 CEO 승인, 이사회 보고가 의무입니다.<br>
+   <span class="text-slate-500 text-[12px]">※ 강제 상향 규칙: Tier1 부정보도 3건 이상 또는 규제개입 확률 70% 이상은 RRS와 무관하게 최소 L3</span>`;
+ }
+ if(/KRI|지표|임계|경보/.test(q)){
+  const d=KRI.filter(k=>k.st==='심각'),c=KRI.filter(k=>k.st==='경계');
+  return `<b>심각 ${d.length}건 / 경계 ${c.length}건</b>입니다.<br><br><b>[심각]</b><br>`+
+   d.map(k=>`• ${k.id} ${k.n}: <b>${k.v}${k.u.includes('%')?'%':''}</b> (임계 ${k.d}) · 전월비 ${k.chg>0?'+':''}${f1(k.chg)}% · ${k.own}`).join('<br>')+
+   `<br><br><b>[경계]</b><br>`+c.map(k=>`• ${k.id} ${k.n}: ${k.v} (임계 ${k.c})`).join('<br>')+
+   `<br><br>16개 KRI 중 <b>${KRI.filter(k=>k.st!=='정상').length}개</b>가 주의 이상이며, 전부 <b>악화 방향</b>입니다. 소비자·미디어 계열 지표가 집중 악화 중입니다.`;
+ }
+ if(/민원/.test(q)){
+  const tot=VOC.reduce((t,v)=>t+v.n,0),pq=VOC.reduce((t,v)=>t+v.pq,0),t0=VOC.slice().sort((a,b)=>b.n-a.n);
+  return `2025-2Q 민원은 <b>${fmt(tot)}건</b>으로 전분기 ${fmt(pq)}건 대비 <b>+${f1((tot/pq-1)*100)}%</b> 급증했습니다.<br><br>
+  <b>증가 기여도 Top 3</b><br>
+  ${t0.slice(0,3).map(v=>`• ${v.t}: ${fmt(v.n)}건 (전분기 ${fmt(v.pq)} → +${fmt(v.n-v.pq)}건)`).join('<br>')}<br><br>
+  증가분 ${fmt(tot-pq)}건 중 <b>${fmt(VOC[0].n-VOC[0].pq)}건(${f1((VOC[0].n-VOC[0].pq)/(tot-pq)*100)}%)</b>이 투자상품 불완전판매(ISS-2506-01)에서 발생했습니다.<br><br>
+  동시에 <b>처리기간 14.2일(임계 15일 근접)</b>, <b>수용률 ${f1(VOC.reduce((t,v)=>t+v.acc*v.n,0)/tot)}%로 하락</b>하여 민원 처리 품질도 저하 중입니다. 이는 소비자보호 실태평가 등급 하락 위험으로 직결됩니다.`;
+ }
+ if(/보고|요약|경영진|이사회/.test(q)){
+  return `<b>[경영진 보고 요약 · 2025.6월]</b><br><br>
+  <b>① 현황</b> 평판리스크지수(RRI) <b>${RRI}점 · ${g[0]}</b> 단계 진입(전월 ${RRI_HIST[RRI_HIST.length-2][1]}점, 6개월 연속 상승). 활성 이슈 ${ISS.filter(i=>i.stage!=='종결').length}건 중 <b>L4 ${ISS.filter(i=>i.esc==='L4').length}건 · L3 ${ISS.filter(i=>i.esc==='L3').length}건</b>. KRI 16개 중 ${KRI.filter(k=>k.st==='심각').length}개 심각·${KRI.filter(k=>k.st==='경계').length}개 경계.<br><br>
+  <b>② 핵심 원인</b> 투자상품 불완전판매(민원 412건, Tier1 부정보도 7건, 재무영향 420억)와 모바일앱 장애 반복(260분)이 동시 발생하며 소비자·미디어 축이 상호 증폭. 개별 이슈가 「내부통제 부실」이라는 <b>단일 부정 프레임으로 결합</b>되는 국면.<br><br>
+  <b>③ 재무·감독 영향</b> 추정 직접영향 <b>${fmt(ISS.reduce((t,i)=>t+i.fin,0))}억원</b>(배상·보상·과징금). 소비자보호 실태평가 등급 하락 및 감독당국 검사 가능성 높음(최대 규제개입 확률 ${Math.max(...ISS.map(i=>i.regProb))}%).<br><br>
+  <b>④ 조치 요청</b> ㉠ ISS-2506-01 자율배상 기준 조기 확정 ㉡ 앱 안정성 투자 긴급 집행 ㉢ 판매절차·KPI 구조 개선안 이사회 상정 ㉣ 위기 커뮤니케이션 창구 단일화(CEO 승인 체계 유지)`;
+ }
+ if(/뭐부터|우선순위|해야|계획|로드맵/.test(q)){
+  return `<b>우선순위 권고 (영향×긴급도 기준)</b><br><br>
+  <b>1. 즉시 (7일 내)</b><br>
+  • ISS-2506-01 자율배상 기준안 확정 및 감독당국 사전 협의 — 민원 증가 곡선 차단이 RRI 회복의 최대 레버(소비자 축 기여 ${f1(AX.cust*.25)}p)<br>
+  • ISS-2506-06 개인정보 유출 여부 확정 — 현재 외부 미공개 상태이며, 유출 확정 시 <b>단독으로 L4 추가 발생</b> 가능. 사전 시나리오·메시지 준비 필수<br>
+  • 앱 인증모듈 증설 조기 완료 — 7월 급여일 전 재장애 발생 시 「3개월 연속」 프레임 고착<br><br>
+  <b>2. 단기 (1개월)</b><br>
+  • 판매 KPI 구조 조정(불완전판매 유인 제거) → K04·K11 동시 개선<br>
+  • 민원 처리기간 단축 TF(14.2일 → 11일) → 실태평가 방어<br>
+  • 부정 프레임 대응: 개별 대응이 아닌 <b>통합 신뢰회복 커뮤니케이션 패키지</b>로 전환<br><br>
+  <b>3. 중기 (분기)</b><br>
+  • 평판리스크 KRI 임계치 재설정 및 1차리스크(운영·컴플라이언스) 연계 관리체계 정식화<br>
+  • ISS-2506-04(꺾기), ISS-2506-12(조직문화)는 잠재 이슈로, 국감·언론 인용 시 확산 가능 → 사전 사실관계 정리 완료 권고`;
+ }
+ if(/부서|소관|담당/.test(q)){
+  const ds=[...new Set(ISS.map(i=>i.dept))].map(d=>({d,n:ISS.filter(i=>i.dept===d).length,r:Math.max(...ISS.filter(i=>i.dept===d).map(i=>i.rrs))})).sort((a,b)=>b.r-a.r);
+  return `소관부서별 이슈 현황입니다.<br><br>`+ds.map(x=>`• <b>${x.d}</b>: ${x.n}건 (최고 RRS ${x.r})`).join('<br>');
+ }
+ return `답변 가능한 질의 범위입니다.<br>
+ • RRI 관련 — "RRI가 왜 경계야?", "축별 기여도"<br>
+ • 이슈 — "가장 위험한 이슈", "ISS-2506-01 설명", 키워드(예: "불완전판매")<br>
+ • 등급 — "L4 판정 근거"<br>
+ • KRI — "심각 지표만", "조기경보"<br>
+ • 민원 — "민원이 왜 늘었어?"<br>
+ • 보고 — "경영진 보고용 요약", "뭐부터 해야 해?"<br>
+ • 조직 — "부서별 이슈 현황"<br><br>
+ <span class="text-slate-500 text-[12px]">※ Mock-up 단계로 자유 질의는 미지원. 실제 구현 시 LLM + RAG 연동 예정.</span>`;
+}
+
+/* --- 탭/실행 --- */
+function switchTab(t){
+ document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('tab-active',b.dataset.tab===t));
+ document.querySelectorAll('.tabpage').forEach(p=>p.classList.toggle('hidden',p.id!=='tab-'+t));
+ window.scrollTo(0,0);
+}
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
+
+const STEPS=[
+ ['채널 수집','언론 120개 매체·SNS·커뮤니티 15개·유튜브·민원시스템·공시 (8채널)'],
+ ['중복제거·관련성 판정','수집 4,182건 → 중복·타사 제외 후 본행 관련 1,847건'],
+ ['감성분석·주제분류','문장단위 감성 스코어링, 8개 카테고리 자동 분류'],
+ ['이슈 클러스터링','유사도 기반 병합 → 12개 이슈로 집약'],
+ ['확산·영향 평가','확산도·영향도·이해관계자 영향 산출, RRS 계산'],
+ ['에스컬레이션 판정','RRS 및 강제조건(Tier1·규제) 적용 → L1~L4 배정'],
+ ['KRI·RRI 산출','16개 KRI 임계 판정, 5축 가중 RRI 산출'],
+ ['플레이북 매칭·초안 생성','카테고리별 대응 플레이북 연결, 대외 메시지 초안 작성']
+];
+function rerun(){
+ document.getElementById('ov').classList.remove('hidden');
+ const L=document.getElementById('alog');L.innerHTML='';
+ STEPS.forEach(([t,d],i)=>L.innerHTML+=`<div id="s${i}" class="flex gap-2.5 items-start opacity-30 transition-opacity">
+  <span id="c${i}" class="w-4 h-4 mt-0.5 rounded-full border-2 border-slate-500 shrink-0"></span>
+  <div><div class="text-slate-100">${t}</div><div class="text-[11px] text-slate-400">${d}</div></div></div>`);
+ let i=0;
+ const tk=setInterval(()=>{
+  if(i>0)document.getElementById('c'+(i-1)).outerHTML=`<span class="w-4 h-4 mt-0.5 rounded-full bg-emerald-500 text-white text-[10px] flex items-center justify-center shrink-0">✓</span>`;
+  if(i<STEPS.length){document.getElementById('s'+i).classList.replace('opacity-30','opacity-100');
+   document.getElementById('abar').style.width=((i+1)/STEPS.length*100)+'%';i++;}
+  else{clearInterval(tk);setTimeout(()=>document.getElementById('ov').classList.add('hidden'),400);}
+ },480);
+ render();
+}
+rerun();
+</script>
+</body>
+</html>

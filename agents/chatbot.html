@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>리스크 AI 챗봇 (신용RWA·TE)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<style>
+  html,body{margin:0;padding:0;height:100%;}
+  #root{height:100%;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const {
+  useState,
+  useRef,
+  useEffect
+} = React;
+function Send({
+  size = 16
+}) {
+  return /*#__PURE__*/React.createElement("svg", {
+    width: size,
+    height: size,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, /*#__PURE__*/React.createElement("line", {
+    x1: "22",
+    y1: "2",
+    x2: "11",
+    y2: "13"
+  }), /*#__PURE__*/React.createElement("polygon", {
+    points: "22 2 15 22 11 13 2 9 22 2"
+  }));
+}
+function RefreshCw({
+  size = 16
+}) {
+  return /*#__PURE__*/React.createElement("svg", {
+    width: size,
+    height: size,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, /*#__PURE__*/React.createElement("polyline", {
+    points: "23 4 23 10 17 10"
+  }), /*#__PURE__*/React.createElement("polyline", {
+    points: "1 20 1 14 7 14"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
+  }));
+}
+
+// ── 별표3 위험가중치 테이블 ─────────────────────────────
+const SA = {
+  sovereign: {
+    'AAA~AA-': 0,
+    'A+~A-': 20,
+    'BBB+~BBB-': 50,
+    'BB+~B-': 100,
+    'B-미만': 150,
+    '미평가': 100
+  },
+  local: {
+    'AAA~AA-': 20,
+    'A+~A-': 50,
+    'BBB+~BBB-': 100,
+    'BB+~B-': 100,
+    'B-미만': 150,
+    '미평가': 100
+  },
+  pse: {
+    'AAA~AA-': 20,
+    'A+~A-': 50,
+    'BBB+~BBB-': 100,
+    'BB+~B-': 100,
+    'B-미만': 150,
+    '미평가': 100
+  },
+  mdb: {
+    'AAA~AA-': 0,
+    'A+~A-': 20,
+    'BBB+~BBB-': 50,
+    '미평가': 50
+  },
+  bank_lt: {
+    'AAA~AA-': 20,
+    'A+~A-': 50,
+    'BBB+~BBB-': 50,
+    'BB+~B-': 100,
+    'B-미만': 150,
+    '미평가': 50
+  },
+  bank_st: {
+    'AAA~AA-': 20,
+    'A+~A-': 20,
+    'BBB+~BBB-': 20,
+    'BB+~B-': 50,
+    'B-미만': 150,
+    '미평가': 20
+  },
+  corporate: {
+    'AAA~AA-': 20,
+    'A+~A-': 50,
+    'BBB+~BB-': 100,
+    'B-미만': 150,
+    '미평가(일반)': 100,
+    '미평가(중소기업)': 85
+  }
+};
+const SL_SLOT = {
+  pf: {
+    strong: 70,
+    good: 90,
+    satisfactory: 115,
+    weak: 250,
+    default: 0
+  },
+  of: {
+    strong: 70,
+    good: 90,
+    satisfactory: 115,
+    weak: 250,
+    default: 0
+  },
+  cf: {
+    strong: 70,
+    good: 90,
+    satisfactory: 115,
+    weak: 250,
+    default: 0
+  },
+  ipre: {
+    strong: 70,
+    good: 90,
+    satisfactory: 115,
+    weak: 250,
+    default: 0
+  },
+  hvcre: {
+    strong: 95,
+    good: 120,
+    satisfactory: 140,
+    weak: 250,
+    default: 0
+  }
+};
+
+// ── 수학 유틸 ──────────────────────────────────────────
+function normCDF(x) {
+  const t = 1 / (1 + 0.2316419 * Math.abs(x));
+  const d = 0.3989423 * Math.exp(-x * x / 2);
+  const p = d * t * (0.319382 + t * (-0.356564 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+  return x >= 0 ? 1 - p : p;
+}
+function normInv(p) {
+  const c = [2.515517, 0.802853, 0.010328],
+    d = [1.432788, 0.189269, 0.001308];
+  const t = Math.sqrt(-2 * Math.log(p < 0.5 ? p : 1 - p));
+  const n = t - (c[0] + t * (c[1] + t * c[2])) / (1 + t * (d[0] + t * (d[1] + t * d[2])));
+  return p < 0.5 ? -n : n;
+}
+function calcIRB(type, pd, lgd, m = 2.5) {
+  const p = pd / 100,
+    l = lgd / 100;
+  let r,
+    ma = 1;
+  if (type === 'mortgage') {
+    r = 0.15;
+  } else if (type === 'qrre') {
+    r = 0.04;
+  } else if (type === 'retail_other') {
+    const F = (1 - Math.exp(-35 * p)) / (1 - Math.exp(-35));
+    r = 0.03 * F + 0.16 * (1 - F);
+  } else {
+    const F = (1 - Math.exp(-50 * p)) / (1 - Math.exp(-50));
+    r = 0.12 * F + 0.24 * (1 - F);
+    const b = Math.pow(0.11852 - 0.05478 * Math.log(p), 2);
+    ma = (1 + (m - 2.5) * b) / (1 - 1.5 * b);
+  }
+  const K = (l * normCDF(Math.sqrt(r / (1 - r)) * normInv(0.999) + normInv(p) / Math.sqrt(1 - r)) - p * l) * ma;
+  const mul = type === 'mortgage' || type === 'qrre' || type === 'retail_other' ? 1.06 : 1.0;
+  return {
+    rw: Math.min(Math.max(K, 0) * 12.5 * mul * 100, 1250),
+    r: r * 100,
+    K: Math.max(K, 0) * 100,
+    ma
+  };
+}
+
+// ── 파싱 유틸 ──────────────────────────────────────────
+function parseAmt(s) {
+  s = String(s).replace(/,/g, '').replace(/\s/g, '');
+  if (s.includes('조')) {
+    const m = s.match(/([\d.]+)조/);
+    if (m) return parseFloat(m[1]) * 1e12;
+  }
+  if (s.includes('억')) {
+    const m = s.match(/([\d.]+)억/);
+    if (m) return parseFloat(m[1]) * 1e8;
+  }
+  if (s.includes('만')) {
+    const m = s.match(/([\d.]+)만/);
+    if (m) return parseFloat(m[1]) * 1e4;
+  }
+  return parseFloat(s);
+}
+function parsePct(s) {
+  return parseFloat(String(s).replace('%', '').trim());
+}
+function fmt(n) {
+  return '₩' + Math.round(n).toLocaleString('ko-KR');
+}
+function matchRating(low, key) {
+  if (low.includes('aaa') || low.includes('aa')) return 'AAA~AA-';
+  if (low.includes('a+') || low.match(/\ba\b/) && !low.includes('aa') && !low.includes('bbb')) return 'A+~A-';
+  if (low.includes('bbb') && key === 'corporate') return 'BBB+~BB-';
+  if (low.includes('bbb')) return 'BBB+~BBB-';
+  if (low.includes('bb') && !low.includes('bbb')) return key === 'corporate' ? 'BBB+~BB-' : 'BB+~B-';
+  if (low.match(/\bb\b/) && !low.includes('bb') && !low.includes('bbb')) return 'B-미만';
+  if (low.includes('미평가') || low.includes('무등급') || low.includes('없') || low.includes('unrat')) return '미평가';
+  return null;
+}
+
+// ── 자산군 목록 ────────────────────────────────────────
+const ASSET_MAP = [{
+  keys: ['중앙정부', '중앙은행', '국가', '정부채', 'sovereign'],
+  v: 'sovereign',
+  lbl: '중앙정부/중앙은행'
+}, {
+  keys: ['지방정부', '지자체', '지방자치', '지방채'],
+  v: 'local',
+  lbl: '지방정부'
+}, {
+  keys: ['공공기관', '공기업', 'pse'],
+  v: 'pse',
+  lbl: '공공기관(PSE)'
+}, {
+  keys: ['다자개발', 'mdb', '세계은행', '아시아개발', 'aiib'],
+  v: 'mdb',
+  lbl: '다자개발은행(MDB)'
+}, {
+  keys: ['은행', '금융기관', '증권사', '카드사', '저축은행'],
+  v: 'bank',
+  lbl: '은행/금융기관'
+}, {
+  keys: ['기업', '법인', '회사', 'corporate'],
+  v: 'corporate',
+  lbl: '기업(일반)'
+}, {
+  keys: ['특수금융', '프로젝트', '선박', '항공', '원자재', 'pf', 'of', 'cf', 'ipre', 'hvcre', '수익형부동산'],
+  v: 'sl',
+  lbl: '특수금융(SL)'
+}, {
+  keys: ['소매', '개인', '가계', '신용카드', 'retail'],
+  v: 'retail',
+  lbl: '소매채권'
+}, {
+  keys: ['주식', 'equity', '상장주', '비상장주', '출자금'],
+  v: 'equity',
+  lbl: '주식'
+}, {
+  keys: ['집합투자', '펀드', 'fund', 'etf', '수익증권', '투자신탁'],
+  v: 'fund',
+  lbl: '집합투자증권(펀드)'
+}, {
+  keys: ['채무불이행', '연체', '부실', 'default', 'npl'],
+  v: 'defaulted',
+  lbl: '채무불이행'
+}];
+const INTRO_TEXT = ['안녕하세요! 신용 RWA 계산 어시스턴트입니다.', '은행업감독업무시행세칙 별표3 기준으로 계산해드립니다.', '', '거래 차입자/자산 유형을 입력해주세요:', '', '  1. 중앙정부/중앙은행', '  2. 지방정부', '  3. 공공기관(PSE)', '  4. 다자개발은행(MDB)', '  5. 은행/금융기관', '  6. 기업(일반)', '  7. 특수금융(PF/선박/부동산금융 등)', '  8. 소매(개인여신)', '  9. 주식', '  10. 집합투자증권(펀드)', '  11. 채무불이행(연체/부실)'].join('\n');
+
+// ── 메인 컴포넌트 ──────────────────────────────────────
+function App() {
+  const [msgs, setMsgs] = useState([{
+    id: 0,
+    who: 'bot',
+    text: INTRO_TEXT
+  }]);
+  const [input, setInput] = useState('');
+  const [step, setStep] = useState('ASSET_CLASS');
+  const [ctx, setCtx] = useState({});
+  const [calcs, setCalcs] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const endRef = useRef(null);
+  const inRef = useRef(null);
+  useEffect(() => {
+    endRef.current?.scrollIntoView({
+      behavior: 'smooth'
+    });
+  }, [msgs]);
+  function bot(text) {
+    setMsgs(p => [...p, {
+      id: Date.now() + Math.random(),
+      who: 'bot',
+      text
+    }]);
+  }
+  function usr(text) {
+    setMsgs(p => [...p, {
+      id: Date.now() + Math.random(),
+      who: 'usr',
+      text
+    }]);
+  }
+  async function send() {
+    const raw = input.trim();
+    if (!raw || busy) return;
+    setInput('');
+    setBusy(true);
+    usr(raw);
+    await new Promise(r => setTimeout(r, 120));
+    try {
+      process(step, raw, ctx);
+    } finally {
+      setBusy(false);
+      setTimeout(() => inRef.current?.focus(), 50);
+    }
+  }
+  function go(newStep, newCtx, msg) {
+    setStep(newStep);
+    if (newCtx !== null) setCtx(newCtx);
+    if (msg) bot(msg);
+  }
+  function process(s, raw, c) {
+    const low = raw.toLowerCase();
+
+    // ╔══════════════════════════════════════════╗
+    // ║  공통: 자산군 선택                        ║
+    // ╚══════════════════════════════════════════╝
+    if (s === 'ASSET_CLASS') {
+      const hit = ASSET_MAP.find(a => a.keys.some(k => low.includes(k)));
+      if (!hit) {
+        bot('인식하지 못했습니다.\n예) "기업", "주식", "펀드", "소매", "프로젝트파이낸싱"');
+        return;
+      }
+      const nc = {
+        assetClass: hit.v,
+        assetLbl: hit.lbl
+      };
+      go('APPROACH', nc, `${hit.lbl}을(를) 선택하셨습니다.\n\n계산방법을 선택해주세요:\n- 표준방법 (외부신용등급 적용)\n- 내부등급법 (IRB)`);
+      return;
+    }
+
+    // ╔══════════════════════════════════════════╗
+    // ║  공통: 계산방법 선택                      ║
+    // ╚══════════════════════════════════════════╝
+    if (s === 'APPROACH') {
+      const isIRB = low.includes('irb') || low.includes('내부등급') || low.includes('내부');
+      const isSA = low.includes('표준') || low.includes('sa') || low.includes('외부');
+      if (!isIRB && !isSA) {
+        bot('"표준방법" 또는 "내부등급법(IRB)"을 입력해주세요.');
+        return;
+      }
+      const app = isIRB ? 'IRB' : 'SA';
+      const nc = {
+        ...c,
+        approach: app
+      };
+      if (app === 'SA') {
+        switch (c.assetClass) {
+          case 'retail':
+            go('SA_RETAIL', nc, '소매채권 유형을 선택해주세요:\n- 주택담보 대출 (LTV≤80% → 35%)\n- 적격 회전신용 (카드/한도대출, 75%)\n- 기타 소매 (75%)');
+            break;
+          case 'sl':
+            go('SA_RATING', {
+              ...nc,
+              tableKey: 'corporate'
+            }, '특수금융(SL)은 표준방법에서 기업 위험가중치를 준용합니다.\n\n신용등급을 입력해주세요:\nAAA~AA-, A+~A-, BBB+~BB-, B- 미만, 미평가');
+            break;
+          case 'defaulted':
+            go('SA_DEFAULT', nc, '채무불이행 유형을 선택해주세요:\n- 비담보부 → 150%\n- 주택담보부 (충당금 미설정) → 100%\n- 주택담보부 (충당금 20% 이상) → 50%');
+            break;
+          case 'bank':
+            go('SA_BANK_TERM', nc, '만기를 선택해주세요:\n- 단기 (3개월 이내)\n- 장기 (3개월 초과)');
+            break;
+          case 'equity':
+            go('SA_EQUITY_TYPE', nc, '주식 유형을 선택해주세요:\n\n- 상장주식 → 300%\n- 비상장주식 → 400%\n- 출자금(금융기관 출자) → 100%');
+            break;
+          case 'fund':
+            go('SA_FUND_METHOD', nc, '집합투자증권 처리방식을 선택해주세요:\n\n- 구성자산 확인 가능 (Look-through): 편입자산별 가중치 적용\n- 구성자산 확인 불가: 펀드 유형별 일괄 적용\n  · 주식형 → 400%\n  · 채권형 → 100%\n  · 혼합형 → 250%\n  · MMF → 20%');
+            break;
+          default:
+            go('SA_RATING', {
+              ...nc,
+              tableKey: c.assetClass
+            }, c.assetClass === 'corporate' ? '신용등급을 입력해주세요:\nAAA~AA-, A+~A-, BBB+~BB-, B- 미만, 미평가(무등급)' : '신용등급을 입력해주세요:\nAAA~AA-, A+~A-, BBB+~BBB-, BB+~B-, B- 미만, 미평가');
+        }
+      } else {
+        // IRB
+        switch (c.assetClass) {
+          case 'retail':
+            go('IRB_RETAIL', nc, '소매 IRB 유형을 선택해주세요:\n- 주택담보 (R=15% 고정)\n- 적격 회전신용 (R=4% 고정)\n- 기타 소매 (R=PD 연동)');
+            break;
+          case 'sl':
+            go('IRB_SL_TYPE', nc, '특수금융 IRB — 감독기관 슬롯팅 기준 적용\n\n유형을 입력해주세요:\n- PF (프로젝트 파이낸스)\n- OF (선박/항공)\n- CF (원자재)\n- IPRE (수익형 부동산)\n- HVCRE (고변동성 상업부동산)');
+            break;
+          case 'equity':
+            go('IRB_EQUITY_METHOD', nc, '주식 IRB 방법을 선택해주세요:\n\n- 단순위험가중치: 상장 300%, 비상장 400% (감독당국 제시)\n- PD/LGD 내부모형: PD/LGD 직접 입력 (LGD=90% 고정, M=5년)');
+            break;
+          case 'fund':
+            go('SA_FUND_METHOD', nc, '집합투자증권 처리방식을 선택해주세요:\n\n- 구성자산 확인 가능 (Look-through)\n- 구성자산 확인 불가 (유형별 일괄 적용)');
+            break;
+          default:
+            go('IRB_FIRB_AIRB', nc, 'IRB 세부방법을 선택해주세요:\n- 기본(FIRB): PD만 자체추정, LGD 감독당국 제시(45%/75%/20%)\n- 고급(AIRB): PD·LGD·EAD 모두 자체추정');
+        }
+      }
+      return;
+    }
+
+    // ╔══════════════════════════════════════════╗
+    // ║  SA 흐름                                  ║
+    // ╚══════════════════════════════════════════╝
+
+    if (s === 'SA_BANK_TERM') {
+      const isShort = low.includes('단기') || low.includes('3개월');
+      const tKey = isShort ? 'bank_st' : 'bank_lt';
+      go('SA_RATING', {
+        ...c,
+        tableKey: tKey
+      }, `${isShort ? '단기(3개월 이내)' : '장기(3개월 초과)'} 기준 적용\n\n신용등급을 입력해주세요:\nAAA~AA-, A+~A-, BBB+~BBB-, BB+~B-, B- 미만, 미평가`);
+      return;
+    }
+    if (s === 'SA_RATING') {
+      const tKey = c.tableKey || c.assetClass;
+      const rKey = matchRating(low, tKey);
+      if (!rKey) {
+        bot('신용등급을 다시 입력해주세요.\n예) AAA, AA, A, BBB, BB, B- 미만, 미평가');
+        return;
+      }
+      if (rKey === '미평가' && (tKey === 'corporate' || tKey === 'sl')) {
+        go('SA_SME', {
+          ...c,
+          rKey
+        }, '무등급 기업이군요.\n\n중소기업인가요?\n- 중소기업 → 85%\n- 일반기업 → 100%');
+        return;
+      }
+      const rw = (SA[tKey] || SA.corporate)[rKey] ?? 100;
+      go('SA_EAD', {
+        ...c,
+        rKey,
+        baseRW: rw
+      }, `신용등급: ${rKey} → 위험가중치 ${rw}%\n\n익스포저(EAD) 금액을 입력해주세요.\n예) 10억, 1,000,000,000`);
+      return;
+    }
+    if (s === 'SA_SME') {
+      const isSME = low.includes('중소') || low.includes('소기업');
+      const rw = isSME ? 85 : 100;
+      go('SA_EAD', {
+        ...c,
+        baseRW: rw
+      }, `${isSME ? '중소기업(85%)' : '일반기업(100%)'} 적용\n\n익스포저(EAD) 금액을 입력해주세요.`);
+      return;
+    }
+    if (s === 'SA_RETAIL') {
+      let rt = '',
+        rw = 75;
+      if (low.includes('주택') || low.includes('담보')) {
+        rt = 'mortgage';
+        rw = 35;
+      } else if (low.includes('회전') || low.includes('순환') || low.includes('카드')) {
+        rt = 'qrre';
+        rw = 75;
+      } else if (low.includes('기타') || low.includes('신용')) {
+        rt = 'other';
+        rw = 75;
+      }
+      if (!rt) {
+        bot('유형을 다시 입력해주세요: 주택담보, 적격 회전신용, 기타 소매');
+        return;
+      }
+      if (rt === 'mortgage') {
+        go('SA_LTV', {
+          ...c,
+          retailType: rt,
+          baseRW: rw
+        }, 'LTV(담보인정비율)는 몇 %인가요?\n(LTV≤80% → 35%, 초과 → 75%)\n예) 70');
+      } else {
+        go('SA_EAD', {
+          ...c,
+          retailType: rt,
+          baseRW: rw
+        }, `${rt === 'qrre' ? '적격 회전신용' : '기타 소매'} → 위험가중치 ${rw}%\n\n익스포저 금액을 입력해주세요.`);
+      }
+      return;
+    }
+    if (s === 'SA_LTV') {
+      const ltv = parsePct(raw);
+      if (isNaN(ltv)) {
+        bot('숫자를 입력해주세요. 예) 70');
+        return;
+      }
+      const rw = ltv <= 80 ? 35 : 75;
+      go('SA_EAD', {
+        ...c,
+        ltv,
+        baseRW: rw
+      }, `LTV ${ltv}% → 위험가중치 ${rw}%\n\n익스포저 금액을 입력해주세요.`);
+      return;
+    }
+    if (s === 'SA_DEFAULT') {
+      let rw = 150;
+      if (low.includes('충당금') && low.includes('20') || low.includes('50%') || raw === '3') rw = 50;else if (low.includes('주택') || low.includes('담보') || low.includes('100%') || raw === '2') rw = 100;
+      go('SA_EAD', {
+        ...c,
+        baseRW: rw
+      }, `채무불이행 위험가중치: ${rw}%\n\n익스포저 금액을 입력해주세요.`);
+      return;
+    }
+
+    // ── 주식 유형 ────────────────────────────────
+    if (s === 'SA_EQUITY_TYPE') {
+      let rw = 0,
+        eType = '';
+      if (low.includes('비상장')) {
+        rw = 400;
+        eType = '비상장주식';
+      } else if (low.includes('상장')) {
+        rw = 300;
+        eType = '상장주식';
+      } else if (low.includes('출자') || raw.trim() === '3') {
+        rw = 100;
+        eType = '출자금';
+      } else if (raw.trim() === '1') {
+        rw = 300;
+        eType = '상장주식';
+      } else if (raw.trim() === '2') {
+        rw = 400;
+        eType = '비상장주식';
+      }
+      if (!rw) {
+        bot('유형을 다시 입력해주세요: 상장주식, 비상장주식, 출자금');
+        return;
+      }
+      go('SA_EAD', {
+        ...c,
+        equityType: eType,
+        baseRW: rw
+      }, `${eType} → 위험가중치 ${rw}%\n\n보유금액(장부가)을 입력해주세요.\n예) 5억`);
+      return;
+    }
+
+    // ── 집합투자증권 처리방식 ────────────────────
+    if (s === 'SA_FUND_METHOD') {
+      const isLT = low.includes('look') || low.includes('확인') || low.includes('1');
+      if (isLT) {
+        go('SA_FUND_LT', c, 'Look-through 방식 적용\n\n편입자산의 대표 위험가중치(%)를 직접 입력해주세요.\n(편입자산 중 가장 높은 가중치 기준)\n예) 100, 300');
+      } else {
+        go('SA_FUND_TYPE', c, '펀드 유형을 선택해주세요:\n\n- 주식형 → 400%\n- 채권형 → 100%\n- 혼합형 → 250%\n- MMF/단기금융 → 20%');
+      }
+      return;
+    }
+    if (s === 'SA_FUND_LT') {
+      const rw = parseFloat(raw);
+      if (isNaN(rw) || rw < 0) {
+        bot('위험가중치(%)를 숫자로 입력해주세요. 예) 100');
+        return;
+      }
+      go('SA_EAD', {
+        ...c,
+        fundMethod: 'look-through',
+        baseRW: rw
+      }, `Look-through 위험가중치 ${rw}% 적용\n\n보유금액을 입력해주세요.`);
+      return;
+    }
+    if (s === 'SA_FUND_TYPE') {
+      let rw = 0,
+        fType = '';
+      if (low.includes('주식') || raw === '1') {
+        rw = 400;
+        fType = '주식형';
+      } else if (low.includes('채권') || raw === '2') {
+        rw = 100;
+        fType = '채권형';
+      } else if (low.includes('혼합') || raw === '3') {
+        rw = 250;
+        fType = '혼합형';
+      } else if (low.includes('mmf') || low.includes('단기') || raw === '4') {
+        rw = 20;
+        fType = 'MMF/단기금융';
+      }
+      if (!rw) {
+        bot('유형을 다시 입력해주세요: 주식형, 채권형, 혼합형, MMF');
+        return;
+      }
+      go('SA_EAD', {
+        ...c,
+        fundType: fType,
+        baseRW: rw
+      }, `${fType} 펀드 → 위험가중치 ${rw}%\n\n보유금액을 입력해주세요.`);
+      return;
+    }
+
+    // ── 공통 EAD 입력 ────────────────────────────
+    if (s === 'SA_EAD') {
+      const ead = parseAmt(raw);
+      if (isNaN(ead) || ead <= 0) {
+        bot('올바른 금액을 입력해주세요. 예) 10억, 500000000');
+        return;
+      }
+      const nc = {
+        ...c,
+        ead
+      };
+      // 주식·펀드·채무불이행은 CRM 없이 바로 계산
+      if (['equity', 'fund', 'defaulted'].includes(c.assetClass)) {
+        finishSA(nc);
+        return;
+      }
+      let crmNote = '';
+      if (c.assetClass === 'corporate' || c.assetClass === 'sl') {
+        crmNote = '\n\n💡 CRM 적용 가능:\n  ✅ 현금/예금, 국공채, 보증\n  ❌ 상업용 부동산 — 기업 표준방법 불가';
+      } else if (c.assetClass === 'retail') {
+        crmNote = '\n  (담보 인정: 주거용 부동산)';
+      }
+      go('SA_CRM', nc, `익스포저: ${fmt(ead)}${crmNote}\n\n신용위험경감(담보/보증)이 있으신가요? (예/아니오)`);
+      return;
+    }
+    if (s === 'SA_CRM') {
+      const yes = low.includes('예') || low.includes('네') || low.includes('있');
+      const no = low.includes('아니') || low.includes('없');
+      if (!yes && !no) {
+        bot('"예" 또는 "아니오"로 답해주세요.');
+        return;
+      }
+      if (no) {
+        finishSA(c);
+        return;
+      }
+      let opts = '담보/보증 유형을 선택해주세요:\n- 현금/예금\n- 국공채\n- 주식담보(KOSPI200)';
+      if (c.assetClass === 'retail') opts += '\n- 주거용 부동산';
+      opts += '\n- 보증(적격 보증인)';
+      if (c.assetClass === 'corporate' || c.assetClass === 'sl') opts += '\n\n⚠️ 상업용 부동산 — 기업 표준방법에서 CRM 불가';
+      go('SA_CRM_TYPE', c, opts);
+      return;
+    }
+    if (s === 'SA_CRM_TYPE') {
+      let ct = '';
+      if (low.includes('현금') || low.includes('예금')) ct = 'cash';else if (low.includes('국공채') || low.includes('채권')) ct = 'bond';else if (low.includes('주식담보') || low.includes('kospi')) ct = 'equity_col';else if (low.includes('주거') || low.includes('주택')) ct = 'residential';else if (low.includes('상업')) ct = 'commercial_rej';else if (low.includes('보증')) ct = 'guarantee';
+      if (!ct) {
+        bot('담보 유형을 다시 입력해주세요.');
+        return;
+      }
+      if (ct === 'commercial_rej') {
+        bot('⚠️ 기업 표준방법에서 상업용 부동산은 CRM 대상이 아닙니다.\n다른 담보를 선택하거나 "아니오"를 입력해주세요.');
+        return;
+      }
+      if (ct === 'guarantee') {
+        go('SA_GUAR_RATING', {
+          ...c,
+          crmType: ct
+        }, '보증인의 신용등급을 입력해주세요:\nAAA~AA-, A+~A-, BBB+~BB-');
+      } else {
+        go('SA_CRM_AMT', {
+          ...c,
+          crmType: ct
+        }, `담보 평가액을 입력해주세요.\n(헤어컷: 현금 0%, 국공채 0.5%, 주식 15%)\n예) 5억`);
+      }
+      return;
+    }
+    if (s === 'SA_GUAR_RATING') {
+      let grw = 100;
+      if (low.includes('aaa') || low.includes('aa')) grw = 20;else if (low.match(/\ba\b/) || low.includes('a+')) grw = 50;
+      go('SA_GUAR_AMT', {
+        ...c,
+        guarRW: grw
+      }, `보증인 위험가중치: ${grw}%\n\n보증금액을 입력해주세요.`);
+      return;
+    }
+    if (s === 'SA_GUAR_AMT') {
+      const gAmt = parseAmt(raw);
+      if (isNaN(gAmt) || gAmt <= 0) {
+        bot('올바른 금액을 입력해주세요.');
+        return;
+      }
+      finishSA({
+        ...c,
+        guarAmt: gAmt
+      });
+      return;
+    }
+    if (s === 'SA_CRM_AMT') {
+      const cv = parseAmt(raw);
+      if (isNaN(cv) || cv <= 0) {
+        bot('올바른 금액을 입력해주세요.');
+        return;
+      }
+      finishSA({
+        ...c,
+        crmValue: cv
+      });
+      return;
+    }
+
+    // ╔══════════════════════════════════════════╗
+    // ║  IRB 흐름                                 ║
+    // ╚══════════════════════════════════════════╝
+
+    if (s === 'IRB_EQUITY_METHOD') {
+      const isPDLGD = low.includes('pd') || low.includes('내부모형') || low.includes('2');
+      if (isPDLGD) {
+        go('IRB_PD', {
+          ...c,
+          equityIrbMethod: 'pdlgd'
+        }, '주식 PD/LGD 내부모형 적용\n(LGD=90% 고정, M=5년 고정)\n\n부도율(PD, %)을 입력해주세요.\n예) 1.5');
+      } else {
+        go('SA_EQUITY_TYPE', {
+          ...c,
+          approach: 'SA'
+        }, '단순위험가중치 방법 적용\n\n주식 유형을 선택해주세요:\n- 상장주식 → 300%\n- 비상장주식 → 400%\n- 출자금 → 100%');
+      }
+      return;
+    }
+    if (s === 'IRB_FIRB_AIRB') {
+      const isAIRB = low.includes('airb') || low.includes('고급');
+      go('IRB_PD', {
+        ...c,
+        irbSub: isAIRB ? 'AIRB' : 'FIRB'
+      }, `${isAIRB ? '고급(AIRB)' : '기본(FIRB)'} 적용\n\n부도율(PD, %)을 입력해주세요.\n예) 2.5`);
+      return;
+    }
+    if (s === 'IRB_RETAIL') {
+      let rt = '';
+      if (low.includes('주택') || low.includes('담보')) rt = 'mortgage';else if (low.includes('회전') || low.includes('순환') || low.includes('카드')) rt = 'qrre';else if (low.includes('기타') || raw === '3') rt = 'retail_other';else if (raw === '1') rt = 'mortgage';else if (raw === '2') rt = 'qrre';
+      if (!rt) {
+        bot('소매 유형을 다시 입력해주세요: 주택담보, 적격 회전신용, 기타 소매');
+        return;
+      }
+      go('IRB_PD', {
+        ...c,
+        irbType: rt
+      }, `${rt === 'mortgage' ? '주택담보' : rt === 'qrre' ? '적격 회전신용' : '기타 소매'} 선택\n\n부도율(PD, %)을 입력해주세요.\n예) 1.5`);
+      return;
+    }
+    if (s === 'IRB_SL_TYPE') {
+      let st = '';
+      if (low.includes('pf') || low.includes('프로젝트') || raw === '1') st = 'pf';else if (low.includes('of') || low.includes('선박') || low.includes('항공') || raw === '2') st = 'of';else if (low.includes('cf') || low.includes('원자재') || raw === '3') st = 'cf';else if (low.includes('hvcre') || low.includes('고변동') || raw === '5') st = 'hvcre';else if (low.includes('ipre') || low.includes('수익형') || raw === '4') st = 'ipre';
+      if (!st) {
+        bot('유형을 다시 입력해주세요: PF, OF, CF, IPRE, HVCRE');
+        return;
+      }
+      const slotStr = Object.entries(SL_SLOT[st]).map(([k, v]) => `  - ${k} (${k === 'strong' ? '우량' : k === 'good' ? '양호' : k === 'satisfactory' ? '보통' : k === 'weak' ? '취약' : '부도'}): ${v}%`).join('\n');
+      go('IRB_SL_GRADE', {
+        ...c,
+        slType: st
+      }, `${st.toUpperCase()} 선택\n\n슬롯팅 등급을 선택해주세요:\n${slotStr}`);
+      return;
+    }
+    if (s === 'IRB_SL_GRADE') {
+      let g = '';
+      if (low.includes('strong') || low.includes('우량') || raw === '1') g = 'strong';else if (low.includes('good') || low.includes('양호') || raw === '2') g = 'good';else if (low.includes('satisf') || low.includes('보통') || raw === '3') g = 'satisfactory';else if (low.includes('weak') || low.includes('취약') || raw === '4') g = 'weak';else if (low.includes('default') || low.includes('부도') || raw === '5') g = 'default';
+      if (!g) {
+        bot('등급을 다시 입력해주세요: Strong, Good, Satisfactory, Weak, Default');
+        return;
+      }
+      const rw = SL_SLOT[c.slType][g];
+      go('IRB_EAD', {
+        ...c,
+        slGrade: g,
+        baseRW: rw
+      }, `${g} → 위험가중치 ${rw}%\n\n익스포저(EAD) 금액을 입력해주세요.`);
+      return;
+    }
+    if (s === 'IRB_PD') {
+      const pd = parsePct(raw);
+      if (isNaN(pd) || pd <= 0 || pd >= 100) {
+        bot('0 초과 100 미만 숫자를 입력해주세요.');
+        return;
+      }
+      if (c.irbSub === 'FIRB') {
+        go('IRB_FIRB_LGD', {
+          ...c,
+          pd
+        }, `PD: ${pd}%\n\nFIRB 감독당국 제시 LGD 선택:\n- 무담보 선순위 → 45%\n- 무담보 후순위 → 75%\n- 주거용 부동산 담보 → 20%`);
+      } else {
+        go('IRB_LGD', {
+          ...c,
+          pd
+        }, `PD: ${pd}%\n\n손실률(LGD, %)을 입력해주세요.\n예) 45`);
+      }
+      return;
+    }
+    if (s === 'IRB_FIRB_LGD') {
+      let lgd = 45;
+      if (low.includes('후순위') || low.includes('75')) lgd = 75;else if (low.includes('주거') || low.includes('20')) lgd = 20;
+      go('IRB_MATURITY', {
+        ...c,
+        lgd
+      }, `LGD: ${lgd}% (감독당국 제시)\n\n만기(M, 년)를 입력해주세요. 기본 2.5년.\n예) 3`);
+      return;
+    }
+    if (s === 'IRB_LGD') {
+      const lgd = parsePct(raw);
+      if (isNaN(lgd) || lgd <= 0 || lgd >= 100) {
+        bot('0 초과 100 미만 숫자를 입력해주세요.');
+        return;
+      }
+      const isRetail = ['mortgage', 'qrre', 'retail_other'].includes(c.irbType);
+      if (isRetail) {
+        go('IRB_EAD', {
+          ...c,
+          lgd
+        }, `LGD: ${lgd}%\n\n익스포저(EAD) 금액을 입력해주세요.`);
+      } else {
+        go('IRB_MATURITY', {
+          ...c,
+          lgd
+        }, `LGD: ${lgd}%\n\n만기(M, 년)를 입력해주세요. 기본 2.5년.`);
+      }
+      return;
+    }
+    if (s === 'IRB_MATURITY') {
+      const m = parseFloat(raw) || 2.5;
+      go('IRB_EAD', {
+        ...c,
+        maturity: m
+      }, `만기: ${m}년\n\n익스포저(EAD) 금액을 입력해주세요.`);
+      return;
+    }
+    if (s === 'IRB_EAD') {
+      const ead = parseAmt(raw);
+      if (isNaN(ead) || ead <= 0) {
+        bot('올바른 금액을 입력해주세요.');
+        return;
+      }
+      finishIRB({
+        ...c,
+        ead
+      });
+      return;
+    }
+
+    // ╔══════════════════════════════════════════╗
+    // ║  추가거래 / 종료                           ║
+    // ╚══════════════════════════════════════════╝
+    if (s === 'CONTINUE') {
+      const yes = low.includes('예') || low.includes('네') || low.includes('추가') || low.includes('또');
+      const no = low.includes('아니') || low.includes('없') || low.includes('종료') || low.includes('끝');
+      if (yes) {
+        setCtx({});
+        go('ASSET_CLASS', {}, ['새 거래를 시작합니다.', '', '거래 차입자/자산 유형을 입력해주세요:', '', '  1. 중앙정부/중앙은행', '  2. 지방정부', '  3. 공공기관(PSE)', '  4. 다자개발은행(MDB)', '  5. 은행/금융기관', '  6. 기업(일반)', '  7. 특수금융(PF/선박/부동산금융 등)', '  8. 소매(개인여신)', '  9. 주식', '  10. 집합투자증권(펀드)', '  11. 채무불이행(연체/부실)'].join('\n'));
+      } else if (no) {
+        showTotal();
+        setStep('END');
+      } else {
+        bot('"예" 또는 "아니오"로 답해주세요.');
+      }
+      return;
+    }
+    if (s === 'END') {
+      bot('초기화 버튼으로 다시 시작하실 수 있습니다. 💼');
+      return;
+    }
+  }
+
+  // ── SA 계산 ──────────────────────────────────
+  function finishSA(c) {
+    let ead = c.ead,
+      rw = c.baseRW,
+      detail = '';
+    if (c.crmType && c.crmType !== 'guarantee' && c.crmValue) {
+      const hc = {
+        cash: 0,
+        bond: 0.005,
+        equity_col: 0.15,
+        residential: 0
+      }[c.crmType] ?? 0;
+      const adjC = c.crmValue * (1 - hc);
+      const adjEAD = Math.max(ead - adjC, ead * 0.1);
+      detail += `담보액: ${fmt(c.crmValue)}  (헤어컷 후 ${fmt(adjC)})\n조정 EAD: ${fmt(adjEAD)}\n`;
+      ead = adjEAD;
+    }
+    let rwa;
+    if (c.crmType === 'guarantee' && c.guarAmt) {
+      const g = Math.min(c.guarAmt, ead),
+        orig = ead - g;
+      rwa = orig * rw / 100 + g * (c.guarRW || 100) / 100;
+      detail += `보증금액: ${fmt(g)}  보증인 가중치: ${c.guarRW}%\n`;
+    } else {
+      rwa = ead * rw / 100;
+    }
+    showResult({
+      ...c,
+      ead,
+      rw,
+      rwa,
+      detail,
+      method: '표준방법(SA)'
+    });
+  }
+
+  // ── IRB 계산 ─────────────────────────────────
+  function finishIRB(c) {
+    if (c.assetClass === 'sl' && c.slGrade) {
+      const rwa = c.ead * c.baseRW / 100;
+      showResult({
+        ...c,
+        rw: c.baseRW,
+        rwa,
+        detail: `SL 유형: ${c.slType?.toUpperCase()}  슬롯팅 등급: ${c.slGrade}`,
+        method: `IRB Slotting`
+      });
+      return;
+    }
+    if (c.assetClass === 'equity' && c.equityIrbMethod === 'pdlgd') {
+      const res = calcIRB('corporate', c.pd, 90, 5);
+      const rwa = c.ead * res.rw / 100;
+      showResult({
+        ...c,
+        rw: res.rw,
+        rwa,
+        detail: `PD/LGD법  LGD=90%(고정)  M=5년(고정)\nR: ${res.r.toFixed(2)}%  K: ${res.K.toFixed(3)}%`,
+        method: 'IRB 주식(PD/LGD법)'
+      });
+      return;
+    }
+    const irbType = c.irbType || (c.assetClass === 'retail' ? 'retail_other' : 'corporate');
+    const res = calcIRB(irbType, c.pd, c.lgd, c.maturity || 2.5);
+    const rwa = c.ead * res.rw / 100;
+    const detail = `R: ${res.r.toFixed(2)}%  K: ${res.K.toFixed(3)}%  만기조정: ${res.ma?.toFixed(3) ?? '1.000'}`;
+    showResult({
+      ...c,
+      rw: res.rw,
+      rwa,
+      detail,
+      method: `IRB(${c.irbSub || 'AIRB'})`
+    });
+  }
+
+  // ── 결과 출력 ─────────────────────────────────
+  function showResult(c) {
+    const cap = c.rwa * 0.08;
+    let m = '✅ RWA 계산 완료!\n';
+    m += '━━━━━━━━━━━━━━━━━━━━━━\n';
+    m += `자산군: ${c.assetLbl}\n`;
+    m += `계산방법: ${c.method}\n`;
+    if (c.rKey) m += `신용등급: ${c.rKey}\n`;
+    if (c.equityType) m += `주식유형: ${c.equityType}\n`;
+    if (c.fundType) m += `펀드유형: ${c.fundType}\n`;
+    if (c.fundMethod) m += `처리방식: Look-through\n`;
+    if (c.pd) m += `PD: ${c.pd}%  LGD: ${c.lgd}%${c.maturity ? `  M: ${c.maturity}년` : ''}\n`;
+    if (c.detail) m += `${c.detail}\n`;
+    m += '\n';
+    m += `익스포저(EAD): ${fmt(c.ead)}\n`;
+    m += `위험가중치(RW): ${typeof c.rw === 'number' ? c.rw.toFixed(2) : c.rw}%\n`;
+    m += '\n';
+    m += `🎯 RWA: ${fmt(c.rwa)}\n`;
+    m += `필요자본(8%): ${fmt(cap)}\n`;
+    m += '━━━━━━━━━━━━━━━━━━━━━━\n\n';
+    m += '다른 거래도 계산하시겠어요? (예/아니오)';
+    setCalcs(p => [...p, {
+      lbl: c.assetLbl,
+      method: c.method,
+      ead: c.ead,
+      rw: c.rw,
+      rwa: c.rwa
+    }]);
+    bot(m);
+    setCtx({});
+    setStep('CONTINUE');
+  }
+
+  // ── 누적 결과 ─────────────────────────────────
+  function showTotal() {
+    if (calcs.length === 0) {
+      bot('감사합니다! 💼');
+      return;
+    }
+    let m = `📊 전체 계산 결과 (${calcs.length}건)\n\n`;
+    let tE = 0,
+      tR = 0;
+    calcs.forEach((c, i) => {
+      tE += c.ead;
+      tR += c.rwa;
+      m += `[${i + 1}] ${c.lbl}  (${c.method})\n`;
+      m += `     EAD: ${fmt(c.ead)}  RW: ${typeof c.rw === 'number' ? c.rw.toFixed(1) : c.rw}%\n`;
+      m += `     RWA: ${fmt(c.rwa)}\n\n`;
+    });
+    m += '━━━━━━━━━━━━━━━━━━━━━━\n';
+    m += `총 EAD: ${fmt(tE)}\n총 RWA: ${fmt(tR)}\n`;
+    m += `평균 위험가중치: ${(tR / tE * 100).toFixed(2)}%\n`;
+    m += `필요자본(8%): ${fmt(tR * 0.08)}`;
+    bot(m);
+  }
+  function reset() {
+    setMsgs([{
+      id: 0,
+      who: 'bot',
+      text: INTRO_TEXT
+    }]);
+    setCtx({});
+    setCalcs([]);
+    setStep('ASSET_CLASS');
+  }
+
+  // ── 렌더링 ────────────────────────────────────
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100vh',
+      background: '#f8fafc',
+      fontFamily: 'system-ui,sans-serif'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'linear-gradient(135deg,#1d4ed8,#1e3a8a)',
+      padding: '14px 20px',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      boxShadow: '0 2px 12px rgba(0,0,0,0.15)'
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: '#fff',
+      fontWeight: 700,
+      fontSize: 17
+    }
+  }, "신용 RWA 계산 챗봇"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: '#bfdbfe',
+      fontSize: 11,
+      marginTop: 2
+    }
+  }, "은행업감독업무시행세칙 별표3 — 표준방법(SA) & 내부등급법(IRB)")), /*#__PURE__*/React.createElement("button", {
+    onClick: reset,
+    style: {
+      background: 'rgba(255,255,255,0.2)',
+      border: '1px solid rgba(255,255,255,0.3)',
+      borderRadius: 8,
+      padding: '6px 12px',
+      cursor: 'pointer',
+      color: '#fff',
+      fontSize: 12,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 5
+    }
+  }, /*#__PURE__*/React.createElement(RefreshCw, {
+    size: 12
+  }), " 초기화")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      overflowY: 'auto',
+      padding: '20px 16px',
+      background: '#f8fafc'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      maxWidth: 660,
+      margin: '0 auto',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 12
+    }
+  }, msgs.map(m => /*#__PURE__*/React.createElement("div", {
+    key: m.id,
+    style: {
+      display: 'flex',
+      justifyContent: m.who === 'usr' ? 'flex-end' : 'flex-start'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      maxWidth: '80%',
+      padding: '10px 14px',
+      fontSize: 13.5,
+      lineHeight: 1.75,
+      whiteSpace: 'pre-wrap',
+      wordBreak: 'break-word',
+      borderRadius: m.who === 'usr' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+      background: m.who === 'usr' ? '#2563eb' : '#ffffff',
+      color: m.who === 'usr' ? '#fff' : '#1e293b',
+      boxShadow: m.who === 'usr' ? '0 2px 8px rgba(37,99,235,0.25)' : '0 2px 8px rgba(0,0,0,0.08)',
+      border: m.who === 'usr' ? 'none' : '1px solid #e2e8f0'
+    }
+  }, m.text))), busy && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 5,
+      padding: '8px 14px'
+    }
+  }, [0, 1, 2].map(i => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      width: 7,
+      height: 7,
+      borderRadius: '50%',
+      background: '#93c5fd',
+      animation: 'pulse 1.2s ease-in-out infinite',
+      animationDelay: `${i * 0.2}s`
+    }
+  }))), /*#__PURE__*/React.createElement("div", {
+    ref: endRef
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      borderTop: '1px solid #e2e8f0',
+      padding: '12px 16px',
+      background: '#ffffff',
+      boxShadow: '0 -2px 8px rgba(0,0,0,0.06)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      maxWidth: 660,
+      margin: '0 auto',
+      display: 'flex',
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    ref: inRef,
+    value: input,
+    onChange: e => setInput(e.target.value),
+    onKeyPress: e => e.key === 'Enter' && send(),
+    disabled: busy || step === 'END',
+    placeholder: step === 'END' ? '종료됨 — 초기화 버튼을 누르세요' : '답변을 입력하세요...',
+    style: {
+      flex: 1,
+      padding: '10px 14px',
+      borderRadius: 10,
+      background: '#f8fafc',
+      color: '#1e293b',
+      border: '1px solid #cbd5e1',
+      outline: 'none',
+      fontSize: 14,
+      opacity: busy || step === 'END' ? 0.5 : 1
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: send,
+    disabled: busy || step === 'END',
+    style: {
+      padding: '10px 16px',
+      borderRadius: 10,
+      border: 'none',
+      background: '#2563eb',
+      color: '#fff',
+      cursor: 'pointer',
+      opacity: busy || step === 'END' ? 0.5 : 1,
+      display: 'flex',
+      alignItems: 'center'
+    }
+  }, /*#__PURE__*/React.createElement(Send, {
+    size: 16
+  })))), /*#__PURE__*/React.createElement("style", null, `@keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}`));
+}
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(/*#__PURE__*/React.createElement(App, null));
+</script>
+</body>
+</html>

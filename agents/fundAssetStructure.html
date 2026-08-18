@@ -1,0 +1,1860 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>펀드 기초정보 PDF 업로드 및 기초자산 테이블 구조 설정 (API Endpoint 직접 설정)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --primary:#2b5aa0; --primary-dark:#1e3f75; --accent:#3fa9f5; --bg:#f4f6fa; --border:#dce1e8;
+    --text:#2c3441; --success:#2e9e5b; --danger:#d9534f; --warn:#e6a23c; --purple:#8a6fd6; --ai:#c05621;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif; background:var(--bg); color:var(--text); }
+  header{ background:linear-gradient(90deg,var(--primary-dark),var(--primary)); color:#fff; padding:18px 30px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 6px rgba(0,0,0,0.15); }
+  header h1{margin:0;font-size:20px;font-weight:600;}
+  header .sub{font-size:12px;opacity:0.85;margin-top:4px;}
+  .container{ display:grid; grid-template-columns: 1fr 1.2fr; gap:18px; padding:0 20px 20px 20px; max-width:1750px; margin:0 auto; }
+  .top-wrap{ max-width:1750px; margin:0 auto; padding:20px 20px 0 20px; }
+  .panel{ background:#fff; border:1px solid var(--border); border-radius:10px; padding:18px 20px; box-shadow:0 1px 4px rgba(0,0,0,0.05); }
+  .panel.full-width{ grid-column: 1 / -1; }
+  .panel.ai-panel{ border:2px solid #f3d9c4; background:linear-gradient(180deg,#fff9f4,#ffffff); margin-bottom:18px; }
+  .panel h2{ font-size:16px;margin:0 0 14px 0;padding-bottom:10px;border-bottom:2px solid var(--primary); color:var(--primary-dark);display:flex;align-items:center;gap:8px;flex-wrap:wrap; }
+  .panel h2 .badge{font-size:11px;background:var(--accent);color:#fff;padding:2px 8px;border-radius:10px;font-weight:normal;}
+  .panel h2 .badge.purple{background:var(--purple);}
+  .panel h2 .badge.green{background:var(--success);}
+  .panel h2 .badge.orange{background:var(--warn);}
+  .panel h2 .badge.ai{background:var(--ai);}
+  .panel-desc{font-size:12.5px;color:#6b7688;margin:-6px 0 14px 0;line-height:1.6;}
+  .dropzone{ border:2px dashed #a9b8cc;border-radius:10px;padding:35px 20px;text-align:center;color:#65728a; cursor:pointer;transition:all .2s;background:#fafcff; }
+  .dropzone.dragover{border-color:var(--accent);background:#eaf5ff;color:var(--primary);}
+  .dropzone svg{width:46px;height:46px;fill:#a9b8cc;margin-bottom:8px;}
+  .dropzone.dragover svg{fill:var(--accent);}
+  .dropzone .desc{font-size:12px;margin-top:6px;color:#8a97ab;}
+  #fileInput{display:none;}
+  .btn{display:inline-block;padding:8px 16px;border-radius:6px;border:none;background:var(--primary);color:#fff;font-size:13px;cursor:pointer;transition:background .15s;}
+  .btn:hover{background:var(--primary-dark);}
+  .btn.secondary{background:#6c7a94;} .btn.secondary:hover{background:#57637a;}
+  .btn.success{background:var(--success);} .btn.success:hover{background:#227d48;}
+  .btn.danger{background:var(--danger);} .btn.danger:hover{background:#b8443f;}
+  .btn.purple{background:var(--purple);} .btn.purple:hover{background:#6f57b8;}
+  .btn.orange{background:var(--warn);color:#3a2c00;} .btn.orange:hover{background:#cf9328;}
+  .btn.ai{background:var(--ai);} .btn.ai:hover{background:#a3481a;}
+  .btn.small{padding:4px 10px;font-size:12px;}
+  .btn.outline{background:#fff;color:var(--primary);border:1px solid var(--primary);}
+  .btn.outline:hover{background:#eef4ff;}
+  .btn.outline.ai{color:var(--ai);border-color:var(--ai);}
+  .btn.outline.ai:hover{background:#fff3ec;}
+  .btn:disabled{background:#c7cedb;cursor:not-allowed;}
+  .file-list{margin-top:16px;}
+  .file-item{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:#fbfcfe;font-size:13px;}
+  .file-item.active{border-color:var(--accent);background:#f0f8ff;}
+  .file-info{display:flex;align-items:center;gap:10px;overflow:hidden;}
+  .file-icon{width:34px;height:34px;border-radius:6px;background:#ffe6e6;color:#d9534f;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;flex-shrink:0;}
+  .file-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px;}
+  .file-meta{font-size:11px;color:#8a97ab;}
+  .file-actions{display:flex;gap:6px;}
+  .icon-btn{border:none;background:none;cursor:pointer;color:#8a97ab;font-size:14px;padding:2px 6px;border-radius:4px;}
+  .icon-btn:hover{background:#eee;color:var(--danger);}
+  .viewer-box{margin-top:16px;border:1px solid var(--border);border-radius:8px;background:#eef1f5;min-height:380px;display:flex;align-items:center;justify-content:center;overflow:auto;position:relative;}
+  .viewer-box canvas{box-shadow:0 2px 10px rgba(0,0,0,0.15); background:#fff;}
+  .viewer-placeholder{color:#9aa5b5;font-size:13px;text-align:center;}
+  .viewer-controls{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:10px;font-size:13px;}
+  .status-line{margin-top:12px;font-size:12px;color:#8a97ab;display:flex;align-items:center;gap:6px;}
+  .dot{width:8px;height:8px;border-radius:50%;background:#c7cedb;display:inline-block;flex-shrink:0;}
+  .dot.on{background:var(--success);}
+  .dot.busy{background:var(--warn);}
+  .tool-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;}
+  .tool-row .left{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .meta-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;background:#f8fafd;border:1px solid var(--border);border-radius:8px;padding:14px;}
+  .meta-fields label{font-size:12px;color:#5b6b85;display:block;margin-bottom:4px;}
+  .meta-fields input, .meta-fields select{width:100%;padding:7px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;}
+  .meta-fields input.auto-detected{background:#eef9f0;border-color:#bfe8cc;}
+  .meta-fields input.ai-detected{background:#fff3ec;border-color:#f0c19c;}
+  table.struct-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  table.struct-table th{background:var(--primary);color:#fff;padding:8px 5px;text-align:center;font-weight:500;}
+  table.struct-table td{border:1px solid var(--border);padding:5px 5px;text-align:center;}
+  table.struct-table input[type=text], table.struct-table select, table.struct-table input[type=number]{width:100%;border:1px solid #d7dce4;border-radius:5px;padding:5px 4px;font-size:12px;}
+  table.struct-table tr:nth-child(even){background:#fafbfd;}
+  table.struct-table input[type=checkbox]{width:16px;height:16px;}
+  .col-drag{cursor:grab;color:#aab3c2;}
+  .table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:8px;}
+  .section-divider{margin:22px 0 14px 0;border-top:1px dashed var(--border);}
+  .preview-table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:8px;margin-top:10px;}
+  table.preview-table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:900px;}
+  table.preview-table th{background:#eef2f8;color:var(--primary-dark);padding:8px 5px;border:1px solid var(--border);font-size:11.8px;}
+  table.preview-table td{border:1px solid var(--border);padding:5px;}
+  table.preview-table input, table.preview-table select{width:100%;border:none;background:transparent;font-size:12px;}
+  table.preview-table input:focus, table.preview-table select:focus{outline:1px solid var(--accent);background:#fff;}
+  table.preview-table td.auto-filled input, table.preview-table td.auto-filled select{background:#eef9f0;font-weight:600;color:#227d48;border-radius:4px;}
+  table.preview-table td.calc-filled input, table.preview-table td.calc-filled select{background:#fff7e6;font-weight:600;color:#a16b12;border-radius:4px;}
+  table.preview-table td.review-needed select{background:#fff1f0;font-weight:600;color:#c0392b;border-radius:4px;}
+  table.preview-table tr.auto-row{background:#fbfefc;}
+  .req-star{color:var(--danger);margin-left:2px;}
+  .footer-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px;}
+  .empty-tip{text-align:center;color:#9aa5b5;font-size:12px;padding:16px;}
+  .type-tag{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;color:#fff;}
+  .type-string{background:#3fa9f5;} .type-number{background:#2e9e5b;} .type-date{background:#e6a23c;} .type-boolean{background:#8a6fd6;}
+  .pk-tag{display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;background:#2c3441;color:#fff;margin-left:4px;}
+  .mapping-config-row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;background:#f8fafd;border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px;}
+  .mapping-config-row .field{min-width:220px;}
+  .mapping-config-row label{font-size:12px;color:#5b6b85;display:block;margin-bottom:4px;}
+  .mapping-config-row select, .mapping-config-row input{width:100%;padding:7px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:#fff;}
+  table.mapping-table{width:100%;border-collapse:collapse;font-size:13px;}
+  table.mapping-table th{background:var(--purple);color:#fff;padding:8px 6px;text-align:center;font-weight:500;}
+  table.mapping-table td{border:1px solid var(--border);padding:5px 6px;text-align:center;}
+  table.mapping-table input[type=text]{width:100%;border:1px solid #d7dce4;border-radius:5px;padding:5px 4px;font-size:12.5px;}
+  table.mapping-table tr:nth-child(even){background:#fafbfd;}
+  .mapping-code-badge{display:inline-block;min-width:30px;padding:3px 8px;border-radius:6px;background:#f0ebfb;color:var(--purple);font-weight:700;font-size:12.5px;margin:2px;}
+  .mapping-code-badge.warn{background:#fdeceb;color:#c0392b;}
+  .detect-log{margin-top:14px;background:#fbf7ff;border:1px solid #e4d9f7;border-radius:8px;padding:12px 14px;font-size:12.5px;color:#5c4b8a;min-height:20px;line-height:1.8;}
+  .detect-log.ai-log{background:#fff8f2;border-color:#f3d9c4;color:#8a4a1f;}
+  .detect-log strong{color:#3f2d78;}
+  .detect-log .log-line{margin-bottom:4px;}
+  .flow-hint{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#eef7ff;border:1px solid #cfe6fb;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12.5px;color:#2c5f8a;}
+  .flow-hint .step{background:#fff;border:1px solid #cfe6fb;border-radius:16px;padding:4px 12px;white-space:nowrap;}
+  .flow-hint .arrow{color:#8fb9d8;}
+  table.role-table{width:100%;border-collapse:collapse;font-size:13px;}
+  table.role-table th{background:#3a7bd5;color:#fff;padding:8px 6px;text-align:center;font-weight:500;}
+  table.role-table td{border:1px solid var(--border);padding:6px;text-align:center;}
+  table.role-table select{width:100%;padding:6px;border:1px solid #d7dce4;border-radius:5px;font-size:12.5px;background:#fff;}
+  table.role-table tr:nth-child(even){background:#fafbfd;}
+  .role-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#eef2f8;color:#3a7bd5;}
+  .auto-toggle{display:flex;align-items:center;gap:6px;font-size:12.5px;color:#4a5568;background:#fff;border:1px solid var(--border);border-radius:20px;padding:5px 12px;}
+  .auto-toggle input{width:15px;height:15px;}
+  .excel-drop{ border:2px dashed #c9b8f0;border-radius:8px;padding:14px;text-align:center;color:#6f57b8; background:#fbf9ff;cursor:pointer;font-size:12.5px;margin-bottom:14px; }
+  .excel-drop:hover{background:#f3edff;}
+  .ai-key-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;}
+  .ai-key-row .field{flex:1;min-width:220px;}
+  .ai-key-row label{font-size:12px;color:#5b6b85;display:block;margin-bottom:4px;}
+  .ai-note{font-size:11.5px;color:#8a4a1f;background:#fff8f2;border:1px solid #f3d9c4;border-radius:6px;padding:8px 10px;margin-bottom:12px;line-height:1.6;}
+  details.raw-text-box{background:#f7f9fb;border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-top:10px;font-size:12px;color:#5b6b85;}
+  details.raw-text-box pre{white-space:pre-wrap;word-break:break-all;max-height:220px;overflow:auto;background:#fff;border:1px solid var(--border);border-radius:6px;padding:8px;margin-top:8px;}
+  .claude-logo{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:5px;background:var(--ai);color:#fff;font-size:11px;font-weight:800;}
+  .endpoint-preset-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .endpoint-preset-row button{font-size:11px;padding:4px 10px;}
+  .key-type-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10.5px;font-weight:700;margin-left:6px;vertical-align:middle;}
+  .key-type-badge.alpha{background:#fde8d8;color:#a3481a;}
+  .key-type-badge.anthropic{background:#e7e0fb;color:#5b3fae;}
+  .key-type-badge.unknown{background:#eef0f3;color:#6b7688;}
+  .conn-status{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:4px 10px;border-radius:14px;font-weight:600;}
+  .conn-status.untested{background:#eef0f3;color:#6b7688;}
+  .conn-status.testing{background:#fff4e0;color:#a3701a;}
+  .conn-status.success{background:#e2f6ea;color:#1e7a44;}
+  .conn-status.fail{background:#fbe7e6;color:#b23b34;}
+  .conn-status .dotc{width:8px;height:8px;border-radius:50%;display:inline-block;}
+  .conn-status.untested .dotc{background:#b7c0cc;}
+  .conn-status.testing .dotc{background:#e6a23c;animation:pulse 1s infinite;}
+  .conn-status.success .dotc{background:#2e9e5b;}
+  .conn-status.fail .dotc{background:#d9534f;}
+  @keyframes pulse{0%{opacity:.3;}50%{opacity:1;}100%{opacity:.3;}}
+  .endpoint-display{
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    background:#eef7ff; border:1.5px solid #9fc9ee; border-radius:8px; padding:10px 14px; margin-bottom:14px;
+    font-size:13px; color:#1e4e78;
+  }
+  .endpoint-display .label{font-weight:700;white-space:nowrap;}
+  .endpoint-display code{
+    background:#fff; border:1px solid #bcdcf5; border-radius:6px; padding:4px 10px; font-size:12.5px;
+    color:#0d5a9e; word-break:break-all; flex:1; min-width:220px;
+  }
+  .endpoint-display .copy-btn{font-size:11px;padding:4px 10px;}
+  details.multi-test{background:#f7fbff;border:1px solid #cfe6fb;border-radius:8px;padding:12px 14px;margin-top:14px;font-size:12.5px;}
+  details.multi-test summary{cursor:pointer;font-weight:700;color:#2c5f8a;}
+  .model-chip-list{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0;}
+  .model-chip{display:flex;align-items:center;gap:5px;background:#fff;border:1px solid #cfe6fb;border-radius:14px;padding:4px 10px 4px 6px;font-size:12px;}
+  .model-chip input{width:14px;height:14px;}
+  .authmode-chip-list{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 12px 0;}
+  .authmode-chip{display:flex;align-items:center;gap:5px;font-size:12.5px;}
+  table.diag-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px;}
+  table.diag-table th{background:#3a7bd5;color:#fff;padding:6px 8px;text-align:left;}
+  table.diag-table td{border:1px solid var(--border);padding:6px 8px;vertical-align:top;}
+  table.diag-table tr.row-success td{background:#eefaf1;}
+  table.diag-table tr.row-fail td{background:#fdf1f0;}
+  table.diag-table tr.row-testing td{background:#fffaf0;}
+  .status-pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;}
+  .status-pill.ok{background:#d7f3e0;color:#1e7a44;}
+  .status-pill.ng{background:#f9dcda;color:#a3312a;}
+  .status-pill.run{background:#ffe9c2;color:#a3701a;}
+  .custom-model-input{display:flex;gap:6px;margin-top:8px;}
+  .custom-model-input input{flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12.5px;}
+  .toast{position:fixed;bottom:24px;right:24px;background:#2c3441;color:#fff;padding:12px 20px;border-radius:8px;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,0.2);opacity:0;transform:translateY(10px);transition:all .3s;pointer-events:none;z-index:999;max-width:420px;}
+  .toast.show{opacity:1;transform:translateY(0);}
+  @media (max-width:1100px){ .container{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>📄 집합투자증권(펀드) 기초정보 관리 <span style="font-size:12px;background:#c05621;padding:2px 8px;border-radius:10px;vertical-align:middle;">Alpha API 연동 진단</span></h1>
+    <div class="sub">PDF 업로드 &nbsp;|&nbsp; API Endpoint 직접 설정 &nbsp;|&nbsp; 유형-코드 매핑(엑셀 지원) &nbsp;|&nbsp; 테이블 구조 설정</div>
+  </div>
+  <div style="font-size:12px; text-align:right;"><div id="clock"></div></div>
+</header>
+
+<!-- ===================== TOP: API 연결 설정 & 테스트 - 1번 패널 위로 이동 ===================== -->
+<div class="top-wrap">
+  <div class="panel ai-panel">
+    <h2><span class="claude-logo">A</span> AI(LLM) API 연결 설정 및 연동 테스트 <span class="badge ai">API ENDPOINT 직접 설정</span></h2>
+    <div class="panel-desc">
+      운용사·상품마다 PDF 양식(레이아웃, 표 구조, 용어)이 모두 다르기 때문에, 규칙/좌표 기반 방식으로는 모든 문서를 처리할 수 없습니다.
+      <strong>AI(LLM) API를 이용해 PDF 텍스트 전체를 읽고, 펀드 기본정보와 기초자산(구성종목) 목록을 문서 양식에 관계없이 인식</strong>합니다.
+      API 키/엔드포인트는 이 브라우저에만 저장되며(키는 저장하지 않음) 설정된 API 호출 외 다른 용도로 전송되지 않습니다.
+    </div>
+
+    <!-- ★ 현재 사용중인 API Endpoint 표시 (실시간 반영) ★ -->
+    <div class="endpoint-display">
+      <span class="label">🔗 현재 사용 중인 API Endpoint:</span>
+      <code id="currentEndpointDisplay">(입력되지 않음)</code>
+      <button class="btn small outline copy-btn" id="copyEndpointBtn" type="button">📋 복사</button>
+    </div>
+
+    <div class="ai-note">
+      ℹ️ <strong>사용 순서(중요)</strong>: ① <strong>API Endpoint URL을 직접 입력</strong>(아래 입력창) → ② <strong>API Key를 직접 입력</strong>(기본값 없음, 매번 입력 필요) → ③ 모델명 확인/입력 → ④ <strong>[🔌 연결 테스트]</strong> 버튼으로 정상 통신 여부 확인 → ⑤ 연결 성공 시에만 PDF 업로드/AI 인식 기능이 활성화됩니다.
+    </div>
+
+    <!-- ★ API 엔드포인트 직접 입력 영역 (최상단 배치, 항상 노출) ★ -->
+    <div class="ai-key-row">
+      <div class="field" style="flex:2;min-width:360px;">
+        <label>🔗 API 엔드포인트 URL <span style="color:#c0392b;">(직접 입력, 필수)</span></label>
+        <input type="text" id="aiEndpointInput" placeholder="예) https://workspace.kr.pwc.com/api/workspace/coding_agent/v1/messages" autocomplete="off">
+        <div class="endpoint-preset-row">
+          <button class="btn small outline ai" id="presetPwcBtn" type="button">Alpha(PwC Workspace) 게이트웨이 채우기</button>
+          <button class="btn small outline" id="presetAnthropicBtn" type="button">Anthropic 공식 채우기</button>
+          <button class="btn small secondary" id="clearEndpointBtn" type="button">지우기</button>
+        </div>
+      </div>
+      <div class="field" style="max-width:260px;">
+        <label>인증 헤더 방식</label>
+        <select id="aiAuthModeSelect">
+          <option value="bearer">Authorization: Bearer</option>
+          <option value="x-api-key">x-api-key (Anthropic 표준)</option>
+          <option value="both">두 헤더 모두 전송(호환성 우선)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="ai-key-row">
+      <div class="field" style="flex:1.4;">
+        <label>API Key <span id="keyTypeBadge" class="key-type-badge unknown">미입력</span></label>
+        <input type="password" id="aiApiKey" placeholder="alpha-... (직접 입력하세요, 저장된 기본값 없음)" autocomplete="off">
+      </div>
+      <div class="field" style="max-width:280px;">
+        <label>모델명 (직접 입력/선택)</label>
+        <input list="claudeModelList" id="aiModelSelect" placeholder="claude-sonnet-4-5-20250929" value="claude-sonnet-4-5-20250929">
+        <datalist id="claudeModelList">
+          <option value="claude-sonnet-4-5-20250929">
+          <option value="claude-sonnet-4-20250514">
+          <option value="claude-3-7-sonnet-20250219">
+          <option value="claude-3-5-sonnet-20241022">
+          <option value="claude-3-5-haiku-20241022">
+          <option value="claude-3-opus-20240229">
+          <option value="gpt-4o">
+          <option value="gpt-4o-mini">
+          <option value="gpt-4.1">
+        </datalist>
+      </div>
+      <div class="field" style="max-width:150px;">
+        <button class="btn small outline ai" id="toggleKeyVisibleBtn" style="width:100%;">👁 키 표시</button>
+      </div>
+    </div>
+
+    <div class="tool-row">
+      <div class="left">
+        <button class="btn ai" id="aiTestConnBtn">🔌 연결 테스트 실행 (현재 설정)</button>
+        <span id="connStatusBadge" class="conn-status untested"><span class="dotc"></span>미연결 (테스트 필요)</span>
+      </div>
+      <div class="left">
+        <label class="auto-toggle"><input type="checkbox" id="aiAutoToggle" checked>연결 성공 시 PDF 업로드마다 자동 AI 인식 실행</label>
+      </div>
+    </div>
+
+    <div class="detect-log ai-log" id="aiLog">아직 연결 테스트를 실행하지 않았습니다. API 엔드포인트와 키를 입력한 뒤 [🔌 연결 테스트 실행] 버튼을 눌러주세요.</div>
+
+    <!-- ============ 여러 모델/인증방식 한번에 진단 기능 ============ -->
+    <details class="multi-test" id="multiTestBox">
+      <summary>🧪 여러 모델 / 인증방식 한번에 진단하기 (모델 고정 문제인지 확인)</summary>
+      <div class="panel-desc" style="margin-top:8px;">
+        현재 입력된 <strong>API Endpoint와 API Key</strong>는 그대로 사용하고, 아래 체크된 <strong>모델명 × 인증방식</strong> 조합을 순서대로 모두 호출해봅니다.
+      </div>
+
+      <div class="panel-desc" style="margin-bottom:4px;font-weight:600;color:#2c5f8a;">테스트할 모델 선택</div>
+      <div class="model-chip-list" id="modelChipList"></div>
+      <div class="custom-model-input">
+        <input type="text" id="customModelInput" placeholder="목록에 없는 모델명을 직접 추가 (예: claude-instant-1.2)">
+        <button class="btn small outline" id="addCustomModelBtn" type="button">＋ 추가</button>
+      </div>
+
+      <div class="panel-desc" style="margin:12px 0 4px 0;font-weight:600;color:#2c5f8a;">테스트할 인증 헤더 방식 선택</div>
+      <div class="authmode-chip-list">
+        <label class="authmode-chip"><input type="checkbox" class="authmode-cb" value="bearer" checked> Authorization: Bearer</label>
+        <label class="authmode-chip"><input type="checkbox" class="authmode-cb" value="x-api-key" checked> x-api-key</label>
+        <label class="authmode-chip"><input type="checkbox" class="authmode-cb" value="both"> 두 헤더 모두 전송</label>
+      </div>
+
+      <div class="tool-row" style="margin-top:10px;">
+        <div class="left">
+          <button class="btn ai" id="runMultiTestBtn">🚀 선택한 조합 전체 진단 시작</button>
+          <button class="btn small secondary" id="stopMultiTestBtn" disabled>⏹ 중지</button>
+        </div>
+        <div class="left"><span id="multiTestProgress" style="font-size:12px;color:#8a97ab;"></span></div>
+      </div>
+
+      <div class="table-wrap" style="margin-top:10px;">
+        <table class="diag-table" id="diagTable">
+          <thead><tr><th style="width:26%;">모델명</th><th style="width:20%;">인증 방식</th><th style="width:12%;">결과</th><th style="width:auto;">상세/응답</th></tr></thead>
+          <tbody id="diagTbody"><tr><td colspan="4" style="text-align:center;color:#9aa5b5;padding:14px;">아직 진단을 실행하지 않았습니다.</td></tr></tbody>
+        </table>
+      </div>
+    </details>
+
+    <details class="raw-text-box" id="rawTextBox" style="display:none;">
+      <summary>🔎 AI에 전달된 PDF 원문 텍스트 보기 (디버깅용)</summary>
+      <pre id="rawTextContent"></pre>
+    </details>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ===================== LEFT: PDF 업로드 ===================== -->
+  <div class="panel">
+    <h2>1. 펀드 기초정보 PDF 업로드 <span class="badge">FILE UPLOAD</span></h2>
+
+    <div class="dropzone" id="dropzone">
+      <svg viewBox="0 0 24 24"><path d="M19.35 10.04A7.49 7.49 0 0012 4a7.49 7.49 0 00-7.35 6.04A5.5 5.5 0 000 15.5 5.5 5.5 0 005.5 21h13a5.5 5.5 0 005.5-5.5 5.5 5.5 0 00-4.65-5.46zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+      <div><strong>여기로 PDF 파일을 끌어다 놓거나 클릭</strong>하여 업로드하세요</div>
+      <div class="desc">운용사/상품마다 양식이 다른 펀드 기초정보 PDF도 AI가 인식합니다 · 최대 20MB · 여러 개 업로드 가능</div>
+    </div>
+    <input type="file" id="fileInput" accept="application/pdf" multiple>
+
+    <div class="status-line"><span class="dot" id="statusDot"></span><span id="statusText">업로드된 파일이 없습니다.</span></div>
+    <div class="file-list" id="fileList"></div>
+
+    <div class="viewer-box" id="viewerBox"><div class="viewer-placeholder">PDF를 업로드하면 이곳에 미리보기가 표시됩니다.</div></div>
+    <div class="viewer-controls" id="viewerControls" style="display:none;">
+      <button class="btn small secondary" id="prevPage">◀ 이전</button>
+      <span id="pageInfo">1 / 1</span>
+      <button class="btn small secondary" id="nextPage">다음 ▶</button>
+    </div>
+
+    <div class="section-divider"></div>
+    <h2 style="border:none;padding:0;margin-bottom:6px;">펀드 기본 메타정보 <span class="badge ai">AI/AUTO DETECT</span></h2>
+    <div class="panel-desc">PDF 업로드 시 상단 [API 연결 설정]에서 연결 테스트에 성공하면 아래 항목이 채워집니다. (주황색=AI 인식, 초록색=규칙기반 인식). <strong>기준일자는 PDF 업로드 일자</strong>로 자동 기록됩니다.</div>
+    <div class="meta-fields">
+      <div><label>펀드명</label><input type="text" id="fundName" placeholder="예: Kodex 반도체"></div>
+      <div><label>펀드코드 <span style="color:#8a97ab;">('KR'+거래소/상장코드)</span></label><input type="text" id="fundCode" placeholder="예: KR091160"></div>
+      <div><label>운용사</label><input type="text" id="fundCompany" placeholder="예: 삼성자산운용"></div>
+      <div><label>기준일자 <span style="color:#8a97ab;">(PDF 업로드일 자동반영)</span></label><input type="date" id="fundBaseDate"></div>
+      <div><label>펀드유형</label>
+        <select id="fundType">
+          <option value="">-- 미인식 --</option>
+          <option>주식형</option><option>채권형</option><option>혼합형</option>
+          <option>파생상품형</option><option>부동산형</option><option>특별자산형</option>
+        </select>
+      </div>
+      <div><label>순자산총액(총자산금액, 원)</label><input type="text" id="fundTotalAmt" placeholder="예: 7,299,665,000,000"></div>
+    </div>
+  </div>
+
+  <!-- ===================== RIGHT: 테이블 구조 설정 ===================== -->
+  <div class="panel">
+    <h2>2. 기초자산 정보 테이블 구조 설정 <span class="badge">SCHEMA DESIGN</span></h2>
+
+    <div class="tool-row">
+      <div class="left">
+        <button class="btn" id="addColBtn">＋ 컬럼 추가</button>
+        <button class="btn outline" id="loadPresetBtn">📋 표준 기초자산 항목 불러오기</button>
+      </div>
+      <div class="left">
+        <button class="btn secondary" id="exportBtn">JSON 내보내기</button>
+        <button class="btn secondary" id="importBtn">JSON 불러오기</button>
+        <input type="file" id="importFile" accept="application/json" style="display:none;">
+      </div>
+    </div>
+    <div class="panel-desc">표준 항목 불러오기 시: <strong>기준일자·펀드코드·일련번호</strong>가 기본키(PK)로 자동 지정되며, 기초자산유형 컬럼에는 [3. 유형-코드 매핑]에서 정의한 <strong>코드값</strong>이 저장됩니다. 구조가 없으면 AI 인식 시 자동으로 표준구조가 생성됩니다.</div>
+
+    <div class="table-wrap">
+      <table class="struct-table" id="structTable">
+        <thead>
+          <tr>
+            <th style="width:20px;"></th>
+            <th style="width:14%;">필드명(한글)</th>
+            <th style="width:15%;">컬럼명(DB)</th>
+            <th style="width:10%;">타입</th>
+            <th style="width:8%;">길이</th>
+            <th style="width:6%;">필수</th>
+            <th style="width:6%;">PK</th>
+            <th style="width:auto;">설명</th>
+            <th style="width:5%;">삭제</th>
+          </tr>
+        </thead>
+        <tbody id="structTbody"></tbody>
+      </table>
+    </div>
+    <div class="empty-tip" id="emptyTip">등록된 컬럼이 없습니다. '컬럼 추가' 버튼을 눌러 시작하세요.</div>
+
+    <div class="footer-actions">
+      <button class="btn success" id="applyStructBtn">✔ 구조 적용 → 데이터 입력 테이블 생성</button>
+    </div>
+  </div>
+
+  <!-- ===================== FULL WIDTH: 유형-코드 매핑 관리 ===================== -->
+  <div class="panel full-width">
+    <h2>3. 기초자산 유형별 코드 매핑 관리 <span class="badge purple">TYPE → CODE MAPPING</span></h2>
+    <div class="panel-desc">
+      사용자가 정의한 <strong>기초자산 유형명(예: 상장주식)</strong>과 <strong>코드값(예: 10)</strong>을 미리 매핑해두면,
+      AI 또는 규칙 기반 인식으로 파악된 자산유형이 이 목록과 자동 매칭되어 <strong>'기초자산유형'</strong> 컬럼에 코드값이 채워집니다.
+      매핑은 직접 입력하거나 <strong>엑셀 파일(.xlsx/.xls)</strong>을 업로드하여 일괄 등록할 수 있습니다.
+    </div>
+
+    <div class="flow-hint">
+      <span class="step">① 유형-코드 매핑 등록(직접입력/엑셀업로드)</span><span class="arrow">→</span>
+      <span class="step">② 컬럼 역할 지정</span><span class="arrow">→</span>
+      <span class="step">③ AI/규칙 기반 자동 추출</span><span class="arrow">→</span>
+      <span class="step">④ 데이터 테이블 자동 입력</span>
+    </div>
+
+    <h2 style="border:none;padding:0;margin-bottom:8px;font-size:14.5px;">📥 엑셀 파일로 매핑 일괄 업로드 <span class="badge orange">EXCEL IMPORT</span></h2>
+    <div class="excel-drop" id="excelDrop">
+      <div><strong>엑셀 파일을 끌어다 놓거나 클릭</strong>하여 업로드 (.xlsx, .xls)</div>
+      <div style="margin-top:4px;color:#9c8bcf;">1행: 헤더(자산유형/코드/설명 순), 2행부터 데이터 · 헤더명은 '유형','코드','설명' 단어가 포함되면 자동 인식됩니다.</div>
+    </div>
+    <input type="file" id="excelFileInput" accept=".xlsx,.xls" style="display:none;">
+
+    <div class="tool-row">
+      <div class="left">
+        <button class="btn" id="addMappingBtn">＋ 매핑 추가</button>
+        <button class="btn outline" id="loadMappingPresetBtn">📋 표준 유형-코드 프리셋 불러오기</button>
+        <button class="btn outline" id="downloadExcelTemplateBtn">📄 엑셀 양식 다운로드</button>
+      </div>
+      <div class="left">
+        <button class="btn secondary" id="exportMappingBtn">매핑 JSON 내보내기</button>
+        <button class="btn secondary" id="importMappingBtn">매핑 JSON 불러오기</button>
+        <input type="file" id="importMappingFile" accept="application/json" style="display:none;">
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="mapping-table" id="mappingTable">
+        <thead>
+          <tr>
+            <th style="width:30%;">자산유형명 (인식 키워드)</th>
+            <th style="width:15%;">매핑 코드값</th>
+            <th style="width:auto;">설명</th>
+            <th style="width:8%;">삭제</th>
+          </tr>
+        </thead>
+        <tbody id="mappingTbody"></tbody>
+      </table>
+    </div>
+    <div class="empty-tip" id="emptyMappingTip">등록된 매핑이 없습니다. '매핑 추가' 버튼을 눌러 유형-코드를 정의하세요.</div>
+
+    <div class="section-divider"></div>
+
+    <h2 style="border:none;padding:0;margin-bottom:10px;font-size:15px;">④ 컬럼 역할(Role) 지정 <span class="badge" style="background:#3a7bd5;">필드 ↔ 추출값 연결</span></h2>
+    <div class="panel-desc">테이블 구조에서 정의한 각 컬럼이 어떤 정보에 해당하는지 지정하면, AI/규칙 기반 인식 결과가 해당 컬럼에 자동으로 채워집니다. (구조 적용 후 목록이 표시됩니다)</div>
+    <div class="table-wrap">
+      <table class="role-table" id="roleTable">
+        <thead><tr><th style="width:20%;">필드명(한글)</th><th style="width:18%;">컬럼명(DB)</th><th style="width:10%;">타입</th><th style="width:auto;">추출 역할 지정</th></tr></thead>
+        <tbody id="roleTbody"><tr><td colspan="4" class="empty-tip" style="border:none;">구조를 먼저 적용하세요.</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="section-divider"></div>
+
+    <h2 style="border:none;padding:0;margin-bottom:10px;font-size:15px;">⑤ 규칙 기반 폴백 인식 (API 사용 불가 시) <span class="badge green">FALLBACK</span></h2>
+    <div class="mapping-config-row" style="align-items:center;">
+      <label class="auto-toggle"><input type="checkbox" id="autoRunToggle" checked>AI 인식 실패 시 규칙 기반으로 자동 전환</label>
+      <button class="btn secondary" id="autoDetectBtn">📐 규칙 기반 인식 지금 실행</button>
+      <span style="font-size:12px;color:#8a97ab;">※ 표 좌표 인식 + 유형 키워드 매칭 방식으로, AI보다 정확도가 낮을 수 있습니다.</span>
+    </div>
+    <div class="detect-log" id="detectLog">규칙 기반 자동 데이터 추출 결과가 이곳에 표시됩니다.</div>
+  </div>
+
+  <!-- ===================== FULL WIDTH: 데이터 입력 미리보기 ===================== -->
+  <div class="panel full-width">
+    <h2>4. 기초자산 데이터 입력 미리보기 <span class="badge">DATA PREVIEW</span></h2>
+    <div class="tool-row">
+      <div class="left">
+        <button class="btn small" id="addRowBtn">＋ 행 추가</button>
+        <button class="btn small secondary" id="clearRowsBtn">행 초기화</button>
+      </div>
+      <div class="left"><button class="btn small outline" id="exportCsvBtn">CSV로 내보내기</button></div>
+    </div>
+    <div class="preview-table-wrap">
+      <table class="preview-table" id="previewTable">
+        <thead><tr id="previewHead"></tr></thead>
+        <tbody id="previewBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= 시계 ================= */
+function updateClock(){ document.getElementById('clock').textContent = new Date().toLocaleString('ko-KR'); }
+setInterval(updateClock, 1000); updateClock();
+
+/* ================= 토스트 ================= */
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>t.classList.remove('show'), 3400);
+}
+
+/* ================= 숫자/포맷 헬퍼 ================= */
+function parseNum(v){
+  if(v===null || v===undefined) return null;
+  const s = String(v).replace(/,/g,'').trim();
+  if(s==='' || isNaN(Number(s))) return null;
+  return Number(s);
+}
+function formatWithCommas(num){ try{ return Number(num).toLocaleString('en-US'); }catch(e){ return String(num); } }
+function todayStr(d){
+  d = d || new Date();
+  const y=d.getFullYear(), mo=String(d.getMonth()+1).padStart(2,'0'), da=String(d.getDate()).padStart(2,'0');
+  return `${y}-${mo}-${da}`;
+}
+
+/* ================= API 연결 상태 관리 (게이트키핑) ================= */
+let apiConnectionVerified = false;
+
+function setConnStatus(state, text){
+  const el = document.getElementById('connStatusBadge');
+  el.className = 'conn-status ' + state;
+  el.innerHTML = '<span class="dotc"></span>' + text;
+}
+
+/* ================= PDF 업로드 및 미리보기 ================= */
+if (window['pdfjsLib']) { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const fileListEl = document.getElementById('fileList');
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const viewerBox = document.getElementById('viewerBox');
+const viewerControls = document.getElementById('viewerControls');
+const pageInfo = document.getElementById('pageInfo');
+
+let uploadedFiles = [];
+let activeFileId = null;
+
+dropzone.addEventListener('click', ()=> fileInput.click());
+dropzone.addEventListener('dragover', e=>{e.preventDefault(); dropzone.classList.add('dragover');});
+dropzone.addEventListener('dragleave', ()=> dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', e=>{ e.preventDefault(); dropzone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+fileInput.addEventListener('change', e=> handleFiles(e.target.files));
+
+function handleFiles(fileArr){
+  const files = Array.from(fileArr).filter(f=> f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
+  if(files.length === 0){ showToast('PDF 파일만 업로드 가능합니다.'); return; }
+  files.forEach(f=>{
+    const reader = new FileReader();
+    reader.onload = function(e){
+      const id = 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+      const item = {id, name:f.name, size:f.size, buffer:e.target.result, currentPage:1, pdfDoc:null, uploadDate:new Date()};
+      uploadedFiles.push(item);
+      renderFileList();
+      loadPdfPreview(item);
+      updateStatus();
+    };
+    reader.readAsArrayBuffer(f);
+  });
+}
+function formatSize(bytes){ if(bytes<1024) return bytes+' B'; if(bytes<1024*1024) return (bytes/1024).toFixed(1)+' KB'; return (bytes/1024/1024).toFixed(2)+' MB'; }
+
+function renderFileList(){
+  fileListEl.innerHTML = '';
+  uploadedFiles.forEach(item=>{
+    const div = document.createElement('div');
+    div.className = 'file-item' + (item.id === activeFileId ? ' active' : '');
+    div.innerHTML = `<div class="file-info"><div class="file-icon">PDF</div><div><div class="file-name">${item.name}</div><div class="file-meta">${formatSize(item.size)}</div></div></div>
+      <div class="file-actions"><button class="icon-btn" title="미리보기" data-act="view" data-id="${item.id}">👁</button><button class="icon-btn" title="삭제" data-act="del" data-id="${item.id}">🗑</button></div>`;
+    fileListEl.appendChild(div);
+  });
+  fileListEl.querySelectorAll('[data-act="view"]').forEach(btn=> btn.addEventListener('click', ()=>{ const item=uploadedFiles.find(x=>x.id===btn.dataset.id); if(item) loadPdfPreview(item); }));
+  fileListEl.querySelectorAll('[data-act="del"]').forEach(btn=> btn.addEventListener('click', ()=>{
+    uploadedFiles = uploadedFiles.filter(x=>x.id!==btn.dataset.id);
+    if(activeFileId===btn.dataset.id){ activeFileId=null; viewerBox.innerHTML='<div class="viewer-placeholder">PDF를 업로드하면 이곳에 미리보기가 표시됩니다.</div>'; viewerControls.style.display='none'; }
+    renderFileList(); updateStatus();
+  }));
+}
+function updateStatus(msgOverride, busy){
+  if(msgOverride){ statusDot.classList.toggle('busy', !!busy); statusDot.classList.toggle('on', !busy); statusText.textContent = msgOverride; return; }
+  if(uploadedFiles.length===0){ statusDot.classList.remove('on'); statusDot.classList.remove('busy'); statusText.textContent = '업로드된 파일이 없습니다.'; }
+  else { statusDot.classList.add('on'); statusDot.classList.remove('busy'); statusText.textContent = `${uploadedFiles.length}개 파일 업로드 완료`; }
+}
+
+async function loadPdfPreview(item){
+  activeFileId = item.id; renderFileList();
+  viewerBox.innerHTML = '<div class="viewer-placeholder">PDF 로딩 중...</div>';
+  try{
+    if(!window['pdfjsLib']){ viewerBox.innerHTML = '<div class="viewer-placeholder">PDF.js 라이브러리를 불러올 수 없습니다.</div>'; return; }
+    const bufCopy = item.buffer.slice(0);
+    const pdf = await pdfjsLib.getDocument({data: bufCopy}).promise;
+    item.pdfDoc = pdf; item.currentPage = 1;
+    await renderPage(item);
+    viewerControls.style.display = 'flex';
+    updateStatus();
+
+    const baseDateInput = document.getElementById('fundBaseDate');
+    baseDateInput.value = todayStr(item.uploadDate);
+    baseDateInput.classList.add('auto-detected');
+    baseDateInput.dispatchEvent(new Event('change'));
+
+    await triggerAutoRecognition('PDF 업로드');
+  }catch(err){
+    viewerBox.innerHTML = '<div class="viewer-placeholder">PDF 미리보기를 불러오지 못했습니다.<br>' + err.message + '</div>';
+    viewerControls.style.display='none';
+  }
+}
+async function renderPage(item){
+  const page = await item.pdfDoc.getPage(item.currentPage);
+  const viewport = page.getViewport({scale:1.1});
+  const canvas = document.createElement('canvas'); canvas.width=viewport.width; canvas.height=viewport.height;
+  await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
+  viewerBox.innerHTML=''; viewerBox.appendChild(canvas);
+  pageInfo.textContent = `${item.currentPage} / ${item.pdfDoc.numPages}`;
+}
+document.getElementById('prevPage').addEventListener('click', ()=>{ const item=uploadedFiles.find(x=>x.id===activeFileId); if(item && item.pdfDoc && item.currentPage>1){ item.currentPage--; renderPage(item);} });
+document.getElementById('nextPage').addEventListener('click', ()=>{ const item=uploadedFiles.find(x=>x.id===activeFileId); if(item && item.pdfDoc && item.currentPage<item.pdfDoc.numPages){ item.currentPage++; renderPage(item);} });
+
+/* ================= 테이블 구조 설계 ================= */
+const structTbody = document.getElementById('structTbody');
+const emptyTip = document.getElementById('emptyTip');
+let colSeq = 0;
+const TYPE_OPTIONS = ['VARCHAR','NUMBER','DATE','BOOLEAN'];
+
+function addColumnRow(data={}){
+  colSeq++;
+  const tr = document.createElement('tr'); tr.dataset.rowid = colSeq;
+  tr.innerHTML = `
+    <td class="col-drag">☰</td>
+    <td><input type="text" class="col-label" placeholder="예: 종목명" value="${data.label||''}"></td>
+    <td><input type="text" class="col-name" placeholder="예: ASSET_NM" value="${data.name||''}"></td>
+    <td><select class="col-type">${TYPE_OPTIONS.map(t=>`<option value="${t}" ${data.type===t?'selected':''}>${t}</option>`).join('')}</select></td>
+    <td><input type="text" class="col-len" placeholder="예: 100" value="${data.len||''}"></td>
+    <td><input type="checkbox" class="col-req" ${data.required?'checked':''}></td>
+    <td><input type="checkbox" class="col-pk" ${data.pk?'checked':''}></td>
+    <td><input type="text" class="col-desc" placeholder="설명 입력" value="${data.desc||''}"></td>
+    <td><button class="icon-btn" title="삭제">🗑</button></td>`;
+  tr.querySelector('.icon-btn').addEventListener('click', ()=>{ tr.remove(); toggleEmptyTip(); });
+  structTbody.appendChild(tr); toggleEmptyTip();
+}
+function toggleEmptyTip(){ emptyTip.style.display = structTbody.children.length===0 ? 'block' : 'none'; }
+toggleEmptyTip();
+document.getElementById('addColBtn').addEventListener('click', ()=> addColumnRow());
+
+function loadPresetColumns(){
+  structTbody.innerHTML='';
+  const preset = [
+    {label:'기준일자', name:'BASE_DT', type:'DATE', len:8, required:true, pk:true, desc:'자산정보 기준일(PDF 업로드일 자동반영) - PK'},
+    {label:'펀드코드', name:'FUND_CD', type:'VARCHAR', len:20, required:true, pk:true, desc:'펀드 고유 코드(KR+거래소/상장코드 자동인식) - PK'},
+    {label:'일련번호', name:'SEQ_NO', type:'NUMBER', len:5, required:true, pk:true, desc:'기준일자+펀드코드 내 기초자산 순번(자동채번, 1~N) - PK'},
+    {label:'펀드명', name:'FUND_NM', type:'VARCHAR', len:100, required:false, pk:false, desc:'펀드명(AI/자동인식)'},
+    {label:'운용사', name:'MGMT_COMPANY_NM', type:'VARCHAR', len:50, required:false, pk:false, desc:'집합투자업자명(AI/자동인식)'},
+    {label:'기초자산명', name:'ASSET_NM', type:'VARCHAR', len:100, required:true, pk:false, desc:'AI/자동 추출되는 기초자산(종목 등) 명칭'},
+    {label:'기초자산유형', name:'ASSET_TYPE_CD', type:'VARCHAR', len:10, required:true, pk:false, desc:'[3.유형-코드 매핑]에서 정의한 코드값이 저장됨'},
+    {label:'편입비중', name:'WEIGHT_RT', type:'NUMBER', len:'7,4', required:false, pk:false, desc:'편입비중(%) - 미기재시 평가금액 비율로 자동계산'},
+    {label:'평가금액', name:'EVAL_AMT', type:'NUMBER', len:18, required:false, pk:false, desc:'평가금액 - 미기재시 총자산금액×편입비중으로 자동계산'},
+    {label:'통화', name:'CURRENCY_CD', type:'VARCHAR', len:3, required:false, pk:false, desc:'거래/평가 통화코드(AI/자동인식)'},
+    {label:'거래소/시장명', name:'MARKET_NM', type:'VARCHAR', len:50, required:false, pk:false, desc:'상장 거래소 또는 시장명(AI/자동인식)'},
+    {label:'신용등급', name:'CREDIT_RATING', type:'VARCHAR', len:10, required:false, pk:false, desc:'채권 등 신용등급(AAA, AA+ 등, AI/자동인식)'},
+  ];
+  preset.forEach(p=> addColumnRow(p));
+}
+document.getElementById('loadPresetBtn').addEventListener('click', ()=>{
+  loadPresetColumns();
+  showToast('표준 기초자산 항목을 불러왔습니다. (PK: 기준일자·펀드코드·일련번호)');
+});
+
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  const cols = collectColumns();
+  if(cols.length===0){ showToast('내보낼 컬럼이 없습니다.'); return; }
+  const payload = { meta: collectMeta(), columns: cols, roles: columnRoles };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='fund_asset_table_structure.json'; a.click();
+  URL.revokeObjectURL(url); showToast('구조를 JSON 파일로 내보냈습니다.');
+});
+document.getElementById('importBtn').addEventListener('click', ()=> document.getElementById('importFile').click());
+document.getElementById('importFile').addEventListener('change', (e)=>{
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const payload = JSON.parse(reader.result);
+      structTbody.innerHTML='';
+      (payload.columns||[]).forEach(c=> addColumnRow(c));
+      if(payload.meta){
+        document.getElementById('fundName').value = payload.meta.fundName||'';
+        document.getElementById('fundCode').value = payload.meta.fundCode||'';
+        document.getElementById('fundCompany').value = payload.meta.fundCompany||'';
+        document.getElementById('fundBaseDate').value = payload.meta.fundBaseDate||'';
+        document.getElementById('fundType').value = payload.meta.fundType||'';
+        document.getElementById('fundTotalAmt').value = payload.meta.fundTotalAmt||'';
+      }
+      if(payload.roles) Object.assign(columnRoles, payload.roles);
+      showToast('구조를 불러왔습니다.');
+    }catch(err){ showToast('JSON 파일을 읽을 수 없습니다.'); }
+  };
+  reader.readAsText(file); e.target.value='';
+});
+function collectMeta(){
+  return {
+    fundName: document.getElementById('fundName').value,
+    fundCode: document.getElementById('fundCode').value,
+    fundCompany: document.getElementById('fundCompany').value,
+    fundBaseDate: document.getElementById('fundBaseDate').value,
+    fundType: document.getElementById('fundType').value,
+    fundTotalAmt: document.getElementById('fundTotalAmt').value,
+  };
+}
+function collectColumns(){
+  return Array.from(structTbody.children).map(tr=>({
+    label: tr.querySelector('.col-label').value.trim(),
+    name: tr.querySelector('.col-name').value.trim(),
+    type: tr.querySelector('.col-type').value,
+    len: tr.querySelector('.col-len').value.trim(),
+    required: tr.querySelector('.col-req').checked,
+    pk: tr.querySelector('.col-pk').checked,
+    desc: tr.querySelector('.col-desc').value.trim(),
+  })).filter(c=> c.label || c.name);
+}
+
+/* ================= API 설정 저장/불러오기 (API 키는 저장하지 않음: 항상 직접 입력) ================= */
+const AI_MODEL_STORAGE = 'fundAI_Model_v6';
+const AI_ENDPOINT_STORAGE = 'fundAI_Endpoint_v6';
+const AI_AUTHMODE_STORAGE = 'fundAI_AuthMode_v6';
+
+const aiApiKeyInput = document.getElementById('aiApiKey');
+const aiModelSelect = document.getElementById('aiModelSelect');
+const aiEndpointInput = document.getElementById('aiEndpointInput');
+const aiAuthModeSelect = document.getElementById('aiAuthModeSelect');
+const aiLog = document.getElementById('aiLog');
+const rawTextBox = document.getElementById('rawTextBox');
+const rawTextContent = document.getElementById('rawTextContent');
+const keyTypeBadge = document.getElementById('keyTypeBadge');
+const currentEndpointDisplay = document.getElementById('currentEndpointDisplay');
+
+const ENDPOINT_ANTHROPIC = 'https://api.anthropic.com/v1/messages';
+const ENDPOINT_PWC_ALPHA = 'https://workspace.kr.pwc.com/api/workspace/coding_agent/v1/messages';
+
+/* ★ 현재 사용중인 엔드포인트를 실시간으로 화면에 반영 ★ */
+function refreshEndpointDisplay(){
+  const val = aiEndpointInput.value.trim();
+  currentEndpointDisplay.textContent = val ? val : '(입력되지 않음 - 위에서 API 엔드포인트를 입력해주세요)';
+  currentEndpointDisplay.style.color = val ? '#0d5a9e' : '#c0392b';
+}
+
+function detectKeyType(key){
+  if(!key) return 'unknown';
+  if(/^alpha-/i.test(key)) return 'alpha';
+  if(/^sk-ant-/i.test(key)) return 'anthropic';
+  return 'unknown';
+}
+function updateKeyTypeBadge(){
+  const key = aiApiKeyInput.value.trim();
+  const type = detectKeyType(key);
+  keyTypeBadge.className = 'key-type-badge ' + type;
+  if(type==='alpha') keyTypeBadge.textContent = 'Alpha API Key 인식됨';
+  else if(type==='anthropic') keyTypeBadge.textContent = 'Anthropic Key 인식됨';
+  else if(key) keyTypeBadge.textContent = '알 수 없는 키 형식';
+  else keyTypeBadge.textContent = '미입력';
+}
+
+// ⚠ API 키는 보안을 위해 localStorage에 저장하지 않고, 매번 직접 입력해야 함(기본값 없음)
+// ⚠ 엔드포인트도 기본값 없이 시작하며, 사용자가 입력한 값만 반영/저장됨
+function loadAISettings(){
+  try{
+    const model = localStorage.getItem(AI_MODEL_STORAGE);
+    const endpoint = localStorage.getItem(AI_ENDPOINT_STORAGE);
+    const authMode = localStorage.getItem(AI_AUTHMODE_STORAGE);
+    if(model) aiModelSelect.value = model;
+    if(endpoint) aiEndpointInput.value = endpoint;   // 이전에 직접 입력했던 엔드포인트는 편의상 복원(키는 복원 안 함)
+    if(authMode) aiAuthModeSelect.value = authMode;
+  }catch(e){}
+  updateKeyTypeBadge();
+  refreshEndpointDisplay();
+}
+function saveAISettings(){
+  try{
+    localStorage.setItem(AI_MODEL_STORAGE, aiModelSelect.value.trim());
+    localStorage.setItem(AI_ENDPOINT_STORAGE, aiEndpointInput.value.trim());
+    localStorage.setItem(AI_AUTHMODE_STORAGE, aiAuthModeSelect.value);
+  }catch(e){}
+}
+function invalidateConnection(){
+  apiConnectionVerified = false;
+  setConnStatus('untested', '설정이 변경됨 - 재테스트 필요');
+}
+
+/* ★ 엔드포인트 입력 시 실시간으로 표시 갱신 + 연결상태 무효화 ★ */
+aiEndpointInput.addEventListener('input', ()=>{ refreshEndpointDisplay(); invalidateConnection(); });
+aiEndpointInput.addEventListener('change', ()=>{ saveAISettings(); refreshEndpointDisplay(); });
+
+aiApiKeyInput.addEventListener('input', ()=>{ updateKeyTypeBadge(); invalidateConnection(); });
+aiApiKeyInput.addEventListener('change', ()=>{
+  const type = detectKeyType(aiApiKeyInput.value.trim());
+  if(type === 'alpha' && !aiEndpointInput.value.trim()){
+    aiEndpointInput.value = ENDPOINT_PWC_ALPHA;
+    aiAuthModeSelect.value = 'bearer';
+    saveAISettings();
+    refreshEndpointDisplay();
+    showToast('Alpha API Key 형식이 감지되어 엔드포인트를 자동으로 채웠습니다. 필요 시 직접 수정하세요.');
+  }
+});
+aiModelSelect.addEventListener('change', ()=>{ saveAISettings(); invalidateConnection(); });
+aiAuthModeSelect.addEventListener('change', ()=>{ saveAISettings(); invalidateConnection(); });
+
+document.getElementById('toggleKeyVisibleBtn').addEventListener('click', (e)=>{
+  if(aiApiKeyInput.type === 'password'){ aiApiKeyInput.type='text'; e.target.textContent='🙈 키 숨기기'; }
+  else { aiApiKeyInput.type='password'; e.target.textContent='👁 키 표시'; }
+});
+document.getElementById('presetAnthropicBtn').addEventListener('click', ()=>{
+  aiEndpointInput.value = ENDPOINT_ANTHROPIC;
+  aiAuthModeSelect.value = 'x-api-key';
+  saveAISettings(); invalidateConnection(); refreshEndpointDisplay();
+  showToast('Anthropic 공식 엔드포인트로 입력창을 채웠습니다. 필요 시 직접 수정 후 연결 테스트를 진행하세요.');
+});
+document.getElementById('presetPwcBtn').addEventListener('click', ()=>{
+  aiEndpointInput.value = ENDPOINT_PWC_ALPHA;
+  aiAuthModeSelect.value = 'bearer';
+  saveAISettings(); invalidateConnection(); refreshEndpointDisplay();
+  showToast('Alpha(PwC Workspace) 게이트웨이 주소로 입력창을 채웠습니다. 필요 시 직접 수정 후 연결 테스트를 진행하세요.');
+});
+document.getElementById('clearEndpointBtn').addEventListener('click', ()=>{
+  aiEndpointInput.value = '';
+  saveAISettings(); invalidateConnection(); refreshEndpointDisplay();
+  showToast('엔드포인트를 지웠습니다. 직접 입력해주세요.');
+});
+document.getElementById('copyEndpointBtn').addEventListener('click', ()=>{
+  const val = aiEndpointInput.value.trim();
+  if(!val){ showToast('복사할 엔드포인트가 없습니다.'); return; }
+  try{
+    navigator.clipboard.writeText(val);
+    showToast('엔드포인트 URL이 클립보드에 복사되었습니다.');
+  }catch(e){ showToast('클립보드 복사에 실패했습니다.'); }
+});
+loadAISettings();
+
+/* ================= 단일 연결 테스트 ================= */
+document.getElementById('aiTestConnBtn').addEventListener('click', async ()=>{
+  const apiKey = aiApiKeyInput.value.trim();
+  const endpoint = aiEndpointInput.value.trim();
+  const authMode = aiAuthModeSelect.value;
+  const model = aiModelSelect.value.trim();
+
+  if(!endpoint){
+    showToast('먼저 API 엔드포인트 URL을 입력하세요.');
+    setConnStatus('fail', '엔드포인트 미입력');
+    aiEndpointInput.focus();
+    return;
+  }
+  if(!apiKey || !model){
+    showToast('API 키와 모델명을 모두 입력하세요.');
+    setConnStatus('fail', '입력값 부족');
+    return;
+  }
+
+  setConnStatus('testing', '연결 테스트 중...');
+  aiLog.innerHTML = `<div class="log-line">🔌 연결 테스트 중입니다... (엔드포인트: <code>${endpoint}</code> / 모델: ${model} / 인증방식: ${authMode})</div>`;
+
+  try{
+    const content = await callAI(apiKey, endpoint, authMode, model,
+      '당신은 연결 테스트용 어시스턴트입니다. 사용자가 무엇을 보내든 정확히 OK 라는 두 글자만 응답하세요.',
+      'ping');
+    apiConnectionVerified = true;
+    setConnStatus('success', '✅ 연결 성공 - AI 인식 사용 가능');
+    aiLog.innerHTML = `<div class="log-line" style="color:#227d48;">✅ 연결 성공! 엔드포인트 <code>${endpoint}</code> / 모델 ${model} 응답: "${content.slice(0,200)}"</div>` +
+      `<div class="log-line">이제 [1.PDF 업로드]에서 PDF를 업로드하면 AI가 자동으로 기본정보/기초자산 데이터를 인식합니다.</div>`;
+    showToast('API 연결 테스트 성공! 이제 PDF 업로드 시 AI 인식이 활성화됩니다.');
+  }catch(err){
+    apiConnectionVerified = false;
+    setConnStatus('fail', '❌ 연결 실패');
+    let hint = '엔드포인트 주소, 인증 헤더 방식(Bearer/x-api-key), 모델명을 다시 확인해주세요. 아래 [🧪 여러 모델/인증방식 한번에 진단]을 열어 자동으로 원인을 찾아볼 수 있습니다.';
+    if(/Failed to fetch|NetworkError|CORS/i.test(err.message)){
+      hint = '브라우저에서 서버로의 요청이 차단되었습니다. 엔드포인트 URL 오타 여부, CORS 정책, 사내망(VPN) 접속 여부, 방화벽 설정을 확인해주세요.';
+    } else if(/401|403/.test(err.message)){
+      hint = 'API 키가 유효하지 않거나 권한이 없습니다(401/403). 키 값을 다시 확인해주세요.';
+    } else if(/404/.test(err.message)){
+      hint = '엔드포인트 주소 또는 모델명이 올바르지 않을 수 있습니다(404). 엔드포인트 URL을 다시 확인하거나 아래 [🧪 여러 모델 진단]으로 확인해보세요.';
+    } else if(/400/.test(err.message)){
+      hint = '요청 형식(모델명 포함) 문제일 수 있습니다(400). 모델명이 이 엔드포인트에서 지원되는 이름인지 확인이 필요합니다. 아래 [🧪 여러 모델 진단]을 실행해보세요.';
+    }
+    aiLog.innerHTML = `<div class="log-line" style="color:#c0392b;">❌ 연결 테스트 실패: ${err.message}</div><div class="log-line">${hint}</div>`;
+    showToast('연결 테스트 실패 - 아래 다중 모델 진단을 시도해보세요.');
+    document.getElementById('multiTestBox').open = true;
+  }
+});
+
+/* ================= 여러 모델 / 인증방식 한번에 진단 (현재 입력된 엔드포인트 그대로 사용) ================= */
+const CANDIDATE_MODELS = [
+  'claude-sonnet-4-5-20250929',
+  'claude-sonnet-4-20250514',
+  'claude-3-7-sonnet-20250219',
+  'claude-3-5-sonnet-20241022',
+  'claude-3-5-haiku-20241022',
+  'claude-3-opus-20240229',
+  'claude-3-haiku-20240307',
+  'gpt-4o',
+  'gpt-4o-mini',
+  'gpt-4.1',
+];
+
+const modelChipList = document.getElementById('modelChipList');
+function renderModelChips(){
+  modelChipList.innerHTML = CANDIDATE_MODELS.map((m,idx)=>
+    `<label class="model-chip"><input type="checkbox" class="model-cb" value="${m}" ${idx<6?'checked':''}> ${m}</label>`
+  ).join('');
+}
+renderModelChips();
+
+document.getElementById('addCustomModelBtn').addEventListener('click', ()=>{
+  const input = document.getElementById('customModelInput');
+  const val = input.value.trim();
+  if(!val) return;
+  if(!CANDIDATE_MODELS.includes(val)){
+    CANDIDATE_MODELS.push(val);
+    const label = document.createElement('label');
+    label.className = 'model-chip';
+    label.innerHTML = `<input type="checkbox" class="model-cb" value="${val}" checked> ${val}`;
+    modelChipList.appendChild(label);
+  }
+  input.value = '';
+});
+
+const diagTbody = document.getElementById('diagTbody');
+let multiTestStopFlag = false;
+
+function addDiagRow(model, authMode){
+  const tr = document.createElement('tr');
+  tr.dataset.model = model; tr.dataset.auth = authMode;
+  tr.className = 'row-testing';
+  tr.innerHTML = `<td>${model}</td><td>${authMode}</td><td><span class="status-pill run">대기중</span></td><td>-</td>`;
+  diagTbody.appendChild(tr);
+  return tr;
+}
+function updateDiagRow(tr, status, detail){
+  tr.className = status==='ok' ? 'row-success' : (status==='ng' ? 'row-fail' : 'row-testing');
+  const pillClass = status==='ok' ? 'ok' : (status==='ng' ? 'ng' : 'run');
+  const pillText = status==='ok' ? '성공' : (status==='ng' ? '실패' : '진행중');
+  tr.children[2].innerHTML = `<span class="status-pill ${pillClass}">${pillText}</span>`;
+  tr.children[3].textContent = detail;
+}
+
+document.getElementById('runMultiTestBtn').addEventListener('click', async ()=>{
+  const apiKey = aiApiKeyInput.value.trim();
+  const endpoint = aiEndpointInput.value.trim();
+  if(!endpoint){ showToast('먼저 상단에서 API 엔드포인트를 입력하세요.'); aiEndpointInput.focus(); return; }
+  if(!apiKey){ showToast('먼저 API 키를 입력하세요.'); return; }
+
+  const selectedModels = Array.from(document.querySelectorAll('.model-cb:checked')).map(cb=>cb.value);
+  const selectedAuths = Array.from(document.querySelectorAll('.authmode-cb:checked')).map(cb=>cb.value);
+  if(selectedModels.length===0){ showToast('테스트할 모델을 1개 이상 선택하세요.'); return; }
+  if(selectedAuths.length===0){ showToast('테스트할 인증방식을 1개 이상 선택하세요.'); return; }
+
+  diagTbody.innerHTML = '';
+  multiTestStopFlag = false;
+  document.getElementById('runMultiTestBtn').disabled = true;
+  document.getElementById('stopMultiTestBtn').disabled = false;
+
+  const combos = [];
+  selectedModels.forEach(m=> selectedAuths.forEach(a=> combos.push({model:m, auth:a})));
+
+  let successCount = 0;
+  for(let i=0;i<combos.length;i++){
+    if(multiTestStopFlag){ break; }
+    const {model, auth} = combos[i];
+    document.getElementById('multiTestProgress').textContent = `${i+1} / ${combos.length} 진행 중... (엔드포인트: ${endpoint} / 모델: ${model}, 인증: ${auth})`;
+    const tr = addDiagRow(model, auth);
+    try{
+      const content = await callAI(apiKey, endpoint, auth, model,
+        '당신은 연결 테스트용 어시스턴트입니다. 사용자가 무엇을 보내든 정확히 OK 라는 두 글자만 응답하세요.',
+        'ping');
+      updateDiagRow(tr, 'ok', `응답: "${content.slice(0,120)}"`);
+      successCount++;
+      if(successCount === 1){
+        showToast(`✅ 연결 성공 조합 발견: 모델=${model}, 인증=${auth}`);
+      }
+    }catch(err){
+      updateDiagRow(tr, 'ng', err.message.slice(0,160));
+    }
+  }
+
+  document.getElementById('multiTestProgress').textContent =
+    multiTestStopFlag ? '사용자에 의해 중지되었습니다.' : `완료: 총 ${combos.length}건 중 ${successCount}건 성공 (엔드포인트: ${endpoint})`;
+  document.getElementById('runMultiTestBtn').disabled = false;
+  document.getElementById('stopMultiTestBtn').disabled = true;
+
+  if(successCount > 0){
+    showToast(`진단 완료: ${successCount}개 조합에서 연결 성공! 표에서 성공(초록색) 행을 클릭하면 상단 설정에 반영됩니다.`);
+  } else {
+    showToast('모든 조합에서 연결에 실패했습니다. 엔드포인트 URL 자체나 API 키를 다시 확인해주세요.');
+  }
+});
+document.getElementById('stopMultiTestBtn').addEventListener('click', ()=>{ multiTestStopFlag = true; });
+
+/* 진단 표에서 성공한 행을 클릭하면 상단 설정에 바로 반영 */
+diagTbody.addEventListener('click', (e)=>{
+  const tr = e.target.closest('tr');
+  if(!tr || !tr.classList.contains('row-success')) return;
+  aiModelSelect.value = tr.dataset.model;
+  aiAuthModeSelect.value = tr.dataset.auth;
+  saveAISettings();
+  invalidateConnection();
+  showToast(`상단 설정에 모델(${tr.dataset.model})/인증방식(${tr.dataset.auth})을 반영했습니다. [연결 테스트]로 재확인하세요.`);
+});
+
+/* ================= 유형-코드 매핑 관리 ================= */
+const mappingTbody = document.getElementById('mappingTbody');
+const emptyMappingTip = document.getElementById('emptyMappingTip');
+const detectLog = document.getElementById('detectLog');
+const MAPPING_STORAGE_KEY = 'fundAssetTypeCodeMap_v2';
+
+function toggleEmptyMappingTip(){ emptyMappingTip.style.display = mappingTbody.children.length===0 ? 'block' : 'none'; }
+
+function addMappingRow(data={}, silent=false){
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" class="map-type" placeholder="예: 상장주식" value="${data.type||''}"></td>
+    <td><input type="text" class="map-code" placeholder="예: 10" value="${data.code||''}"></td>
+    <td><input type="text" class="map-desc" placeholder="예: 유가증권시장/코스닥 상장주식" value="${data.desc||''}"></td>
+    <td><button class="icon-btn" title="삭제">🗑</button></td>`;
+  tr.querySelector('.icon-btn').addEventListener('click', ()=>{ tr.remove(); toggleEmptyMappingTip(); saveMappingsToStorage(); });
+  tr.querySelectorAll('input').forEach(inp=> inp.addEventListener('change', ()=>{ saveMappingsToStorage(); }));
+  mappingTbody.appendChild(tr); toggleEmptyMappingTip();
+  if(!silent) saveMappingsToStorage();
+}
+function collectMappings(){
+  return Array.from(mappingTbody.children).map(tr=>({
+    type: tr.querySelector('.map-type').value.trim(),
+    code: tr.querySelector('.map-code').value.trim(),
+    desc: tr.querySelector('.map-desc').value.trim(),
+  })).filter(m=> m.type && m.code);
+}
+function saveMappingsToStorage(){ try{ localStorage.setItem(MAPPING_STORAGE_KEY, JSON.stringify(collectMappings())); }catch(e){} }
+function loadMappingsFromStorage(){
+  try{
+    const raw = localStorage.getItem(MAPPING_STORAGE_KEY);
+    if(raw){ const arr = JSON.parse(raw); if(Array.isArray(arr) && arr.length>0){ arr.forEach(m=> addMappingRow(m, true)); return true; } }
+  }catch(e){}
+  return false;
+}
+document.getElementById('addMappingBtn').addEventListener('click', ()=> addMappingRow());
+
+function loadMappingPresetFn(){
+  mappingTbody.innerHTML='';
+  const preset = [
+    {type:'상장주식', code:'10', desc:'유가증권시장(KOSPI) 및 코스닥(KOSDAQ) 상장주식'},
+    {type:'해외주식', code:'15', desc:'해외 거래소 상장주식'},
+    {type:'채권', code:'20', desc:'국채, 지방채, 회사채 등 채무증권'},
+    {type:'수익증권', code:'30', desc:'집합투자증권(재간접펀드) 등'},
+    {type:'파생결합증권', code:'40', desc:'ELS, DLS, ELB 등 파생결합증권'},
+    {type:'파생상품', code:'45', desc:'선물, 옵션, 스왑 등 장내외 파생상품'},
+    {type:'부동산', code:'50', desc:'부동산 실물 및 관련 수익권'},
+    {type:'특별자산', code:'60', desc:'원자재, 예술품, 인프라 등 특별자산'},
+    {type:'현금성자산', code:'90', desc:'예금, MMF, 콜론 등 유동성자산'},
+  ];
+  preset.forEach(p=> addMappingRow(p, true));
+  saveMappingsToStorage();
+}
+document.getElementById('loadMappingPresetBtn').addEventListener('click', ()=>{
+  loadMappingPresetFn();
+  showToast('표준 유형-코드 매핑 프리셋을 불러왔습니다.');
+});
+document.getElementById('exportMappingBtn').addEventListener('click', ()=>{
+  const mappings = collectMappings(); if(mappings.length===0){ showToast('내보낼 매핑이 없습니다.'); return; }
+  const blob = new Blob([JSON.stringify(mappings, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='fund_asset_type_code_mapping.json'; a.click();
+  URL.revokeObjectURL(url); showToast('유형-코드 매핑을 JSON 파일로 내보냈습니다.');
+});
+document.getElementById('importMappingBtn').addEventListener('click', ()=> document.getElementById('importMappingFile').click());
+document.getElementById('importMappingFile').addEventListener('change', (e)=>{
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const arr = JSON.parse(reader.result);
+      mappingTbody.innerHTML=''; (arr||[]).forEach(m=> addMappingRow(m, true));
+      saveMappingsToStorage(); showToast('유형-코드 매핑을 불러왔습니다.');
+    }catch(err){ showToast('매핑 JSON 파일을 읽을 수 없습니다.'); }
+  };
+  reader.readAsText(file); e.target.value='';
+});
+
+/* ---- 엑셀 업로드로 매핑 일괄 등록 ---- */
+const excelDrop = document.getElementById('excelFileInput');
+document.getElementById('excelDrop').addEventListener('click', ()=> excelDrop.click());
+document.getElementById('excelDrop').addEventListener('dragover', e=>{ e.preventDefault(); e.currentTarget.style.background='#f3edff'; });
+document.getElementById('excelDrop').addEventListener('dragleave', e=>{ e.currentTarget.style.background=''; });
+document.getElementById('excelDrop').addEventListener('drop', e=>{
+  e.preventDefault(); e.currentTarget.style.background='';
+  if(e.dataTransfer.files && e.dataTransfer.files[0]) handleExcelFile(e.dataTransfer.files[0]);
+});
+excelDrop.addEventListener('change', e=>{ if(e.target.files[0]) handleExcelFile(e.target.files[0]); e.target.value=''; });
+
+function handleExcelFile(file){
+  if(!window['XLSX']){ showToast('엑셀 파싱 라이브러리를 불러올 수 없습니다.'); return; }
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, {type:'array'});
+      const sheetName = wb.SheetNames[0];
+      const sheet = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:false, defval:''});
+      if(rows.length < 1){ showToast('엑셀 파일에 데이터가 없습니다.'); return; }
+
+      const header = rows[0].map(h=> String(h||'').trim());
+      let typeIdx = header.findIndex(h=> h.includes('유형'));
+      let codeIdx = header.findIndex(h=> h.includes('코드'));
+      let descIdx = header.findIndex(h=> h.includes('설명'));
+      let dataStart = 1;
+      if(typeIdx===-1 && codeIdx===-1){ typeIdx = 0; codeIdx = 1; descIdx = 2; dataStart = 0; }
+      else { if(typeIdx===-1) typeIdx = 0; if(codeIdx===-1) codeIdx = 1; if(descIdx===-1) descIdx = 2; }
+
+      const newMappings = [];
+      for(let i=dataStart; i<rows.length; i++){
+        const row = rows[i];
+        if(!row || row.length===0) continue;
+        const type = String(row[typeIdx]||'').trim();
+        const code = String(row[codeIdx]||'').trim();
+        const desc = descIdx>=0 ? String(row[descIdx]||'').trim() : '';
+        if(type && code) newMappings.push({type, code, desc});
+      }
+      if(newMappings.length===0){ showToast('엑셀에서 유효한 유형-코드 데이터를 찾지 못했습니다.'); return; }
+
+      const replace = mappingTbody.children.length===0 || confirm(`엑셀에서 ${newMappings.length}건을 찾았습니다.\n기존 매핑을 모두 지우고 교체하시겠습니까?\n(취소 시 기존 목록에 추가됩니다)`);
+      if(replace) mappingTbody.innerHTML='';
+      newMappings.forEach(m=> addMappingRow(m, true));
+      saveMappingsToStorage();
+      showToast(`엑셀 파일에서 ${newMappings.length}건의 유형-코드 매핑을 등록했습니다.`);
+    }catch(err){ showToast('엑셀 파일을 읽는 중 오류가 발생했습니다: ' + err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+document.getElementById('downloadExcelTemplateBtn').addEventListener('click', ()=>{
+  if(!window['XLSX']){ showToast('엑셀 라이브러리를 불러올 수 없습니다.'); return; }
+  const wsData = [
+    ['자산유형','코드','설명'],
+    ['상장주식','10','유가증권시장(KOSPI) 및 코스닥(KOSDAQ) 상장주식'],
+    ['채권','20','국채, 지방채, 회사채 등 채무증권'],
+    ['수익증권','30','집합투자증권(재간접펀드) 등'],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '유형코드매핑');
+  XLSX.writeFile(wb, 'asset_type_code_mapping_template.xlsx');
+  showToast('엑셀 양식을 다운로드했습니다.');
+});
+
+/* ================= 컬럼 역할(Role) 지정 ================= */
+const roleTbody = document.getElementById('roleTbody');
+const ROLE_OPTIONS = [
+  {value:'', label:'-- 역할 없음 --'},
+  {value:'base_date', label:'📅 기준일자(PK)'},
+  {value:'fund_code', label:'🏷 펀드코드(PK)'},
+  {value:'seq', label:'🔢 일련번호(PK,자동채번)'},
+  {value:'fund_name', label:'📛 펀드명'},
+  {value:'company', label:'🏢 운용사'},
+  {value:'name', label:'📌 기초자산명'},
+  {value:'type_code', label:'🔑 기초자산유형(코드저장)'},
+  {value:'weight', label:'📊 편입비중(%)'},
+  {value:'amount', label:'💰 평가금액'},
+  {value:'currency', label:'💱 통화'},
+  {value:'market', label:'🏛 거래소/시장'},
+  {value:'credit_rating', label:'⭐ 신용등급'},
+];
+let columnRoles = {};
+
+function guessRole(col){
+  const label = (col.label||''); const name = (col.name||'').toUpperCase();
+  if(label.includes('기준일자') || name==='BASE_DT') return 'base_date';
+  if(label.includes('펀드코드') || name==='FUND_CD') return 'fund_code';
+  if(label.includes('일련번호') || name==='SEQ_NO') return 'seq';
+  if(label.includes('펀드명') || name==='FUND_NM') return 'fund_name';
+  if(label.includes('운용사') || name.includes('COMPANY')) return 'company';
+  if(label.includes('기초자산유형') || name.includes('TYPE')) return 'type_code';
+  if(label.includes('기초자산명') || (name.includes('NM') && name.includes('ASSET'))) return 'name';
+  if(label.includes('비중') || name.includes('WEIGHT') || name.includes('_RT')) return 'weight';
+  if(label.includes('금액') || name.includes('AMT') || name.includes('AMOUNT')) return 'amount';
+  if(label.includes('통화') || name.includes('CURRENCY') || name.includes('CCY')) return 'currency';
+  if(label.includes('신용등급') || name.includes('RATING')) return 'credit_rating';
+  if(label.includes('시장') || label.includes('거래소') || name.includes('MARKET')) return 'market';
+  if(label.includes('명') || name.includes('NM') || name.includes('NAME')) return 'name';
+  return '';
+}
+
+function buildRoleTable(){
+  roleTbody.innerHTML = '';
+  if(currentColumns.length===0){ roleTbody.innerHTML = '<tr><td colspan="4" class="empty-tip" style="border:none;">구조를 먼저 적용하세요.</td></tr>'; return; }
+  currentColumns.forEach(c=>{
+    if(columnRoles[c.name] === undefined) columnRoles[c.name] = guessRole(c);
+    const tr = document.createElement('tr');
+    const optsHtml = ROLE_OPTIONS.map(o=> `<option value="${o.value}" ${columnRoles[c.name]===o.value?'selected':''}>${o.label}</option>`).join('');
+    tr.innerHTML = `<td>${c.label || '-'}${c.pk? '<span class="pk-tag">PK</span>':''}</td><td><span class="role-badge">${c.name}</span></td><td><span class="type-tag ${mapTypeClass(c.type)}">${c.type}</span></td><td><select class="role-select" data-col="${c.name}">${optsHtml}</select></td>`;
+    roleTbody.appendChild(tr);
+  });
+  roleTbody.querySelectorAll('.role-select').forEach(sel=>{
+    sel.addEventListener('change', ()=>{ columnRoles[sel.dataset.col] = sel.value; buildPreviewTable(); });
+  });
+}
+function getColByRole(role){ return currentColumns.find(c=> columnRoles[c.name] === role); }
+
+/* ================= 데이터 입력 미리보기 테이블 ================= */
+const previewHead = document.getElementById('previewHead');
+const previewBody = document.getElementById('previewBody');
+let currentColumns = [];
+
+function applyStructure(){
+  const cols = collectColumns(); if(cols.length===0){ showToast('먼저 컬럼을 1개 이상 등록하세요.'); return false; }
+  const nameSet = new Set();
+  for(const c of cols){
+    if(!c.name){ showToast('모든 컬럼의 [컬럼명(DB)]을 입력하세요.'); return false; }
+    if(nameSet.has(c.name)){ showToast(`컬럼명이 중복되었습니다: ${c.name}`); return false; }
+    nameSet.add(c.name);
+  }
+  currentColumns = cols;
+  buildRoleTable(); buildPreviewTable();
+  return true;
+}
+document.getElementById('applyStructBtn').addEventListener('click', ()=>{
+  if(applyStructure()) showToast('테이블 구조가 적용되었습니다. PDF를 업로드하면 AI가 자동으로 데이터를 채웁니다.');
+});
+
+function buildPreviewTable(){
+  previewHead.innerHTML = currentColumns.map(c=>{
+    const role = columnRoles[c.name];
+    const roleTag = role ? ` <span class="role-badge">${ROLE_OPTIONS.find(o=>o.value===role).label}</span>` : '';
+    return `<th>${c.label || c.name}${c.required? '<span class="req-star">*</span>':''}${c.pk?'<span class="pk-tag">PK</span>':''}<br><span class="type-tag ${mapTypeClass(c.type)}">${c.type}</span>${roleTag}</th>`;
+  }).join('');
+  previewBody.innerHTML = '';
+  addPreviewRow();
+}
+function mapTypeClass(type){ switch(type){case 'VARCHAR':return 'type-string';case 'NUMBER':return 'type-number';case 'DATE':return 'type-date';case 'BOOLEAN':return 'type-boolean';default:return 'type-string';} }
+
+function buildCellForColumn(c){
+  const td = document.createElement('td');
+  const role = columnRoles[c.name];
+  if(role === 'type_code'){
+    const mappings = collectMappings();
+    let optionsHtml = '<option value="">-- 자산유형 선택 --</option>';
+    mappings.forEach(m=>{ optionsHtml += `<option value="${m.code}" data-type="${m.type}">${m.type} (${m.code})</option>`; });
+    td.innerHTML = `<select class="type-code-select">${optionsHtml}</select>`;
+  } else if(role === 'weight'){
+    td.innerHTML = `<input type="text" class="weight-input" placeholder="예: 3.25">`;
+  } else if(role === 'amount'){
+    td.innerHTML = `<input type="text" class="amount-input" placeholder="예: 125000000">`;
+  } else {
+    let inputType = 'text';
+    if(c.type==='NUMBER') inputType='number';
+    if(c.type==='DATE') inputType='date';
+    if(c.type==='BOOLEAN'){ td.innerHTML = `<input type="checkbox">`; }
+    else { td.innerHTML = `<input type="${inputType}" placeholder="${c.desc||''}">`; }
+  }
+  return td;
+}
+
+function fillMetaLinkedCell(tr, colIdx, role){
+  const td = tr.children[colIdx];
+  const input = td.querySelector('input, select');
+  if(!input) return;
+  let val = '';
+  if(role==='base_date') val = document.getElementById('fundBaseDate').value;
+  else if(role==='fund_code') val = document.getElementById('fundCode').value;
+  else if(role==='fund_name') val = document.getElementById('fundName').value;
+  else if(role==='company') val = document.getElementById('fundCompany').value;
+  if(val){ input.value = val; td.classList.add('auto-filled'); }
+}
+function fillSeqCell(tr, colIdx){
+  const td = tr.children[colIdx];
+  const input = td.querySelector('input');
+  if(!input) return;
+  const idx = Array.from(previewBody.children).indexOf(tr);
+  input.value = (idx>=0? idx+1 : previewBody.children.length+1);
+  td.classList.add('auto-filled');
+}
+
+function addPreviewRow(){
+  if(currentColumns.length===0){ showToast('먼저 [구조 적용] 버튼을 눌러 테이블을 생성하세요.'); return; }
+  const tr = document.createElement('tr');
+  currentColumns.forEach(c=> tr.appendChild(buildCellForColumn(c)));
+  previewBody.appendChild(tr);
+  currentColumns.forEach((c, idx)=>{
+    const role = columnRoles[c.name];
+    if(['base_date','fund_code','fund_name','company'].includes(role)) fillMetaLinkedCell(tr, idx, role);
+    if(role === 'seq') fillSeqCell(tr, idx);
+  });
+  attachRowCalcListeners(tr);
+  return tr;
+}
+function renumberSeqColumn(){
+  const seqIdx = currentColumns.findIndex(c=> columnRoles[c.name]==='seq');
+  if(seqIdx===-1) return;
+  Array.from(previewBody.children).forEach((tr, idx)=>{
+    const input = tr.children[seqIdx].querySelector('input');
+    if(input){ input.value = idx+1; tr.children[seqIdx].classList.add('auto-filled'); }
+  });
+}
+
+function attachRowCalcListeners(tr){
+  const weightIdx = currentColumns.findIndex(c=> columnRoles[c.name]==='weight');
+  const amountIdx = currentColumns.findIndex(c=> columnRoles[c.name]==='amount');
+  if(weightIdx===-1 || amountIdx===-1) return;
+  const wInput = tr.children[weightIdx].querySelector('input');
+  const aInput = tr.children[amountIdx].querySelector('input');
+  if(!wInput || !aInput) return;
+  wInput.addEventListener('change', ()=>{
+    if(aInput.value.trim()!=='') return;
+    const total = parseNum(document.getElementById('fundTotalAmt').value);
+    const w = parseNum(wInput.value);
+    if(total && w!==null){ aInput.value = Math.round(total * w/100); tr.children[amountIdx].classList.add('calc-filled'); }
+  });
+  aInput.addEventListener('change', ()=>{
+    if(wInput.value.trim()!=='') return;
+    const total = parseNum(document.getElementById('fundTotalAmt').value);
+    const a = parseNum(aInput.value);
+    if(total && a!==null){ wInput.value = Math.round((a/total*100)*10000)/10000; tr.children[weightIdx].classList.add('calc-filled'); }
+  });
+}
+
+document.getElementById('addRowBtn').addEventListener('click', addPreviewRow);
+document.getElementById('clearRowsBtn').addEventListener('click', ()=>{ previewBody.innerHTML=''; showToast('입력된 행이 모두 초기화되었습니다.'); });
+
+document.getElementById('exportCsvBtn').addEventListener('click', ()=>{
+  if(currentColumns.length===0){ showToast('내보낼 테이블 구조가 없습니다.'); return; }
+  const headers = currentColumns.map(c=> c.label || c.name);
+  const rows = Array.from(previewBody.children).map(tr=> Array.from(tr.children).map(td=>{
+    const input = td.querySelector('input, select'); if(!input) return '';
+    if(input.type==='checkbox') return input.checked ? 'Y' : 'N';
+    return (input.value||'').replace(/,/g,' ');
+  }));
+  let csv = headers.join(',') + '\n' + rows.map(r=>r.join(',')).join('\n');
+  const blob = new Blob(["\uFEFF" + csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='fund_asset_data.csv'; a.click();
+  URL.revokeObjectURL(url); showToast('CSV 파일로 내보냈습니다.');
+});
+
+/* ================= 메타 필드 변경 시 기존 행 갱신 ================= */
+['fundBaseDate','fundCode','fundName','fundCompany'].forEach(id=>{
+  document.getElementById(id).addEventListener('change', ()=>{
+    if(currentColumns.length===0) return;
+    Array.from(previewBody.children).forEach(tr=>{
+      currentColumns.forEach((c, idx)=>{
+        const role = columnRoles[c.name];
+        if(['base_date','fund_code','fund_name','company'].includes(role)) fillMetaLinkedCell(tr, idx, role);
+      });
+    });
+  });
+});
+
+/* ================= 준비 상태 자동 보장 (구조/매핑 없으면 자동 생성) ================= */
+function ensureStructureReady(){
+  if(currentColumns.length===0){
+    loadPresetColumns();
+    applyStructure();
+    return true;
+  }
+  return false;
+}
+function ensureMappingReady(){
+  if(collectMappings().length===0){
+    loadMappingPresetFn();
+    return true;
+  }
+  return false;
+}
+
+/* ================= PDF 전체 텍스트 추출 (AI 전달용) ================= */
+async function extractPdfFullText(pdfDoc){
+  let text = '';
+  for(let p=1; p<=pdfDoc.numPages; p++){
+    const page = await pdfDoc.getPage(p);
+    const content = await page.getTextContent();
+    const strings = content.items.map(it=> it.str);
+    text += strings.join(' ') + '\n';
+  }
+  return text.replace(/[ \t]+/g,' ').trim();
+}
+
+/* ================= PDF 텍스트 추출 (줄 단위 재구성, 좌표 보존 - 폴백용) ================= */
+async function extractPdfLineObjects(pdfDoc){
+  const lines = [];
+  const numPages = pdfDoc.numPages;
+  for(let p=1; p<=numPages; p++){
+    const page = await pdfDoc.getPage(p);
+    const content = await page.getTextContent();
+    const items = content.items.map(it=>({text:it.str, x:it.transform[4], y:Math.round(it.transform[5])})).filter(it=> it.text && it.text.trim().length>0);
+    const groups = {}; const TOL = 3;
+    items.forEach(it=>{
+      let key=null;
+      for(const k of Object.keys(groups)){ if(Math.abs(Number(k)-it.y)<=TOL){ key=k; break; } }
+      if(key===null) key=String(it.y);
+      if(!groups[key]) groups[key]=[];
+      groups[key].push(it);
+    });
+    const sortedKeys = Object.keys(groups).sort((a,b)=> Number(b)-Number(a));
+    sortedKeys.forEach(k=>{
+      const rowItems = groups[k].sort((a,b)=> a.x-b.x);
+      const text = rowItems.map(it=>it.text).join(' ').replace(/\s+/g,' ').trim();
+      if(text) lines.push({page:p, y:Number(k), items: rowItems, text});
+    });
+  }
+  return lines;
+}
+
+/* ================= 자산유형 텍스트 ↔ 매핑 매칭 ================= */
+function resolveTypeToMapping(typeText, mappings){
+  if(!typeText) return null;
+  const t = String(typeText).trim();
+  let m = mappings.find(mp=> mp.type === t);
+  if(m) return m;
+  m = mappings.find(mp=> t.includes(mp.type) || mp.type.includes(t));
+  if(m) return m;
+  return null;
+}
+
+/* ================= AI 기반 추출 핵심 로직 (Anthropic Messages API 및 호환 게이트웨이 공용) ================= */
+function buildAIPrompt(pdfText, mappings){
+  const typeList = mappings.map(m=> `- ${m.type}`).join('\n');
+  const system = "당신은 금융 펀드/ETF/집합투자증권 관련 PDF 보고서에서 구조화된 데이터를 추출하는 전문 AI입니다. 운용사마다 PDF 양식(레이아웃, 표 구조, 용어)이 다르다는 점을 감안하여 최대한 정확히 정보를 찾아내야 합니다. 반드시 유효한 JSON 객체만 출력하세요. 코드블록 표시(```)나 설명 문장, 인사말 없이 순수 JSON 텍스트만 응답의 전부로 반환합니다.";
+  const user = `다음은 하나의 펀드(집합투자증권) PDF 문서에서 추출한 전체 텍스트입니다. 아래 JSON 스키마에 맞춰 정보를 채워주세요.
+
+[JSON 스키마]
+{
+  "fund_name": string|null,
+  "listing_code": string|null,
+  "company": string|null,
+  "fund_type": string|null,
+  "total_amount_krw": number|null,
+  "assets": [
+    {
+      "name": string,
+      "type": string,
+      "weight_percent": number|null,
+      "amount_krw": number|null,
+      "currency": string|null,
+      "market": string|null,
+      "credit_rating": string|null
+    }
+  ]
+}
+
+[참고 자산유형 목록]
+${typeList}
+
+[분석 대상 PDF 텍스트]
+${pdfText}
+
+주의사항:
+1. 문서 내 "상위 N종목", "구성종목", "포트폴리오", "보유종목", "종목별 비중" 등 개별 종목/보유자산 리스트를 모두 찾아 assets 배열에 빠짐없이 포함하세요.
+2. 종목 수는 문서에 실제 존재하는 개수 그대로 반영하고 임의로 개수를 제한하거나 늘리지 마세요.
+3. "업종비중"처럼 섹터/업종별 집계 표는 assets에 포함하지 말고, 개별 종목/자산 단위의 리스트만 assets에 포함하세요.
+4. 순자산총액은 "원" 단위 숫자로 환산하세요. 예: "72,996.65억원" -> 7299665000000, "3,859,983백만원" -> 3859983000000
+5. 반드시 순수 JSON 객체만 출력하고, 다른 설명 텍스트나 마크다운 코드블록 표시는 절대 포함하지 마세요. 첫 글자는 반드시 { 여야 합니다.`;
+  return {system, user};
+}
+
+/* Anthropic Messages API 및 이와 호환되는(요청 바디 동일) 사내 게이트웨이(Alpha API 등) 공용 호출 함수
+   ★ endpoint 파라미터는 화면에서 사용자가 직접 입력한 URL이 그대로 사용됨 ★ */
+async function callAI(apiKey, endpoint, authMode, model, systemPrompt, userPrompt){
+  const headers = {
+    'Content-Type': 'application/json',
+    'anthropic-version': '2023-06-01',
+    'anthropic-dangerous-direct-browser-access': 'true'
+  };
+  if(authMode === 'x-api-key'){
+    headers['x-api-key'] = apiKey;
+  } else if(authMode === 'bearer'){
+    headers['Authorization'] = 'Bearer ' + apiKey;
+  } else {
+    headers['x-api-key'] = apiKey;
+    headers['Authorization'] = 'Bearer ' + apiKey;
+  }
+
+  let resp;
+  try{
+    resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({
+        model: model,
+        max_tokens: 8000,
+        temperature: 0,
+        system: systemPrompt,
+        messages: [ {role:'user', content: userPrompt} ]
+      })
+    });
+  }catch(networkErr){
+    throw new Error('Failed to fetch: ' + networkErr.message);
+  }
+
+  if(!resp.ok){
+    let errMsg = `HTTP ${resp.status}`;
+    try{ const errJson = await resp.json(); if(errJson.error && errJson.error.message) errMsg += ' - ' + errJson.error.message; else errMsg += ' - ' + JSON.stringify(errJson).slice(0,200); }catch(e){}
+    throw new Error(errMsg);
+  }
+  const data = await resp.json();
+  if(Array.isArray(data.content)){
+    const block = data.content.find(b=> b.type==='text');
+    if(block && block.text) return block.text;
+  }
+  if(data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content){
+    return data.choices[0].message.content;
+  }
+  if(typeof data.completion === 'string') return data.completion;
+  throw new Error('응답 형식을 해석할 수 없습니다. 원본: ' + JSON.stringify(data).slice(0,300));
+}
+
+function safeParseAIJson(content){
+  let cleaned = content.trim();
+  cleaned = cleaned.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/```\s*$/,'');
+  const firstBrace = cleaned.indexOf('{');
+  const lastBrace = cleaned.lastIndexOf('}');
+  if(firstBrace > 0 && lastBrace > firstBrace){ cleaned = cleaned.slice(firstBrace, lastBrace+1); }
+  return JSON.parse(cleaned);
+}
+
+function applyAIMetaResult(result){
+  const map = { fund_name:'fundName', company:'fundCompany', fund_type:'fundType' };
+  let filled = 0;
+  Object.keys(map).forEach(key=>{
+    const el = document.getElementById(map[key]);
+    if(!el) return;
+    if(result[key]){
+      el.value = result[key];
+      el.classList.add('ai-detected');
+      filled++;
+    }
+  });
+  if(result.listing_code){
+    const digits = String(result.listing_code).replace(/\D/g,'');
+    if(digits){
+      const el = document.getElementById('fundCode');
+      el.value = 'KR' + digits;
+      el.classList.add('ai-detected');
+      filled++;
+    }
+  }
+  if(result.total_amount_krw){
+    const el = document.getElementById('fundTotalAmt');
+    el.value = formatWithCommas(Math.round(result.total_amount_krw));
+    el.classList.add('ai-detected');
+    filled++;
+  }
+  return filled;
+}
+
+async function runAIExtraction(triggerLabel, silentIfNoKey){
+  const apiKey = aiApiKeyInput.value.trim();
+  const endpoint = aiEndpointInput.value.trim();
+  const authMode = aiAuthModeSelect.value;
+  const model = aiModelSelect.value.trim();
+
+  if(!apiConnectionVerified){
+    if(!silentIfNoKey) showToast('먼저 상단에서 [🔌 연결 테스트]를 성공시켜야 AI 인식을 사용할 수 있습니다.');
+    return false;
+  }
+  const item = uploadedFiles.find(x=>x.id===activeFileId);
+  if(!item || !item.pdfDoc){ if(!silentIfNoKey) showToast('먼저 PDF를 업로드하고 활성화하세요.'); return false; }
+
+  updateStatus('AI가 PDF를 분석하는 중...', true);
+  aiLog.innerHTML = `<div class="log-line">[${triggerLabel}] <strong>${item.name}</strong> 문서를 AI(${model})가 분석 중입니다. (엔드포인트: <code>${endpoint}</code>) 잠시만 기다려주세요...</div>`;
+
+  try{
+    const pdfText = await extractPdfFullText(item.pdfDoc);
+    const clippedText = pdfText.length > 24000 ? pdfText.slice(0,24000) : pdfText;
+    rawTextContent.textContent = clippedText;
+    rawTextBox.style.display = 'block';
+
+    ensureMappingReady();
+    const mappings = collectMappings();
+    const {system, user} = buildAIPrompt(clippedText, mappings);
+    const content = await callAI(apiKey, endpoint, authMode, model, system, user);
+    const result = safeParseAIJson(content);
+
+    const metaFilled = applyAIMetaResult(result);
+
+    const wasStructureCreated = ensureStructureReady();
+    if(!getColByRole('type_code')){ buildRoleTable(); }
+
+    const mappingsAfter = collectMappings();
+    const totalAmtVal = parseNum(document.getElementById('fundTotalAmt').value);
+
+    const assets = Array.isArray(result.assets) ? result.assets : [];
+    let matchedCnt = 0, reviewCnt = 0;
+    const extractedRows = assets.map(a=>{
+      const matched = resolveTypeToMapping(a.type, mappingsAfter);
+      if(matched) matchedCnt++; else reviewCnt++;
+      return {
+        type: matched ? matched.type : (a.type || ''),
+        code: matched ? matched.code : '',
+        aiTypeRaw: a.type || '',
+        name: a.name || '',
+        weight: (a.weight_percent!=null && a.weight_percent!=='') ? String(a.weight_percent) : '',
+        amount: (a.amount_krw!=null && a.amount_krw!=='') ? String(Math.round(a.amount_krw)) : '',
+        currency: a.currency || 'KRW',
+        market: a.market || '',
+        creditRating: a.credit_rating || ''
+      };
+    });
+
+    reconcileWeightAmount(extractedRows, totalAmtVal);
+
+    if(extractedRows.length > 0){
+      previewBody.innerHTML = '';
+      extractedRows.forEach(ex=>{
+        const tr = addPreviewRow();
+        tr.classList.add('auto-row');
+        fillRowFromExtracted(tr, ex, true);
+      });
+      renumberSeqColumn();
+    }
+
+    const structNote = wasStructureCreated ? ' (표준 테이블 구조 자동 생성됨)' : '';
+    aiLog.innerHTML = `<div class="log-line">✅ [${triggerLabel}] AI 인식 완료${structNote} · 기본정보 ${metaFilled}건, 기초자산 <strong>${extractedRows.length}건</strong> (일련번호 1~${extractedRows.length} 자동 채번)</div>` +
+      `<div class="log-line">유형 매핑 성공 ${matchedCnt}건${reviewCnt>0 ? `, <span style="color:#c0392b;">미매핑(직접 확인 필요) ${reviewCnt}건</span>` : ''}</div>` +
+      `<div class="log-line">` + extractedRows.slice(0,15).map((e,idx)=> `<span class="mapping-code-badge ${e.code? '':'warn'}">#${idx+1} ${e.name}${e.weight? ' · '+e.weight+'%':''}</span>`).join(' ') +
+      (extractedRows.length>15 ? ` 외 ${extractedRows.length-15}건` : '') + `</div>`;
+
+    showToast(`AI가 기초자산 ${extractedRows.length}건을 인식하여 입력했습니다.`);
+    updateStatus();
+    return true;
+  }catch(err){
+    aiLog.innerHTML = `<div class="log-line" style="color:#c0392b;">❌ AI 인식 중 오류가 발생했습니다: ${err.message}</div><div class="log-line">규칙 기반 폴백 인식으로 자동 전환합니다.</div>`;
+    showToast('AI 인식 실패 - 규칙 기반 인식으로 전환합니다.');
+    updateStatus();
+    return false;
+  }
+}
+
+/* ================= 추출 결과를 미리보기 행에 채우기 (AI/규칙 공용) ================= */
+function fillRowFromExtracted(tr, extracted, isAI){
+  currentColumns.forEach((c, idx)=>{
+    const role = columnRoles[c.name];
+    if(!role) return;
+    const cell = tr.children[idx];
+    if(role === 'type_code'){
+      const sel = cell.querySelector('select');
+      if(sel){
+        if(extracted.code){
+          if(![...sel.options].some(o=>o.value===extracted.code)){
+            const opt = document.createElement('option'); opt.value = extracted.code; opt.textContent = `${extracted.type} (${extracted.code})`; sel.appendChild(opt);
+          }
+          sel.value = extracted.code; cell.classList.add('auto-filled');
+        } else if(extracted.type || extracted.aiTypeRaw){
+          const label = extracted.type || extracted.aiTypeRaw;
+          const opt = document.createElement('option'); opt.value=''; opt.textContent = `⚠ 미매핑: ${label} (직접 선택)`; sel.appendChild(opt);
+          sel.value=''; cell.classList.add('review-needed');
+        }
+      }
+    } else if(role === 'name'){
+      const input = cell.querySelector('input'); if(input && extracted.name){ input.value = extracted.name; cell.classList.add('auto-filled'); }
+    } else if(role === 'weight'){
+      const input = cell.querySelector('input');
+      if(input && extracted.weight){ input.value = extracted.weight; cell.classList.add(extracted.weightCalc?'calc-filled':'auto-filled'); }
+    } else if(role === 'amount'){
+      const input = cell.querySelector('input');
+      if(input && extracted.amount){ input.value = extracted.amount; cell.classList.add(extracted.amountCalc?'calc-filled':'auto-filled'); }
+    } else if(role === 'currency'){
+      const input = cell.querySelector('input'); if(input && extracted.currency){ input.value = extracted.currency; cell.classList.add('auto-filled'); }
+    } else if(role === 'credit_rating'){
+      const input = cell.querySelector('input'); if(input && extracted.creditRating){ input.value = extracted.creditRating; cell.classList.add('auto-filled'); }
+    } else if(role === 'market'){
+      const input = cell.querySelector('input'); if(input && extracted.market){ input.value = extracted.market; cell.classList.add('auto-filled'); }
+    }
+  });
+}
+
+/* ================= 비중/금액 상호 보완 계산 ================= */
+function reconcileWeightAmount(rows, metaTotal){
+  let total = metaTotal;
+  if(!total){
+    const sumAmt = rows.reduce((s,r)=> s + (r.amount? Number(r.amount):0), 0);
+    if(sumAmt>0) total = sumAmt;
+  }
+  rows.forEach(r=>{
+    let w = r.weight? Number(r.weight): null;
+    let a = r.amount? Number(r.amount): null;
+    if(a===null && w!==null && total){ a = Math.round(total * w/100); r.amount = String(a); r.amountCalc = true; }
+    else if(w===null && a!==null && total){ w = Math.round((a/total*100)*10000)/10000; r.weight = String(w); r.weightCalc = true; }
+  });
+  return rows;
+}
+
+/* ================= ① 규칙 기반 폴백: 상위 N종목 표 구조 인식 (좌표 기반) ================= */
+function extractTopHoldingsFromLineObjects(lineObjs){
+  const NAME_LABELS = ['종목명','자산명'];
+  const EXCLUDE_LABELS = ['섹터','업종'];
+  let headerIdx = -1;
+  for(let i=0;i<lineObjs.length;i++){
+    const t = lineObjs[i].text;
+    if(NAME_LABELS.some(lb=> t.includes(lb)) && t.includes('비중')){ headerIdx = i; break; }
+  }
+  if(headerIdx === -1) return [];
+  const headerItems = lineObjs[headerIdx].items;
+  let labeled = [];
+  headerItems.forEach(it=>{
+    const txt = it.text.trim();
+    if(NAME_LABELS.includes(txt)) labeled.push({x:it.x, role:'name'});
+    else if(txt.includes('비중')) labeled.push({x:it.x, role:'weight'});
+    else if(EXCLUDE_LABELS.some(lb=> txt.includes(lb))) labeled.push({x:it.x, role:'exclude'});
+  });
+  if(labeled.length===0) return [];
+  labeled.sort((a,b)=> a.x-b.x);
+  const cols = labeled.map((lb,idx)=>({ role: lb.role, start: lb.x - 2, end: idx+1<labeled.length ? labeled[idx+1].x : Infinity }));
+  const pairs = [];
+  for(let i=0;i<cols.length;i++){ if(cols[i].role==='name' && cols[i+1] && cols[i+1].role==='weight'){ pairs.push({nameCol:cols[i], weightCol:cols[i+1]}); } }
+  if(pairs.length===0) return [];
+  let expectedN = null;
+  for(let k=Math.max(0,headerIdx-4); k<headerIdx; k++){
+    const m = lineObjs[k].text.match(/상위\s*(\d+)\s*종목/);
+    if(m){ expectedN = parseInt(m[1],10); break; }
+  }
+  const results = [];
+  for(let i=headerIdx+1; i<lineObjs.length; i++){
+    const line = lineObjs[i];
+    let anyValid = false;
+    const lineResults = [];
+    for(const pair of pairs){
+      const nameItems = line.items.filter(it=> it.x>=pair.nameCol.start && it.x<pair.nameCol.end).sort((a,b)=> a.x-b.x);
+      const weightItems = line.items.filter(it=> it.x>=pair.weightCol.start && it.x<pair.weightCol.end);
+      const nameText = nameItems.map(it=>it.text).join(' ').replace(/\s+/g,' ').trim();
+      const weightItem = weightItems.find(it=> /^\d{1,3}(\.\d{1,4})?$/.test(it.text.trim()));
+      if(nameText && weightItem){ lineResults.push({name:nameText, weight:weightItem.text.trim()}); anyValid = true; }
+    }
+    if(!anyValid) break;
+    lineResults.forEach(r=> results.push(r));
+    if(expectedN && results.length>=expectedN) break;
+  }
+  return expectedN ? results.slice(0, expectedN) : results;
+}
+
+const CURRENCY_LIST = ['KRW','USD','EUR','JPY','CNY','GBP','HKD','AUD','CHF','CAD'];
+const MARKET_KEYWORDS = ['코스피','코스닥','유가증권시장','코넥스','뉴욕증권거래소','나스닥','NYSE','NASDAQ','런던','도쿄','상해','홍콩','싱가포르','장외'];
+const RATING_REGEX = /\b(AAA[+\-]?|AA[+\-]?|A[+\-]?|BBB[+\-]?|BB[+\-]?|B[+\-]?|CCC[+\-]?|CC|C|D)\b/;
+
+function extractFieldsFromLine(lineText, mappings){
+  const sortedTypes = [...mappings].sort((a,b)=> b.type.length - a.type.length);
+  const matchedMap = sortedTypes.find(m=> m.type && lineText.includes(m.type));
+  if(!matchedMap) return null;
+  let rest = lineText;
+  let weight = '';
+  const weightMatch = rest.match(/(\d{1,3}(?:\.\d{1,4})?)\s?%/);
+  if(weightMatch){ weight = weightMatch[1]; rest = rest.replace(weightMatch[0], ' '); }
+  let currency = '';
+  for(const c of CURRENCY_LIST){ const re = new RegExp('\\b'+c+'\\b'); if(re.test(rest)){ currency = c; rest = rest.replace(re, ' '); break; } }
+  let market = '';
+  for(const mk of MARKET_KEYWORDS){ if(rest.includes(mk)){ market = mk; rest = rest.replace(mk, ' '); break; } }
+  let creditRating = '';
+  const ratingMatch = rest.match(RATING_REGEX);
+  if(ratingMatch){ creditRating = ratingMatch[1]; rest = rest.replace(ratingMatch[0], ' '); }
+  let amount = '';
+  const amountMatches = [...rest.matchAll(/\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d{4,}(?:\.\d+)?/g)];
+  if(amountMatches.length>0){
+    amountMatches.sort((a,b)=> b[0].replace(/,/g,'').length - a[0].replace(/,/g,'').length);
+    amount = amountMatches[0][0]; rest = rest.replace(amountMatches[0][0], ' ');
+  }
+  rest = rest.replace(matchedMap.type, ' ');
+  let name = rest.replace(/[·・|,]/g,' ').replace(/\s+/g,' ').trim();
+  name = name.replace(/^\d+\s*/, '').trim();
+  if(name.length > 60) name = name.slice(0, 60);
+  return { type:matchedMap.type, code:matchedMap.code, name, weight, amount: amount? amount.replace(/,/g,''):'', currency, market, creditRating, raw:lineText };
+}
+
+/* ================= 자동 인식 트리거: 연결 검증된 경우 AI 우선 -> 실패시 규칙기반 폴백 ================= */
+async function triggerAutoRecognition(triggerLabel){
+  const aiAutoOn = document.getElementById('aiAutoToggle').checked;
+  if(aiAutoOn && apiConnectionVerified){
+    const ok = await runAIExtraction(triggerLabel, true);
+    if(ok) return;
+    const fallbackOn = document.getElementById('autoRunToggle').checked;
+    if(fallbackOn) await runRuleBasedExtraction(triggerLabel + ' (AI 실패 폴백)', true);
+  } else {
+    if(!apiConnectionVerified){
+      aiLog.innerHTML = `<div class="log-line">아직 API 연결 테스트가 완료되지 않았습니다. 상단에서 엔드포인트/키를 입력하고 [🔌 연결 테스트]를 먼저 실행하면 다음 PDF 업로드부터 AI 인식이 자동 적용됩니다. 지금은 규칙 기반 인식으로 진행합니다.</div>`;
+    }
+    const fallbackOn = document.getElementById('autoRunToggle').checked;
+    if(fallbackOn) await runRuleBasedExtraction(triggerLabel, true);
+  }
+}
+
+/* ================= 규칙 기반 폴백 추출 실행 ================= */
+let extractionInProgress = false;
+async function runRuleBasedExtraction(triggerLabel, silentIfNotReady){
+  if(extractionInProgress) return;
+  const item = uploadedFiles.find(x=>x.id===activeFileId);
+  if(!item || !item.pdfDoc){ if(!silentIfNotReady) showToast('먼저 PDF를 업로드하고 활성화하세요.'); return; }
+
+  extractionInProgress = true;
+  updateStatus('규칙 기반 PDF 데이터 추출 중...', true);
+
+  let lineObjs = [];
+  try{ lineObjs = await extractPdfLineObjects(item.pdfDoc); }
+  catch(err){ detectLog.innerHTML = 'PDF 텍스트 추출 중 오류: ' + err.message; extractionInProgress=false; updateStatus(); return; }
+
+  ensureStructureReady();
+  ensureMappingReady();
+
+  const mappings = collectMappings();
+  if(!getColByRole('type_code')){ buildRoleTable(); }
+
+  let extractedRows = [];
+  let usedTableMode = false;
+  const holdings = extractTopHoldingsFromLineObjects(lineObjs);
+  const totalAmtVal = parseNum(document.getElementById('fundTotalAmt').value);
+
+  if(holdings.length > 0){
+    usedTableMode = true;
+    const defaultMap = mappings.find(m=> m.type.includes('주식')) || mappings[0];
+    extractedRows = holdings.map(h=>{
+      const weightNum = parseNum(h.weight);
+      let amount = '';
+      if(totalAmtVal && weightNum!==null){ amount = String(Math.round(totalAmtVal * weightNum/100)); }
+      return { type: defaultMap? defaultMap.type:'', code: defaultMap? defaultMap.code:'', name: h.name, weight: h.weight, amount, currency:'KRW', market:'', creditRating:'', raw:`${h.name} ${h.weight}%` };
+    });
+  } else {
+    lineObjs.forEach(l=>{ const ex = extractFieldsFromLine(l.text, mappings); if(ex) extractedRows.push({...ex, page:l.page}); });
+  }
+
+  if(extractedRows.length === 0){
+    detectLog.innerHTML = `<div class="log-line">[${triggerLabel}] <strong>${item.name}</strong>에서 기초자산 데이터를 찾지 못했습니다. 상단 [API 연결 설정]에서 연결 테스트를 성공시키면 다양한 양식의 문서도 AI로 처리할 수 있습니다.</div>`;
+    if(!silentIfNotReady) showToast('추출된 데이터가 없습니다.');
+    extractionInProgress = false; updateStatus(); return;
+  }
+
+  extractedRows = reconcileWeightAmount(extractedRows, totalAmtVal);
+  previewBody.innerHTML = '';
+  extractedRows.forEach(ex=>{ const tr = addPreviewRow(); tr.classList.add('auto-row'); fillRowFromExtracted(tr, ex, false); });
+  renumberSeqColumn();
+
+  const modeTag = usedTableMode ? '[표 구조 인식]' : '[키워드 매칭]';
+  detectLog.innerHTML = `<div class="log-line">[${triggerLabel}] ${modeTag} <strong>${item.name}</strong>에서 총 <strong>${extractedRows.length}건</strong> 인식 (일련번호 1~${extractedRows.length} 자동 채번)</div>`;
+  showToast(`규칙 기반으로 ${extractedRows.length}건이 입력되었습니다.`);
+  extractionInProgress = false; updateStatus();
+}
+document.getElementById('autoDetectBtn').addEventListener('click', ()=> runRuleBasedExtraction('수동 실행(규칙기반)', false));
+
+/* ================= 초기화 ================= */
+addColumnRow({label:'기초자산유형', name:'ASSET_TYPE_CD', type:'VARCHAR', len:10, required:true, pk:false, desc:'[3.유형-코드 매핑]에서 정의한 코드값이 저장됨'});
+
+const loadedFromStorage = loadMappingsFromStorage();
+if(!loadedFromStorage){
+  addMappingRow({type:'상장주식', code:'10', desc:'유가증권시장(KOSPI) 및 코스닥(KOSDAQ) 상장주식'}, true);
+  addMappingRow({type:'해외주식', code:'15', desc:'해외 거래소 상장주식'}, true);
+  saveMappingsToStorage();
+}
+</script>
+</body>
+</html>

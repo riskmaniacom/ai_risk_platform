@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>리스크 이슈 모니터링 시스템</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;600;700&family=Noto+Sans+KR:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F3F6FA;
+    --panel:#FFFFFF;
+    --panel-2:#EEF3F9;
+    --border:#D7E1EC;
+    --border-soft:#E4EBF3;
+    --text:#152A3E;
+    --text-dim:#59718A;
+    --text-faint:#95A7B9;
+    --gold:#1B5FA8;
+    --gold-soft:#E5EFF9;
+    --risk-high:#C33C2E;
+    --risk-high-bg:#FBEAE7;
+    --risk-mid:#B4740E;
+    --risk-mid-bg:#FBF1E1;
+    --risk-low:#1E8A63;
+    --risk-low-bg:#E6F5EE;
+    --cat-fss:#1B5FA8;
+    --cat-peer:#4E8FC7;
+    --cat-sub:#2C7A8C;
+    --cat-borrower:#5B6E96;
+    --cat-news:#2E4A73;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Noto Sans KR', sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  .mono{ font-family:'IBM Plex Mono', monospace; }
+  .serif{ font-family:'Noto Serif KR', serif; }
+
+  /* ===== Header ===== */
+  .topbar{
+    border-bottom:1px solid var(--border);
+    background:linear-gradient(180deg, #FFFFFF 0%, #F3F6FA 100%);
+    padding:22px 32px 18px;
+    box-shadow:0 1px 0 rgba(21,42,62,.03);
+    display:flex; align-items:flex-end; justify-content:space-between;
+    flex-wrap:wrap; gap:16px;
+  }
+  .brand-eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px; letter-spacing:.18em; color:var(--gold);
+    text-transform:uppercase; margin-bottom:8px; display:flex; gap:10px; align-items:center;
+  }
+  .brand-eyebrow::before{
+    content:''; width:7px; height:7px; border-radius:50%; background:var(--gold);
+    box-shadow:0 0 0 3px rgba(27,95,168,.15);
+  }
+  .brand-title{
+    font-family:'Noto Serif KR', serif; font-weight:700; font-size:26px; letter-spacing:-.01em;
+  }
+  .brand-sub{ color:var(--text-dim); font-size:13px; margin-top:6px; }
+  .doc-stamp{
+    border:1px solid var(--border); padding:10px 16px; text-align:right;
+    font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--text-dim);
+    background:var(--panel);
+  }
+  .doc-stamp .num{ color:var(--gold); font-weight:600; font-size:12px; margin-bottom:3px; }
+
+  /* ===== Layout ===== */
+  .layout{
+    display:grid;
+    grid-template-columns:220px 1fr 440px;
+    gap:0;
+    min-height:calc(100vh - 92px);
+  }
+  /* Tablet & below: stack sidebar → feed → detail vertically (DOM order),
+     sidebar collapses into a horizontal chip bar to save vertical space. */
+  @media (max-width: 1100px){
+    .layout{ grid-template-columns:1fr; min-height:auto; }
+    .sidebar{
+      display:flex; flex-wrap:wrap; align-items:center; gap:8px 8px;
+      border-right:none; border-bottom:1px solid var(--border);
+      padding:14px 16px;
+    }
+    .side-label{ display:none; }
+    .filter-btn{ width:auto; padding:7px 13px; border-radius:20px; margin-bottom:0; }
+    .filter-btn .count{ margin-left:2px; }
+    .sev-group{ display:contents; }
+    .sev-btn{ width:auto; padding:7px 13px; border-radius:20px; margin-bottom:0; }
+    .gen-btn{ flex:1 1 100%; margin-top:4px; order:99; }
+    .detail{
+      border-left:none; border:1px solid var(--gold); border-radius:8px;
+      max-height:none; overflow:visible; background:var(--panel-2);
+      margin:0 0 14px; padding:18px 18px 20px;
+      box-shadow:0 4px 14px rgba(27,95,168,.08);
+    }
+    .feed{ padding:20px 20px; }
+  }
+  @media (max-width: 640px){
+    .topbar{ padding:18px 18px 14px; }
+    .brand-title{ font-size:21px; }
+    .doc-stamp{ display:none; }
+    .feed{ padding:16px 14px; }
+    .detail{ padding:18px 16px; }
+    .kv-grid{ grid-template-columns:1fr 1fr; gap:8px; }
+    .rpt-meta-grid, .rpt-stat-row{ grid-template-columns:1fr 1fr; }
+    .rpt-signoff{ grid-template-columns:1fr 1fr; }
+    .rpt-signoff .so-box:nth-child(3){ border-left:none; }
+    .exp-wrap{ overflow-x:auto; }
+    .exp-head-row, .exp-row{ min-width:440px; }
+    .rpt-table{ min-width:560px; }
+    .modal-overlay{ padding:16px 10px; }
+    .report-head, .settings-body{ padding-left:18px; padding-right:18px; }
+    .report-body{ padding:20px 18px 26px; }
+  }
+
+  /* ===== Sidebar ===== */
+  .sidebar{
+    border-right:1px solid var(--border);
+    padding:24px 16px;
+    background:var(--panel);
+  }
+  .side-label{
+    font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:.14em;
+    color:var(--text-faint); text-transform:uppercase; padding:0 8px; margin-bottom:10px;
+  }
+  .filter-btn{
+    width:100%; text-align:left; background:transparent; border:1px solid transparent;
+    color:var(--text-dim); padding:10px 10px; border-radius:6px; font-size:13.5px;
+    display:flex; justify-content:space-between; align-items:center; cursor:pointer;
+    margin-bottom:2px; transition:all .15s;
+  }
+  .filter-btn:hover{ background:var(--panel-2); color:var(--text); }
+  .filter-btn.active{ background:var(--gold-soft); color:var(--gold); border-color:rgba(27,95,168,.25); font-weight:500;}
+  .filter-btn .count{ font-family:'IBM Plex Mono', monospace; font-size:11px; opacity:.7; }
+  .filter-dot{ width:7px; height:7px; border-radius:50%; display:inline-block; margin-right:8px; }
+
+  .sev-group{ margin-top:26px; }
+  .sev-btn{ width:100%; text-align:left; background:transparent; border:1px solid var(--border-soft);
+    color:var(--text-dim); padding:8px 10px; border-radius:6px; font-size:12.5px; margin-bottom:6px;
+    cursor:pointer; display:flex; align-items:center; gap:8px; }
+  .sev-btn.active{ border-color:currentColor; }
+  .sev-chip{ width:8px; height:8px; border-radius:2px; }
+
+  .gen-btn{
+    margin-top:30px; width:100%; background:var(--gold); color:#FFFFFF; border:none;
+    box-shadow:0 2px 6px rgba(27,95,168,.25);
+    padding:12px 10px; border-radius:6px; font-weight:700; font-size:13px; cursor:pointer;
+    letter-spacing:-.01em; transition:filter .15s;
+  }
+  .gen-btn:hover{ filter:brightness(1.08); }
+
+  /* ===== Feed ===== */
+  .feed{ padding:24px 28px; overflow-y:auto; }
+  .feed-header{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:18px; }
+  .feed-title{ font-size:15px; font-weight:700; }
+  .feed-meta{ font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--text-faint); }
+
+  .card{
+    background:var(--panel); border:1px solid var(--border); border-radius:8px;
+    padding:16px 18px; margin-bottom:12px; cursor:pointer; transition:all .15s;
+    position:relative; overflow:hidden;
+  }
+  .card::before{
+    content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--cat-color, var(--gold));
+  }
+  .card:hover{ border-color:var(--border-soft); background:var(--panel-2); transform:translateY(-1px); }
+  .card.selected{ border-color:var(--gold); background:var(--panel-2); }
+  .card-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px; }
+  .card-badges{ display:flex; gap:6px; flex-wrap:wrap; }
+  .badge{
+    font-family:'IBM Plex Mono', monospace; font-size:10px; padding:3px 8px; border-radius:4px;
+    letter-spacing:.02em; white-space:nowrap;
+  }
+  .badge-cat{ background:rgba(27,95,168,.06); border:1px solid var(--border-soft); }
+  .badge-sev{ font-weight:600; }
+  .sev-high{ color:var(--risk-high); background:var(--risk-high-bg); }
+  .sev-mid{ color:var(--risk-mid); background:var(--risk-mid-bg); }
+  .sev-low{ color:var(--risk-low); background:var(--risk-low-bg); }
+  .card-time{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-faint); white-space:nowrap; }
+  .card-title{ font-size:14.5px; font-weight:500; margin-bottom:6px; line-height:1.45; }
+  .card-summary{ font-size:12.5px; color:var(--text-dim); line-height:1.6; }
+  .card-tags{ margin-top:10px; display:flex; gap:6px; flex-wrap:wrap; }
+  .tag{ font-size:10.5px; color:var(--text-faint); border:1px solid var(--border-soft); padding:2px 7px; border-radius:10px; }
+  .card-link-flag{
+    margin-top:10px; display:flex; align-items:center; gap:6px; font-size:11px; color:var(--gold);
+    font-family:'IBM Plex Mono', monospace;
+  }
+  .card-link-flag::before{ content:'●'; font-size:8px; }
+
+  /* ===== Detail Panel ===== */
+  .detail{ border-left:1px solid var(--border); background:var(--panel); padding:24px; overflow-y:auto; }
+  .detail-empty{ color:var(--text-faint); font-size:13px; text-align:center; margin-top:80px; line-height:1.8; }
+  .detail-empty .icon{ font-size:28px; margin-bottom:12px; opacity:.5; }
+  .detail-section-label{
+    font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:.14em; color:var(--gold);
+    text-transform:uppercase; margin:22px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--border-soft);
+  }
+  .detail-section-label:first-of-type{ margin-top:0; }
+  .detail-title{ font-size:17px; font-weight:700; line-height:1.5; margin-bottom:10px; }
+  .detail-body{ font-size:13px; color:var(--text-dim); line-height:1.75; }
+  .kv-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .kv-box{ background:var(--panel-2); border:1px solid var(--border-soft); border-radius:6px; padding:10px 12px; }
+  .kv-label{ font-size:10.5px; color:var(--text-faint); margin-bottom:4px; }
+  .kv-value{ font-family:'IBM Plex Mono', monospace; font-size:15px; font-weight:600; }
+  .kv-value.alert{ color:var(--risk-high); }
+  .kv-value.ok{ color:var(--risk-low); }
+
+  .exp-wrap{ border:1px solid var(--border-soft); border-radius:8px; overflow:hidden; }
+  .exp-head-row{
+    display:grid; grid-template-columns:1.5fr 1fr 1.3fr .8fr 1fr;
+    background:var(--panel-2); font-size:10px; color:var(--text-faint);
+    letter-spacing:.03em; padding:8px 12px; font-family:'IBM Plex Mono', monospace;
+  }
+  .exp-row{
+    display:grid; grid-template-columns:1.5fr 1fr 1.3fr .8fr 1fr;
+    padding:9px 12px; font-size:12px; border-top:1px solid var(--border-soft);
+    align-items:center; color:var(--text);
+  }
+  .exp-row .exp-name{ font-weight:500; }
+  .exp-row .exp-num{ font-family:'IBM Plex Mono', monospace; }
+  .exp-row .exp-collateral{ color:var(--text-dim); font-size:11px; }
+  .exp-row .exp-ratio{ font-family:'IBM Plex Mono', monospace; color:var(--text-dim); text-align:right; }
+  .exp-row .exp-net{ font-family:'IBM Plex Mono', monospace; text-align:right; font-weight:600; }
+  .exp-row.total{
+    background:var(--gold-soft); border-top:1px solid rgba(27,95,168,.25); font-weight:700;
+  }
+  .exp-row.total .exp-net{ color:var(--gold); }
+  .exp-foot{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:9px 12px; background:var(--panel-2); border-top:1px solid var(--border-soft);
+    font-size:11px; color:var(--text-dim);
+  }
+  .qoq-chip{
+    font-family:'IBM Plex Mono', monospace; font-size:11px; padding:2px 8px; border-radius:10px;
+    font-weight:600;
+  }
+  .qoq-up{ color:var(--risk-high); background:var(--risk-high-bg); }
+  .qoq-down{ color:var(--risk-low); background:var(--risk-low-bg); }
+  .qoq-flat{ color:var(--text-dim); background:var(--panel-2); }
+  .net-exposure-summary{
+    display:flex; gap:10px; margin-top:10px;
+  }
+  .net-box{ flex:1; background:var(--panel-2); border:1px solid var(--border-soft); border-radius:6px; padding:10px 12px; text-align:center; }
+  .net-box .n-label{ font-size:10.5px; color:var(--text-faint); margin-bottom:4px; }
+  .net-box .n-value{ font-family:'IBM Plex Mono', monospace; font-size:16px; font-weight:700; }
+  .dept-list{ display:flex; flex-wrap:wrap; gap:6px; }
+  .dept-chip{ font-size:11.5px; background:var(--panel-2); border:1px solid var(--border-soft); padding:4px 10px; border-radius:12px; }
+  .action-note{
+    background:var(--gold-soft); border:1px solid rgba(27,95,168,.2); border-radius:6px;
+    padding:12px 14px; font-size:12.5px; color:#134A85; line-height:1.6; margin-top:4px;
+  }
+  .src-link{ font-size:11.5px; color:var(--text-faint); margin-top:14px; font-family:'IBM Plex Mono', monospace; }
+
+  /* ===== Report Modal ===== */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(21,42,62,.45); backdrop-filter:blur(3px);
+    display:none; align-items:flex-start; justify-content:center; padding:40px 20px; z-index:100; overflow-y:auto;
+  }
+  .modal-overlay.open{ display:flex; }
+  .report-doc{
+    background:#FFFFFF; border:1px solid var(--border); max-width:720px; width:100%;
+    padding:0; border-radius:10px; overflow:hidden; box-shadow:0 30px 80px rgba(21,42,62,.18);
+  }
+  .report-head{
+    padding:28px 32px 22px; border-bottom:2px solid var(--gold);
+    background:linear-gradient(180deg,#F7FAFD,#FFFFFF);
+  }
+  .report-head-top{ display:flex; justify-content:space-between; align-items:flex-start; }
+  .report-eyebrow{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:.16em; color:var(--gold); margin-bottom:8px;}
+  .report-title{ font-family:'Noto Serif KR', serif; font-size:22px; font-weight:700; }
+  .report-close{ background:none; border:1px solid var(--border); color:var(--text-dim); width:30px; height:30px;
+    border-radius:6px; cursor:pointer; font-size:15px; }
+  .report-doc-id{ font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--text-faint); margin-top:10px;}
+  .report-body{ padding:24px 32px 32px; max-height:65vh; overflow-y:auto; }
+  .report-item{ padding:16px 0; border-bottom:1px solid var(--border-soft); }
+  .report-item:last-child{ border-bottom:none; }
+  .report-item-head{ display:flex; gap:10px; align-items:center; margin-bottom:6px; }
+  .report-num{ font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--gold); font-weight:600; }
+  .report-item-title{ font-size:14px; font-weight:700; }
+  .report-item-body{ font-size:12.5px; color:var(--text-dim); line-height:1.7; margin-left:0; }
+  .report-item-body b{ color:var(--text); }
+  .report-footer{ padding:16px 32px; border-top:1px solid var(--border); display:flex; justify-content:space-between;
+    align-items:center; font-size:11px; color:var(--text-faint); font-family:'IBM Plex Mono', monospace; }
+  .print-btn{ background:transparent; border:1px solid var(--border); color:var(--text-dim); padding:7px 14px;
+    border-radius:6px; font-size:12px; cursor:pointer; }
+  .print-btn:hover{ color:var(--text); border-color:var(--text-dim); }
+
+  /* ===== Executive Report ===== */
+  .report-doc{ max-width:780px; }
+  .rpt-meta-grid{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--border-soft);
+    border:1px solid var(--border-soft); border-radius:6px; overflow:hidden; margin-top:16px;
+  }
+  .rpt-meta-box{ background:#FFFFFF; padding:8px 10px; }
+  .rpt-meta-box .m-label{ font-size:9.5px; color:var(--text-faint); margin-bottom:3px; }
+  .rpt-meta-box .m-value{ font-size:11.5px; font-weight:700; color:var(--text); }
+  .rpt-meta-box .m-value.confidential{ color:var(--risk-high); }
+
+  .rpt-section-title{
+    font-family:'Noto Serif KR', serif; font-size:14.5px; font-weight:700; color:var(--text);
+    display:flex; align-items:center; gap:8px; margin:26px 0 12px; padding-bottom:8px;
+    border-bottom:2px solid var(--gold);
+  }
+  .rpt-section-title:first-of-type{ margin-top:0; }
+  .rpt-section-title .n{ font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--gold); font-weight:600; }
+
+  .rpt-summary-text{ font-size:12.5px; color:var(--text-dim); line-height:1.85; margin-bottom:14px; }
+  .rpt-summary-text b{ color:var(--text); }
+
+  .rpt-stat-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:18px; }
+  .rpt-stat{ text-align:center; background:var(--panel-2); border:1px solid var(--border-soft); border-radius:6px; padding:10px 6px; }
+  .rpt-stat .s-num{ font-family:'IBM Plex Mono', monospace; font-size:19px; font-weight:700; color:var(--text); }
+  .rpt-stat .s-lbl{ font-size:10px; color:var(--text-faint); margin-top:2px; }
+  .rpt-stat.hi .s-num{ color:var(--risk-high); }
+
+  .rpt-table-wrap{ overflow-x:auto; }
+  .rpt-table{ width:100%; border-collapse:collapse; font-size:11.5px; margin-bottom:6px; }
+  .rpt-table thead th{
+    background:var(--panel-2); color:var(--text-dim); font-weight:600; font-size:10.5px;
+    text-align:left; padding:8px 9px; border-bottom:1px solid var(--border); white-space:nowrap;
+  }
+  .rpt-table tbody td{ padding:8px 9px; border-bottom:1px solid var(--border-soft); vertical-align:top; color:var(--text); }
+  .rpt-table tbody tr:hover{ background:var(--panel-2); }
+  .rpt-table td.num{ font-family:'IBM Plex Mono', monospace; text-align:right; white-space:nowrap; }
+  .rpt-table td.center{ text-align:center; white-space:nowrap; }
+
+  .rpt-issue{ border:1px solid var(--border-soft); border-left:4px solid var(--cat-color, var(--gold)); border-radius:0 8px 8px 0; padding:14px 16px; margin-bottom:12px; }
+  .rpt-issue-head{ display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
+  .rpt-issue-title{ font-size:13.5px; font-weight:700; color:var(--text); }
+  .rpt-dl{ display:grid; grid-template-columns:86px 1fr; row-gap:7px; column-gap:10px; font-size:12px; }
+  .rpt-dl dt{ color:var(--text-faint); font-size:10.5px; padding-top:1px; }
+  .rpt-dl dd{ color:var(--text-dim); line-height:1.65; }
+  .rpt-dl dd b{ color:var(--text); }
+  .rpt-mini-exp{ display:flex; flex-wrap:wrap; gap:6px; margin-top:2px; }
+  .rpt-mini-exp span{
+    font-family:'IBM Plex Mono', monospace; font-size:10.5px; background:var(--panel-2);
+    border:1px solid var(--border-soft); border-radius:4px; padding:2px 7px; color:var(--text-dim);
+  }
+
+  .rpt-opinion-box{
+    background:var(--gold-soft); border:1px solid rgba(27,95,168,.2); border-left:4px solid var(--gold);
+    border-radius:0 8px 8px 0; padding:14px 16px; font-size:12.5px; color:#14406B; line-height:1.85;
+  }
+  .rpt-opinion-box b{ color:#0B3665; }
+
+  .rpt-distro{ font-size:11.5px; color:var(--text-dim); line-height:1.8; }
+  .rpt-distro b{ color:var(--text); }
+
+  .rpt-signoff{
+    display:grid; grid-template-columns:repeat(4,1fr); border:1px solid var(--border); border-radius:6px; overflow:hidden; margin-top:8px;
+  }
+  .rpt-signoff .so-box{ padding:10px 8px 26px; text-align:center; border-left:1px solid var(--border); position:relative; }
+  .rpt-signoff .so-box:first-child{ border-left:none; }
+  .rpt-signoff .so-role{ font-size:10px; color:var(--text-faint); margin-bottom:2px; }
+  .rpt-signoff .so-name{ font-size:11.5px; font-weight:600; color:var(--text); }
+
+  .settings-btn{
+    background:var(--panel); border:1px solid var(--border); color:var(--text-dim);
+    width:34px; height:34px; border-radius:7px; cursor:pointer; font-size:15px;
+    display:flex; align-items:center; justify-content:center; transition:all .15s;
+  }
+  .settings-btn:hover{ color:var(--gold); border-color:var(--gold); }
+  .topbar-right{ display:flex; align-items:flex-end; gap:10px; }
+  .conn-summary{
+    font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-faint);
+    margin-top:6px; display:flex; align-items:center; gap:5px; justify-content:flex-end;
+  }
+  .conn-dot{ width:6px; height:6px; border-radius:50%; background:var(--risk-low); }
+  .conn-dot.warn{ background:var(--risk-mid); }
+  .conn-dot.off{ background:var(--text-faint); }
+
+  .settings-doc{
+    background:#FFFFFF; border:1px solid var(--border); max-width:640px; width:100%;
+    border-radius:10px; overflow:hidden; box-shadow:0 30px 80px rgba(21,42,62,.18);
+  }
+  .settings-body{ padding:6px 32px 24px; max-height:70vh; overflow-y:auto; }
+  .settings-note{
+    background:var(--panel-2); border:1px solid var(--border-soft); border-radius:6px;
+    padding:11px 13px; font-size:11.5px; color:var(--text-dim); line-height:1.65; margin:14px 0 20px;
+  }
+  .src-row{ border:1px solid var(--border-soft); border-radius:8px; padding:14px 16px; margin-bottom:12px; }
+  .src-row-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:3px; }
+  .src-name{ font-size:13.5px; font-weight:700; display:flex; align-items:center; gap:8px; }
+  .src-desc{ font-size:11.5px; color:var(--text-faint); margin-bottom:10px; }
+  .status-pill{
+    font-family:'IBM Plex Mono', monospace; font-size:10px; padding:3px 9px; border-radius:10px;
+    display:flex; align-items:center; gap:5px; font-weight:600;
+  }
+  .status-pill.connected{ color:var(--risk-low); background:var(--risk-low-bg); }
+  .status-pill.disconnected{ color:var(--text-faint); background:var(--panel-2); }
+  .status-pill.testing{ color:var(--risk-mid); background:var(--risk-mid-bg); }
+  .status-pill.error{ color:var(--risk-high); background:var(--risk-high-bg); }
+  .status-pill .sp-dot{ width:6px; height:6px; border-radius:50%; background:currentColor; }
+  .src-fields{ display:flex; gap:8px; }
+  .src-fields input{
+    flex:1; background:var(--panel-2); border:1px solid var(--border-soft); border-radius:6px;
+    padding:8px 10px; font-size:12px; font-family:'IBM Plex Mono', monospace; color:var(--text);
+    outline:none;
+  }
+  .src-fields input:focus{ border-color:var(--gold); }
+  .src-fields input::placeholder{ color:var(--text-faint); }
+  .src-btn{
+    border:1px solid var(--border); background:#FFFFFF; color:var(--text-dim); border-radius:6px;
+    padding:0 13px; font-size:11.5px; cursor:pointer; white-space:nowrap;
+  }
+  .src-btn:hover{ border-color:var(--gold); color:var(--gold); }
+  .src-btn.primary{ background:var(--gold); color:#FFFFFF; border-color:var(--gold); }
+  .src-btn.primary:hover{ filter:brightness(1.08); }
+  .src-saved-hint{ font-size:10.5px; color:var(--risk-low); margin-top:6px; display:none; }
+  ::-webkit-scrollbar-thumb{ background:#C7D5E3; border-radius:4px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+
+  @media print{
+    body *{ visibility:hidden; }
+    .report-doc, .report-doc *{ visibility:visible; }
+    .report-doc{ position:absolute; left:0; top:0; width:100%; max-height:none; }
+    .report-body{ max-height:none; overflow:visible; }
+    .print-btn, .report-close{ display:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <div class="brand-eyebrow">RISK INTELLIGENCE · AI 이슈 모니터링</div>
+    <div class="brand-title">리스크 이슈 모니터링 &amp; 리포팅 시스템</div>
+    <div class="brand-sub">감독원 · 타행 · 자회사 · 차주 이슈 자동 수집 &amp; 내부 시스템 연동 브리핑</div>
+  </div>
+  <div class="topbar-right">
+    <div class="doc-stamp">
+      <div class="num" id="docDate">2026.07.24 (금)</div>
+      <div>담당자: 리스크기획부 &nbsp;|&nbsp; 상태: <span style="color:var(--gold)">모니터링 중</span></div>
+      <div class="conn-summary" id="connSummary"><span class="conn-dot off"></span>데이터 연동 확인 중…</div>
+    </div>
+    <button class="settings-btn" onclick="openSettings()" title="데이터 연동 설정">⚙</button>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="side-label">이슈 구분</div>
+    <button class="filter-btn active" data-filter="all">
+      <span><span class="filter-dot" style="background:#666"></span>전체</span>
+      <span class="count" id="cnt-all">0</span>
+    </button>
+    <button class="filter-btn" data-filter="fss">
+      <span><span class="filter-dot" style="background:var(--cat-fss)"></span>감독원</span>
+      <span class="count" id="cnt-fss">0</span>
+    </button>
+    <button class="filter-btn" data-filter="peer">
+      <span><span class="filter-dot" style="background:var(--cat-peer)"></span>타행</span>
+      <span class="count" id="cnt-peer">0</span>
+    </button>
+    <button class="filter-btn" data-filter="sub">
+      <span><span class="filter-dot" style="background:var(--cat-sub)"></span>자회사</span>
+      <span class="count" id="cnt-sub">0</span>
+    </button>
+    <button class="filter-btn" data-filter="borrower">
+      <span><span class="filter-dot" style="background:var(--cat-borrower)"></span>차주</span>
+      <span class="count" id="cnt-borrower">0</span>
+    </button>
+    <button class="filter-btn" data-filter="news">
+      <span><span class="filter-dot" style="background:var(--cat-news)"></span>신문기사</span>
+      <span class="count" id="cnt-news">0</span>
+    </button>
+
+    <div class="sev-group">
+      <div class="side-label">심각도</div>
+      <button class="sev-btn active" data-sev="all" style="color:var(--text-dim)">전체 보기</button>
+      <button class="sev-btn" data-sev="high" style="color:var(--risk-high)"><span class="sev-chip" style="background:var(--risk-high)"></span>상 (긴급)</button>
+      <button class="sev-btn" data-sev="mid" style="color:var(--risk-mid)"><span class="sev-chip" style="background:var(--risk-mid)"></span>중 (주의)</button>
+      <button class="sev-btn" data-sev="low" style="color:var(--risk-low)"><span class="sev-chip" style="background:var(--risk-low)"></span>하 (참고)</button>
+    </div>
+
+    <button class="gen-btn" onclick="openReport()">일일 브리핑 생성 →</button>
+  </div>
+
+  <!-- FEED -->
+  <div class="feed">
+    <div class="feed-header">
+      <div class="feed-title">실시간 이슈 피드</div>
+      <div class="feed-meta" id="feedMeta">— 건 · 자동 갱신 09:00 / 14:00</div>
+    </div>
+    <div id="cardList"></div>
+  </div>
+
+  <!-- DETAIL -->
+  <div class="detail" id="detailPanel">
+    <div class="detail-empty">
+      <div class="icon">◎</div>
+      좌측 피드에서 이슈를 선택하면<br>내부 시스템 연동 데이터를 확인할 수 있습니다.
+    </div>
+  </div>
+
+</div>
+
+<!-- REPORT MODAL -->
+<div class="modal-overlay" id="reportModal">
+  <div class="report-doc">
+    <div class="report-head">
+      <div class="report-head-top">
+        <div>
+          <div class="report-eyebrow">DAILY RISK BRIEFING</div>
+          <div class="report-title">리스크 이슈 브리핑</div>
+        </div>
+        <button class="report-close" onclick="closeReport()">✕</button>
+      </div>
+      <div class="report-doc-id" id="reportDocId">문서번호: 리스크-2026-0724-001</div>
+    </div>
+    <div class="report-body" id="reportBody"></div>
+    <div class="report-footer">
+      <span>AI 초안 · 담당자 검토 후 확정 필요</span>
+      <button class="print-btn" onclick="window.print()">인쇄 / PDF 저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="settings-doc">
+    <div class="report-head">
+      <div class="report-head-top">
+        <div>
+          <div class="report-eyebrow">DATA SOURCE CONNECTIONS</div>
+          <div class="report-title">데이터 연동 설정</div>
+        </div>
+        <button class="report-close" onclick="closeSettings()">✕</button>
+      </div>
+    </div>
+    <div class="settings-body">
+      <div class="settings-note">
+        API 키는 이 브라우저 세션의 개인 저장소에만 저장되며, 외부로 전송되지 않는 프로토타입입니다.
+        실제 운영 환경에서는 키를 클라이언트에 두지 않고 백엔드 시크릿 볼트(Vault/KMS)에서 관리하고,
+        이 화면은 연동 상태 확인 용도로만 사용하시길 권장합니다.
+      </div>
+      <div id="sourceList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+
+const CAT_META = {
+  fss:      { label:'감독원', color:'var(--cat-fss)' },
+  peer:     { label:'타행',   color:'var(--cat-peer)' },
+  sub:      { label:'자회사', color:'var(--cat-sub)' },
+  borrower: { label:'차주',   color:'var(--cat-borrower)' },
+  news:     { label:'신문기사', color:'var(--cat-news)' },
+};
+const SEV_META = {
+  high: { label:'상', cls:'sev-high' },
+  mid:  { label:'중', cls:'sev-mid' },
+  low:  { label:'하', cls:'sev-low' },
+};
+
+const ISSUES = [
+  {
+    id:'RK-0724-01', cat:'fss', sev:'high', time:'07:42',
+    title:'금감원, 부동산 PF 대손충당금 적립기준 강화 예고',
+    summary:'금융감독원이 부동산PF 익스포저에 대한 예상손실율(EL) 산정기준을 상향하는 내용의 감독규정 개정을 예고. 8월 중 의견수렴 후 4분기 결산부터 적용 전망.',
+    tags:['부동산PF','충당금','감독규정'],
+    linked:true,
+    internal:{
+      kv:[
+        {label:'당행 부동산PF 익스포저', value:'2조 1,480억', alert:true},
+        {label:'추가 적립 예상액', value:'약 640억', alert:true},
+        {label:'현재 충당금 적립률', value:'3.2%'},
+        {label:'개정 후 예상 적립률', value:'5.8%', alert:true},
+      ],
+      exposureDetail:{
+        qoq:'+4.2%p', qoqDir:'up',
+        items:[
+          {name:'브릿지론', amount:'3,120억', collateral:'토지신탁수익권', ratio:'68%', net:'998억'},
+          {name:'본PF대출(공동담보)', amount:'15,660억', collateral:'시공사연대보증+담보신탁', ratio:'74%', net:'4,072억'},
+          {name:'유동화보증(매입확약)', amount:'2,700억', collateral:'무담보(신용보강)', ratio:'0%', net:'2,700억'},
+        ],
+        total:'2조 1,480억', totalNet:'7,770억', totalNetPct:'36%'
+      },
+      action:'4분기 결산 영향 시뮬레이션 필요. 회계팀과 충당금 적립 스케줄 사전 조율 권고.',
+      depts:['여신기획부','리스크관리부','회계팀'],
+      src:'금융감독원 보도자료 · 2026.07.24'
+    }
+  },
+  {
+    id:'RK-0724-02', cat:'fss', sev:'mid', time:'08:15',
+    title:'금융위, 가계대출 DSR 규제 세부기준 개정 행정예고',
+    summary:'스트레스 DSR 3단계 적용범위를 전세대출까지 확대하는 개정안 행정예고. 시행 시 대출한도 축소로 신규 취급 영향 예상.',
+    tags:['DSR','가계대출','행정예고'],
+    linked:true,
+    internal:{
+      kv:[
+        {label:'전세대출 잔액(당행)', value:'8,920억'},
+        {label:'예상 한도 축소율', value:'약 6~9%'},
+        {label:'의견제출 마감', value:'D-12'},
+        {label:'영향 등급', value:'중', },
+      ],
+      exposureDetail:{
+        qoq:'+1.1%p', qoqDir:'up',
+        items:[
+          {name:'전세자금대출(보증부)', amount:'7,140억', collateral:'HUG/HF 보증', ratio:'100%', net:'0억'},
+          {name:'전세대출(무보증)', amount:'1,780억', collateral:'전세보증금 질권', ratio:'85%', net:'267억'},
+        ],
+        total:'8,920억', totalNet:'267억', totalNetPct:'3%'
+      },
+      action:'여신상품부 검토 후 금융위 의견수렴 절차 대응안 필요.',
+      depts:['여신기획부','수신여신상품부'],
+      src:'금융위원회 행정예고 · 2026.07.24'
+    }
+  },
+  {
+    id:'RK-0724-03', cat:'peer', sev:'high', time:'09:03',
+    title:'A은행, 해외 부동산펀드 관련 대규모 손실 공시',
+    summary:'A은행이 판매한 해외 상업용 부동산 펀드에서 대규모 평가손실 발생, 배상절차 착수 발표. 유사 상품 판매 은행권 전반 검사 확대 가능성 제기.',
+    tags:['불완전판매','펀드','타행리스크'],
+    linked:true,
+    internal:{
+      kv:[
+        {label:'당행 동일유형 상품 판매잔액', value:'340억'},
+        {label:'해당 상품 가입 고객 수', value:'212명'},
+        {label:'유사 소송 이력', value:'없음', },
+        {label:'검사 확대 시 영향', value:'중', },
+      ],
+      exposureDetail:{
+        qoq:'0.0%p', qoqDir:'flat',
+        items:[
+          {name:'OO글로벌부동산펀드1호', amount:'210억', collateral:'만기 2027.03', ratio:'—', net:'210억'},
+          {name:'OO글로벌부동산펀드2호', amount:'130억', collateral:'만기 2027.09', ratio:'—', net:'130억'},
+        ],
+        total:'340억', totalNet:'340억', totalNetPct:'100%'
+      },
+      action:'유사 판매상품 자체 점검 선제 실시 권고. 금감원 확대검사 대비 소명자료 사전 준비.',
+      depts:['자산관리부','준법감시부'],
+      src:'금융감독원 제재정보 · 언론보도 종합'
+    }
+  },
+  {
+    id:'RK-0724-04', cat:'peer', sev:'mid', time:'10:20',
+    title:'B은행, 전산장애로 5시간 서비스 중단·과징금 부과',
+    summary:'B은행 차세대 전산시스템 오류로 인터넷·모바일뱅킹 5시간 중단. 금감원, 전자금융감독규정 위반으로 과징금 부과 예고.',
+    tags:['전산장애','과징금'],
+    linked:false,
+    internal:{
+      kv:[
+        {label:'당행 관련 익스포저', value:'해당없음'},
+        {label:'직전 재해복구훈련', value:'2026.05'},
+        {label:'BCP 최신화 여부', value:'완료'},
+      ],
+      action:'참고사항. 자체 전산 재해복구체계 점검주기 재확인 권고.',
+      depts:['IT기획부'],
+      src:'언론보도 종합 · 2026.07.24'
+    }
+  },
+  {
+    id:'RK-0724-05', cat:'sub', sev:'high', time:'11:05',
+    title:'[계열] OO증권, PF대출 관련 220억 규모 손해배상 소송 피소',
+    summary:'지주 계열 OO증권이 시행사向 PF대출 관련 시공사로부터 손해배상 소송 피소. 연결기준 우발채무 반영 검토 필요.',
+    tags:['계열사','PF','소송'],
+    linked:true,
+    internal:{
+      kv:[
+        {label:'소송가액', value:'220억', alert:true},
+        {label:'지주 연결 우발채무 영향', value:'검토중', alert:true},
+        {label:'OO증권 자기자본대비', value:'4.1%'},
+        {label:'그룹 RWA 영향', value:'경미'},
+      ],
+      action:'지주 리스크관리위원회 보고 대상. 연결 재무제표 주석 반영 여부 법무팀 검토 요청.',
+      depts:['지주리스크관리팀','그룹법무실'],
+      src:'계열사 리스크관리시스템 연동'
+    }
+  },
+  {
+    id:'RK-0724-06', cat:'sub', sev:'mid', time:'11:40',
+    title:'[계열] OO캐피탈, 자동차금융 연체율 상승 및 충당금 추가 적립',
+    summary:'OO캐피탈 자동차할부금융 연체율이 전분기 대비 0.8%p 상승, 3분기 충당금 180억 추가 적립 결정.',
+    tags:['계열사','연체율','여신건전성'],
+    linked:true,
+    internal:{
+      kv:[
+        {label:'OO캐피탈 연체율', value:'2.4%', alert:true},
+        {label:'전분기 대비', value:'+0.8%p', alert:true},
+        {label:'추가 충당금', value:'180억'},
+        {label:'그룹 연결 자산건전성 영향', value:'경미'},
+      ],
+      exposureDetail:{
+        qoq:'+0.8%p', qoqDir:'up',
+        items:[
+          {name:'연체 1~3개월', amount:'62억', collateral:'차량(할부목적물)', ratio:'80%', net:'12억'},
+          {name:'연체 3~6개월', amount:'28억', collateral:'차량(할부목적물)', ratio:'62%', net:'11억'},
+          {name:'연체 6개월 이상(고정이하)', amount:'15억', collateral:'차량(회수가치 하락)', ratio:'35%', net:'10억'},
+        ],
+        total:'105억', totalNet:'33억', totalNetPct:'31%'
+      },
+      action:'그룹 여신건전성 모니터링 지표에 반영. 자동차금융 시장 전반 동향 추가 확인 권고.',
+      depts:['지주리스크관리팀'],
+      src:'계열사 리스크관리시스템 연동'
+    }
+  },
+  {
+    id:'RK-0724-07', cat:'borrower', sev:'high', time:'12:15',
+    title:'(주)한빛건설, 신용등급 강등 (BBB → BBB-)',
+    summary:'신용평가사, 한빛건설의 미분양 증가 및 PF 우발채무 확대를 사유로 신용등급 한 단계 하향 조정. 등급전망 \'부정적\' 유지.',
+    tags:['신용등급','건설업','차주리스크'],
+    linked:true,
+    internal:{
+      kv:[
+        {label:'당행 여신 익스포저', value:'412억', alert:true},
+        {label:'담보비율(LTV)', value:'68%'},
+        {label:'보증기관 보증여부', value:'일부(38%)'},
+        {label:'등급하락 후 필요적립액', value:'약 22억 추가', alert:true},
+      ],
+      exposureDetail:{
+        qoq:'+2.4%p', qoqDir:'up',
+        items:[
+          {name:'운전자금대출', amount:'180억', collateral:'부동산 근저당', ratio:'72%', net:'50억'},
+          {name:'PF대출(자체시행)', amount:'150억', collateral:'사업부지+시공사보증(38%)', ratio:'54%', net:'69억'},
+          {name:'지급보증(이행보증)', amount:'82억', collateral:'무담보', ratio:'0%', net:'82억'},
+        ],
+        total:'412억', totalNet:'201억', totalNetPct:'49%'
+      },
+      action:'여신 재심사 대상 등록. 담보가치 재평가 및 추가 여신한도 동결 검토 필요.',
+      depts:['기업여신심사부','리스크관리부'],
+      src:'신용평가사 API 연동 · 여신시스템 조회'
+    }
+  },
+  {
+    id:'RK-0724-08', cat:'borrower', sev:'mid', time:'13:02',
+    title:'대한조선해양, 수주잔량 감소 및 업황 전망 하향',
+    summary:'글로벌 조선업 신규수주 둔화로 수주잔량 전년比 18% 감소. 산업 전망 \'안정적\'에서 \'부정적\'으로 하향.',
+    tags:['조선업','산업전망'],
+    linked:true,
+    internal:{
+      kv:[
+        {label:'당행 여신 익스포저', value:'890억'},
+        {label:'담보비율(LTV)', value:'54%'},
+        {label:'산업 익스포저 비중', value:'전체 여신의 1.8%'},
+        {label:'등급 변동', value:'없음(모니터링)'},
+      ],
+      exposureDetail:{
+        qoq:'-0.6%p', qoqDir:'down',
+        items:[
+          {name:'시설자금대출', amount:'520억', collateral:'공장저당+기계기구', ratio:'61%', net:'203억'},
+          {name:'수출환어음(무역금융)', amount:'370억', collateral:'수출채권 양도담보', ratio:'48%', net:'192억'},
+        ],
+        total:'890억', totalNet:'395억', totalNetPct:'44%'
+      },
+      action:'업종 익스포저 한도 재점검. 분기별 산업 스트레스테스트 대상 포함.',
+      depts:['산업분석팀','리스크관리부'],
+      src:'산업동향 크롤링 · 여신시스템 조회'
+    }
+  },
+  {
+    id:'RK-0724-09', cat:'borrower', sev:'mid', time:'13:48',
+    title:'미래바이오텍, 임상 3상 실패로 주가 급락(-42%)',
+    summary:'주력 파이프라인 임상 3상 실패 공시 이후 주가 급락. 운전자금 대출 관련 재무구조 악화 우려.',
+    tags:['바이오','임상실패','주가급락'],
+    linked:true,
+    internal:{
+      kv:[
+        {label:'당행 여신 익스포저', value:'65억'},
+        {label:'담보형태', value:'신용대출(무담보)', alert:true},
+        {label:'현재 신용등급', value:'BB+'},
+        {label:'재무약정(코베넌트) 위반여부', value:'점검중'},
+      ],
+      exposureDetail:{
+        qoq:'0.0%p', qoqDir:'flat',
+        items:[
+          {name:'운전자금 신용대출', amount:'65억', collateral:'무담보', ratio:'0%', net:'65억'},
+        ],
+        total:'65억', totalNet:'65억', totalNetPct:'100%'
+      },
+      action:'무담보 익스포저로 리스크 등급 상향 검토. 재무약정 준수 여부 긴급 확인 필요.',
+      depts:['기업여신심사부'],
+      src:'공시정보 크롤링 · 여신시스템 조회'
+    }
+  },
+  {
+    id:'RK-0724-10', cat:'fss', sev:'low', time:'14:30',
+    title:'금감원, 스트레스완충자본 적립 가이드라인 발표',
+    summary:'경기대응완충자본과 별도로 은행권 자체 스트레스완충자본 적립을 권고하는 가이드라인 발표. 의무사항은 아니며 모범규준 성격.',
+    tags:['자본규제','가이드라인'],
+    linked:false,
+    internal:{
+      kv:[
+        {label:'당행 BIS비율', value:'14.2%'},
+        {label:'규제비율 대비 여유', value:'+2.7%p'},
+        {label:'의무 적용 여부', value:'권고사항'},
+      ],
+      action:'참고사항. 자본관리계획 수립 시 참고지표로 반영 검토.',
+      depts:['재무기획부'],
+      src:'금융감독원 보도자료 · 2026.07.24'
+    }
+  },
+  {
+    id:'RK-0724-11', cat:'peer', sev:'mid', time:'15:10',
+    title:'C은행, ELS 불완전판매 배상 절차 개시',
+    summary:'C은행, 지수형 ELS 원금손실 관련 자율배상 절차 개시 발표. 배상비율 30~60% 수준 예상.',
+    tags:['ELS','불완전판매','배상'],
+    linked:true,
+    internal:{
+      kv:[
+        {label:'당행 동일유형 ELS 판매잔액', value:'156억'},
+        {label:'만기 도래 예정(3개월내)', value:'42억'},
+        {label:'과거 민원 발생 건수', value:'3건'},
+      ],
+      exposureDetail:{
+        qoq:'-3.1%p', qoqDir:'down',
+        items:[
+          {name:'지수형ELS(코스피200)', amount:'98억', collateral:'만기 2027.01', ratio:'—', net:'98억'},
+          {name:'지수형ELS(S&P500연계)', amount:'58억', collateral:'만기 2026.11', ratio:'—', net:'58억'},
+        ],
+        total:'156억', totalNet:'156억', totalNetPct:'100%'
+      },
+      action:'판매 프로세스 자체 점검 및 만기도래 상품 고객 안내 강화 권고.',
+      depts:['자산관리부','소비자보호부'],
+      src:'언론보도 종합 · 2026.07.24'
+    }
+  },
+  {
+    id:'RK-0724-12', cat:'news', sev:'mid', time:'15:45',
+    title:'저축은행업권 PF 부실채권 비율 확대, 2금융권발 리스크 전이 우려 확산',
+    summary:'저축은행 3사 연체율 동반 상승 보도가 잇따르며 2금융권 PF 부실이 은행권 콜자금·매입약정으로 전이될 수 있다는 시장 우려 기사 급증.',
+    tags:['저축은행','PF부실','업권리스크'],
+    linked:true,
+    internal:{
+      kv:[
+        {label:'당행 저축은행向 콜론·매입약정', value:'120억'},
+        {label:'최근 7일 관련 보도량', value:'34건', alert:true},
+        {label:'전주 대비 보도량 증가율', value:'+180%', alert:true},
+      ],
+      action:'업권 리스크 확산 모니터링 강화. 2금융권向 익스포저 한도 재점검 권고.',
+      depts:['리스크관리부','자금시장부'],
+      src:'네이버 뉴스 검색 API 연동 · 언론사 종합'
+    }
+  },
+  {
+    id:'RK-0724-13', cat:'news', sev:'mid', time:'16:05',
+    title:'원/달러 환율 1,420원 돌파… 외화 유동성 관리 경계감 확산',
+    summary:'美 연준 매파적 발언 이후 원화 약세 가속화. 경제지들, 외화조달 비용 상승과 은행권 외화 LCR 관리 필요성 일제히 보도.',
+    tags:['환율','외화유동성','매크로'],
+    linked:true,
+    internal:{
+      kv:[
+        {label:'당행 외화 LCR', value:'128%'},
+        {label:'외화차입 조달금리 변동', value:'+18bp', alert:true},
+        {label:'외화 순포지션', value:'3.2억 달러'},
+      ],
+      action:'외화 유동성 스트레스테스트 조기 실시 권고. 외화 조달처 다변화 검토.',
+      depts:['자금시장부','리스크관리부'],
+      src:'네이버 뉴스 검색 API 연동 · 경제지 종합'
+    }
+  },
+  {
+    id:'RK-0724-14', cat:'news', sev:'low', time:'16:30',
+    title:'한국은행, 기준금리 3.00% 8회 연속 동결',
+    summary:'금통위, 물가와 성장 둔화를 동시에 고려해 기준금리 동결 결정. 시장 예상과 부합하는 결과로 특이 반응 없음.',
+    tags:['기준금리','통화정책'],
+    linked:false,
+    internal:{
+      kv:[
+        {label:'NIM(순이자마진) 영향', value:'중립적'},
+        {label:'예대금리차 변동', value:'없음'},
+      ],
+      action:'참고사항. 별도 대응 불요.',
+      depts:['자금시장부'],
+      src:'네이버 뉴스 검색 API 연동 · 경제지 종합'
+    }
+  },
+];
+
+let activeFilter = 'all';
+let activeSev = 'all';
+let selectedId = null;
+const detailPanelEl = document.getElementById('detailPanel');
+
+const DATA_SOURCES = [
+  { id:'fss_api', name:'금융감독원 Open API', desc:'감독원 보도자료·지도공문·검사결과 수집',
+    fields:[ {key:'apiKey', label:'API Key', type:'password'} ] },
+  { id:'dart_api', name:'전자공시(DART) API', desc:'타행 공시·제재정보 수집',
+    fields:[ {key:'apiKey', label:'API Key', type:'password'} ] },
+  { id:'naver_news', name:'네이버 뉴스 검색 API', desc:'감독원·타행·차주·업권 관련 실시간 뉴스 수집 (openapi.naver.com)',
+    fields:[ {key:'clientId', label:'Client ID', type:'text'}, {key:'clientSecret', label:'Client Secret', type:'password'} ] },
+  { id:'nice_api', name:'신용평가사 정보 API', desc:'차주 신용등급 변동 조회 (NICE/KIS 등)',
+    fields:[ {key:'apiKey', label:'API Key', type:'password'} ] },
+  { id:'core_banking', name:'내부 여신시스템 연동', desc:'차주별 익스포저·담보·등급 실시간 조회',
+    fields:[ {key:'endpoint', label:'Endpoint URL', type:'text'}, {key:'apiKey', label:'API Key', type:'password'} ] },
+  { id:'group_risk', name:'계열사 통합 리스크 시스템', desc:'자회사 이슈·그룹 연결 영향도 조회',
+    fields:[ {key:'endpoint', label:'Endpoint URL', type:'text'}, {key:'apiKey', label:'API Key', type:'password'} ] },
+];
+
+let connState = {}; // { [id]: { [fieldKey]: value, status: 'connected'|'disconnected'|'error', savedAt } }
+
+async function loadConnections(){
+  try{
+    const res = await window.storage.get('risk-api-connections', false);
+    if(res && res.value){ connState = JSON.parse(res.value); }
+  }catch(e){ /* no saved config yet */ }
+  DATA_SOURCES.forEach(s=>{
+    if(!connState[s.id]) connState[s.id] = { status:'disconnected' };
+    s.fields.forEach(f=>{ if(connState[s.id][f.key]===undefined) connState[s.id][f.key]=''; });
+  });
+  renderConnSummary();
+}
+
+async function persistConnections(){
+  try{
+    await window.storage.set('risk-api-connections', JSON.stringify(connState), false);
+  }catch(e){ console.error('설정 저장 실패', e); }
+}
+
+function renderConnSummary(){
+  const total = DATA_SOURCES.length;
+  const connected = DATA_SOURCES.filter(s=>connState[s.id]?.status==='connected').length;
+  const el = document.getElementById('connSummary');
+  let dotClass = 'off';
+  if(connected===total) dotClass='';
+  else if(connected>0) dotClass='warn';
+  el.innerHTML = `<span class="conn-dot ${dotClass}"></span>데이터 연동 ${connected}/${total}`;
+}
+
+function renderSourceList(){
+  const el = document.getElementById('sourceList');
+  el.innerHTML = DATA_SOURCES.map(s=>{
+    const st = connState[s.id];
+    const statusLabel = { connected:'연동됨', disconnected:'미연동', testing:'확인 중', error:'연결 오류' }[st.status];
+    const fieldsHtml = s.fields.map(f=>{
+      return `<input type="${f.type}" id="in-${s.id}-${f.key}" placeholder="${f.label}" value="${st[f.key]||''}">`;
+    }).join('');
+    return `
+    <div class="src-row">
+      <div class="src-row-head">
+        <div class="src-name">${s.name}</div>
+        <div class="status-pill ${st.status}"><span class="sp-dot"></span>${statusLabel}</div>
+      </div>
+      <div class="src-desc">${s.desc}</div>
+      <div class="src-fields">
+        ${fieldsHtml}
+        <button class="src-btn" onclick="testConnection('${s.id}')">테스트</button>
+        <button class="src-btn primary" onclick="saveConnection('${s.id}')">저장</button>
+      </div>
+      <div class="src-saved-hint" id="hint-${s.id}">✓ 저장되었습니다</div>
+    </div>`;
+  }).join('');
+}
+
+function readFieldsFromInputs(sourceId){
+  const s = DATA_SOURCES.find(x=>x.id===sourceId);
+  s.fields.forEach(f=>{
+    const input = document.getElementById(`in-${sourceId}-${f.key}`);
+    if(input) connState[sourceId][f.key] = input.value.trim();
+  });
+}
+
+async function saveConnection(sourceId){
+  readFieldsFromInputs(sourceId);
+  await persistConnections();
+  const hint = document.getElementById(`hint-${sourceId}`);
+  if(hint){ hint.style.display='block'; setTimeout(()=>hint.style.display='none', 2000); }
+}
+
+async function testConnection(sourceId){
+  readFieldsFromInputs(sourceId);
+  const s = DATA_SOURCES.find(x=>x.id===sourceId);
+  const allFilled = s.fields.every(f=>connState[sourceId][f.key]);
+  connState[sourceId].status = 'testing';
+  renderSourceList();
+  await new Promise(r=>setTimeout(r, 900));
+  connState[sourceId].status = allFilled ? 'connected' : 'error';
+  connState[sourceId].savedAt = new Date().toISOString();
+  await persistConnections();
+  renderSourceList();
+  renderConnSummary();
+}
+
+function openSettings(){
+  renderSourceList();
+  document.getElementById('settingsModal').classList.add('open');
+}
+function closeSettings(){ document.getElementById('settingsModal').classList.remove('open'); }
+document.getElementById('settingsModal').addEventListener('click', e=>{
+  if(e.target.id==='settingsModal') closeSettings();
+});
+
+function renderCounts(){
+  document.getElementById('cnt-all').textContent = ISSUES.length;
+  ['fss','peer','sub','borrower','news'].forEach(c=>{
+    document.getElementById('cnt-'+c).textContent = ISSUES.filter(i=>i.cat===c).length;
+  });
+}
+
+function renderList(){
+  const list = ISSUES.filter(i => (activeFilter==='all'||i.cat===activeFilter) && (activeSev==='all'||i.sev===activeSev));
+  const container = document.getElementById('cardList');
+  document.getElementById('feedMeta').textContent = list.length + '건 · 자동 갱신 09:00 / 14:00';
+  container.innerHTML = list.map(i=>{
+    const cat = CAT_META[i.cat], sev = SEV_META[i.sev];
+    return `<div class="card ${i.id===selectedId?'selected':''}" data-id="${i.id}" style="--cat-color:${cat.color}" onclick="selectIssue('${i.id}')">
+      <div class="card-top">
+        <div class="card-badges">
+          <span class="badge badge-cat" style="color:${cat.color}">${cat.label}</span>
+          <span class="badge badge-sev ${sev.cls}">심각도 ${sev.label}</span>
+        </div>
+        <div class="card-time">${i.time} · ${i.id}</div>
+      </div>
+      <div class="card-title">${i.title}</div>
+      <div class="card-summary">${i.summary}</div>
+      <div class="card-tags">${i.tags.map(t=>`<span class="tag">#${t}</span>`).join('')}</div>
+      ${i.linked?`<div class="card-link-flag">내부 시스템 연동 데이터 있음</div>`:''}
+    </div>`;
+  }).join('') || `<div style="color:var(--text-faint); font-size:13px; padding:40px 0; text-align:center;">해당 조건의 이슈가 없습니다.</div>`;
+  positionDetailPanel();
+}
+
+/* On narrow screens, the detail ("당행 현황") panel is moved in the DOM to sit
+   directly under the selected issue's card, instead of staying in a fixed
+   right-hand sidebar slot. On wide screens it returns to the sidebar slot. */
+function isNarrowLayout(){
+  return window.matchMedia('(max-width: 1100px)').matches;
+}
+function positionDetailPanel(){
+  if(isNarrowLayout() && selectedId){
+    const cardEl = document.querySelector(`.card[data-id="${selectedId}"]`);
+    if(cardEl){
+      cardEl.insertAdjacentElement('afterend', detailPanelEl);
+      return;
+    }
+  }
+  document.querySelector('.layout').appendChild(detailPanelEl);
+}
+let resizeTimer;
+window.addEventListener('resize', ()=>{
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(positionDetailPanel, 150);
+});
+
+function selectIssue(id){
+  selectedId = id;
+  renderList();
+  const i = ISSUES.find(x=>x.id===id);
+  const cat = CAT_META[i.cat], sev = SEV_META[i.sev];
+  const panel = detailPanelEl;
+  panel.innerHTML = `
+    <div class="badge badge-cat" style="color:${cat.color}; display:inline-block; margin-bottom:10px;">${cat.label}</div>
+    <span class="badge badge-sev ${sev.cls}" style="margin-left:6px;">심각도 ${sev.label}</span>
+    <div class="detail-title">${i.title}</div>
+    <div class="detail-body">${i.summary}</div>
+
+    <div class="detail-section-label">내부 시스템 연동 · 당행/그룹 영향</div>
+    <div class="kv-grid">
+      ${i.internal.kv.map(k=>`<div class="kv-box"><div class="kv-label">${k.label}</div><div class="kv-value ${k.alert?'alert':''}">${k.value}</div></div>`).join('')}
+    </div>
+
+    ${i.internal.exposureDetail ? `
+    <div class="detail-section-label">당행 익스포저 상세내역</div>
+    <div class="exp-wrap">
+      <div class="exp-head-row">
+        <span>구분(계정과목)</span><span>잔액</span><span>담보/보증</span><span style="text-align:right">비율</span><span style="text-align:right">순익스포저</span>
+      </div>
+      ${i.internal.exposureDetail.items.map(it=>`
+        <div class="exp-row">
+          <span class="exp-name">${it.name}</span>
+          <span class="exp-num">${it.amount}</span>
+          <span class="exp-collateral">${it.collateral}</span>
+          <span class="exp-ratio">${it.ratio}</span>
+          <span class="exp-net">${it.net}</span>
+        </div>`).join('')}
+      <div class="exp-row total">
+        <span class="exp-name">합계</span>
+        <span class="exp-num">${i.internal.exposureDetail.total}</span>
+        <span></span><span></span>
+        <span class="exp-net">${i.internal.exposureDetail.totalNet}</span>
+      </div>
+      <div class="exp-foot">
+        <span>순익스포저 비중 ${i.internal.exposureDetail.totalNetPct}</span>
+        <span class="qoq-chip qoq-${i.internal.exposureDetail.qoqDir}">전분기比 ${i.internal.exposureDetail.qoq}</span>
+      </div>
+    </div>` : ''}
+
+    <div class="detail-section-label">권고 조치</div>
+    <div class="action-note">${i.internal.action}</div>
+
+    <div class="detail-section-label">관련 부서</div>
+    <div class="dept-list">${i.internal.depts.map(d=>`<span class="dept-chip">${d}</span>`).join('')}</div>
+
+    <div class="src-link">출처: ${i.internal.src}</div>
+  `;
+}
+
+document.querySelectorAll('.filter-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    activeFilter = btn.dataset.filter;
+    renderList();
+  });
+});
+document.querySelectorAll('.sev-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.sev-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    activeSev = btn.dataset.sev;
+    renderList();
+  });
+});
+
+function parseEok(str){
+  if(!str) return 0;
+  const s = String(str).replace(/,/g,'');
+  let total = 0;
+  const j = s.match(/([\d.]+)\s*조/);
+  if(j) total += parseFloat(j[1])*10000;
+  const e = s.match(/([\d.]+)\s*억/);
+  if(e) total += parseFloat(e[1]);
+  return total;
+}
+function formatEok(n){
+  n = Math.round(n);
+  if(n>=10000){ return `${Math.floor(n/10000)}조 ${(n%10000).toLocaleString()}억`; }
+  return `${n.toLocaleString()}억`;
+}
+
+function openReport(){
+  const highs = ISSUES.filter(i=>i.sev==='high');
+  const mids = ISSUES.filter(i=>i.sev==='mid');
+  const featured = [...highs, ...mids];
+  const linkedCount = ISSUES.filter(i=>i.internal.exposureDetail).length;
+
+  const totalNetEok = ISSUES.reduce((sum,i)=> sum + (i.internal.exposureDetail ? parseEok(i.internal.exposureDetail.totalNet) : 0), 0);
+
+  let topIssue = null, topVal = -1;
+  ISSUES.forEach(i=>{
+    if(i.internal.exposureDetail && i.sev==='high'){
+      const v = parseEok(i.internal.exposureDetail.totalNet);
+      if(v>topVal){ topVal=v; topIssue=i; }
+    }
+  });
+
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')}`;
+
+  const body = document.getElementById('reportBody');
+  body.innerHTML = `
+    <div class="rpt-meta-grid">
+      <div class="rpt-meta-box"><div class="m-label">보고 대상</div><div class="m-value">리스크관리위원회 · 경영진</div></div>
+      <div class="rpt-meta-box"><div class="m-label">작성</div><div class="m-value">리스크기획부 (AI 초안)</div></div>
+      <div class="rpt-meta-box"><div class="m-label">배포 일시</div><div class="m-value">${dateStr} 16:00</div></div>
+      <div class="rpt-meta-box"><div class="m-label">보안 등급</div><div class="m-value confidential">대외비</div></div>
+    </div>
+
+    <div class="rpt-section-title"><span class="n">I.</span> Executive Summary</div>
+    <div class="rpt-stat-row">
+      <div class="rpt-stat hi"><div class="s-num">${highs.length}</div><div class="s-lbl">심각도 &apos;상&apos;</div></div>
+      <div class="rpt-stat"><div class="s-num">${mids.length}</div><div class="s-lbl">심각도 &apos;중&apos;</div></div>
+      <div class="rpt-stat"><div class="s-num">${linkedCount}</div><div class="s-lbl">내부 연동 확인</div></div>
+      <div class="rpt-stat"><div class="s-num">${formatEok(totalNetEok)}</div><div class="s-lbl">순익스포저 합계</div></div>
+    </div>
+    <div class="rpt-summary-text">
+      금일 총 <b>${ISSUES.length}건</b>의 리스크 이슈가 식별되었으며, 이 중 즉시 대응이 필요한 심각도 &apos;상&apos; 이슈는 <b>${highs.length}건</b>입니다.
+      내부 시스템 연동을 통해 확인된 당행/그룹 관련 순익스포저 합계는 약 <b>${formatEok(totalNetEok)}원</b>으로 파악되며,
+      ${topIssue ? `그 중 <b>&apos;${topIssue.title}&apos;</b> 건이 재무적 영향이 가장 커 우선 검토가 필요합니다.` : '개별 이슈별 상세는 아래 표를 참고하시기 바랍니다.'}
+    </div>
+
+    <div class="rpt-section-title"><span class="n">II.</span> 이슈 종합 현황</div>
+    <div class="rpt-table-wrap">
+    <table class="rpt-table">
+      <thead><tr><th>No</th><th>구분</th><th>이슈</th><th>심각도</th><th>순익스포저</th><th>담당부서</th></tr></thead>
+      <tbody>
+        ${featured.map((i,idx)=>{
+          const cat = CAT_META[i.cat], sev = SEV_META[i.sev];
+          const net = i.internal.exposureDetail ? i.internal.exposureDetail.totalNet : '—';
+          return `<tr>
+            <td class="center">${String(idx+1).padStart(2,'0')}</td>
+            <td class="center"><span class="badge badge-cat" style="color:${cat.color}">${cat.label}</span></td>
+            <td>${i.title}</td>
+            <td class="center"><span class="badge badge-sev ${sev.cls}">${sev.label}</span></td>
+            <td class="num">${net}</td>
+            <td>${i.internal.depts[0]}${i.internal.depts.length>1?' 외':''}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    </div>
+
+    <div class="rpt-section-title"><span class="n">III.</span> 주요 이슈 상세</div>
+    ${featured.map((i,idx)=>{
+      const cat = CAT_META[i.cat], sev = SEV_META[i.sev];
+      const kvLine = i.internal.kv.map(k=>`${k.label} <b>${k.value}</b>`).join(' · ');
+      let expHtml = '';
+      if(i.internal.exposureDetail){
+        const ed = i.internal.exposureDetail;
+        const chips = ed.items.map(it=>`<span>${it.name} ${it.net}</span>`).join('');
+        expHtml = `<div class="rpt-mini-exp">${chips}<span style="color:var(--gold); font-weight:700; background:var(--gold-soft); border-color:rgba(27,95,168,.25);">합계 순익스포저 ${ed.totalNet} · 전분기比 ${ed.qoq}</span></div>`;
+      }
+      return `<div class="rpt-issue" style="--cat-color:${cat.color}">
+        <div class="rpt-issue-head">
+          <span class="report-num">${String(idx+1).padStart(2,'0')}</span>
+          <span class="badge badge-cat" style="color:${cat.color}">${cat.label}</span>
+          <span class="badge badge-sev ${sev.cls}">${sev.label}</span>
+          <span class="rpt-issue-title">${i.title}</span>
+        </div>
+        <dl class="rpt-dl">
+          <dt>배경</dt><dd>${i.summary}</dd>
+          <dt>당행/그룹 영향</dt><dd>${kvLine}${expHtml}</dd>
+          <dt>권고 조치</dt><dd>${i.internal.action}</dd>
+          <dt>담당 부서</dt><dd>${i.internal.depts.join(', ')}</dd>
+        </dl>
+      </div>`;
+    }).join('')}
+
+    <div class="rpt-section-title"><span class="n">IV.</span> 종합 의견</div>
+    <div class="rpt-opinion-box">
+      금일 이슈는 <b>감독원발 규제 강화</b>(부동산PF 충당금, 가계대출 DSR)와 <b>개별 차주 신용이벤트</b>(한빛건설 등급강등 등)가 동시에 나타나
+      4분기 충당금 부담이 확대될 가능성이 있습니다. 계열사 소송·연체율 상승 건은 그룹 연결 기준 우발채무로 이어질 수 있어
+      지주 리스크관리위원회 보고가 필요합니다. 순익스포저가 큰 이슈부터 여신한도·담보 재평가를 우선 진행하시고,
+      2금융권 관련 업권 리스크는 확산 추이를 주간 단위로 재점검하시기를 권고드립니다.
+      <br><br>
+      <b>※ 본 보고서는 AI가 자동 생성한 초안입니다. 수치·판단은 담당자 검토 및 승인 후 확정 보고서로 사용하시기 바랍니다.</b>
+    </div>
+
+    <div class="rpt-section-title"><span class="n">V.</span> 배포처</div>
+    <div class="rpt-distro">
+      <b>보고:</b> 리스크관리위원회, CRO, CFO &nbsp;|&nbsp;
+      <b>참조:</b> 여신기획부, 리스크관리부, 지주리스크관리팀 &nbsp;|&nbsp;
+      <b>작성:</b> 리스크기획부 (AI 이슈 모니터링 시스템)
+    </div>
+    <div class="rpt-signoff">
+      <div class="so-box"><div class="so-role">작성</div><div class="so-name">리스크기획부</div></div>
+      <div class="so-box"><div class="so-role">검토</div><div class="so-name">리스크관리팀장</div></div>
+      <div class="so-box"><div class="so-role">협조</div><div class="so-name">CRO</div></div>
+      <div class="so-box"><div class="so-role">승인</div><div class="so-name">경영진</div></div>
+    </div>
+  `;
+  document.getElementById('reportDocId').textContent = `문서번호: 리스크-${dateStr.replace(/\./g,'').slice(2)}-001`;
+  document.getElementById('reportModal').classList.add('open');
+}
+function closeReport(){ document.getElementById('reportModal').classList.remove('open'); }
+document.getElementById('reportModal').addEventListener('click', e=>{
+  if(e.target.id==='reportModal') closeReport();
+});
+
+renderCounts();
+renderList();
+if(ISSUES.length){ selectIssue(ISSUES[0].id); }
+loadConnections();
+</script>
+</body>
+</html>

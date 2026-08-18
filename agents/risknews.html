@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+
+<html lang="ko">
+  <head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>RISK NEWS - 키워드 뉴스 및 현황 분석</title>
+    <style>
+        /* Design Tokens */
+        :root {
+            --text: #0f172a;
+            --surface: #ffffff;
+            --bg: #f1f5f9;
+            --primary: #2b5c9e;
+            --border: #e2e8f0;
+            --accent: #d97706;
+            --font-family: Pretendard, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        /* Base & Reset */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-family);
+            font-size: 14px;
+            color: var(--text);
+            background-color: var(--bg);
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            color: var(--text);
+            font-family: var(--font-family);
+        }
+
+        a {
+            color: var(--primary);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        a:hover {
+            color: #1e40af;
+        }
+
+        /* Layout */
+        .container {
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        .dashboard-layout {
+            display: grid;
+            grid-template-columns: 280px 1fr 1fr;
+            gap: 24px;
+            padding-top: 24px;
+            padding-bottom: 64px;
+            align-items: stretch;
+        }
+
+        @media (max-width: 1200px) {
+            .dashboard-layout {
+                grid-template-columns: 250px 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 992px) {
+            .dashboard-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Header */
+        .app-header {
+            background-color: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 0;
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+        }
+
+        .logo-title {
+            color: var(--primary);
+            font-size: 24px;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        .logo-subtitle {
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        /* Panels */
+        .panel {
+            background-color: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .panel-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            background-color: var(--surface);
+            border-radius: 8px 8px 0 0;
+        }
+
+        .panel-header h2 {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .panel-body {
+            padding: 20px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        /* Sidebar Controls */
+        .control-section {
+            margin-bottom: 24px;
+        }
+
+        .control-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-section h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text);
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            font-size: 12px;
+            color: #64748b;
+            font-weight: 600;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .form-input {
+            font-family: var(--font-family);
+            font-size: 14px;
+            color: var(--text);
+            background-color: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 8px 12px;
+            width: 100%;
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .help-text {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 6px;
+        }
+
+        hr.divider {
+            margin: 24px 0;
+            border: 0;
+            border-top: 1px solid var(--border);
+        }
+
+        /* Buttons */
+        .btn {
+            font-family: var(--font-family);
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 4px;
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            border: 1px solid transparent;
+            display: inline-block;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: var(--surface);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background-color: #1e40af;
+        }
+
+        .btn-outline {
+            background-color: var(--surface);
+            color: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .btn-outline:hover:not(:disabled) {
+            background-color: var(--primary);
+            color: var(--surface);
+        }
+
+        .btn-system.active {
+            background-color: #ef4444 !important;
+            color: var(--surface) !important;
+            border-color: #ef4444 !important;
+        }
+
+        .btn-block {
+            display: block;
+            width: 100%;
+        }
+
+        /* Quick Keywords */
+        .quick-keywords {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 12px;
+        }
+
+        .btn-keyword {
+            border: 1px solid var(--border);
+            color: #475569;
+            border-radius: 4px;
+            font-size: 12px;
+            padding: 4px 8px;
+            background-color: var(--surface);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: var(--font-family);
+        }
+
+        .btn-keyword:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            background-color: #eff6ff;
+        }
+
+        .btn-keyword.active {
+            background-color: #ef4444;
+            color: var(--surface);
+            border-color: #ef4444;
+        }
+
+        /* News List */
+        .news-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .news-list::-webkit-scrollbar {
+            width: 10px;
+        }
+        .news-list::-webkit-scrollbar-track {
+            background: var(--bg); 
+            border-radius: 6px;
+        }
+        .news-list::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 6px;
+        }
+        .news-list::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+
+        .news-card {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            background-color: var(--surface);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .news-card:hover {
+            border-color: var(--primary);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .news-card.selected {
+            border-color: var(--primary);
+            background-color: #eff6ff;
+            border-width: 2px;
+            padding: 15px;
+        }
+
+        .news-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 8px;
+        }
+
+        .news-meta-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .news-severity {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 11px;
+            color: var(--surface);
+        }
+
+        .severity-high { background-color: #ef4444; }
+        .severity-medium { background-color: var(--accent); }
+        .severity-low { background-color: #94a3b8; }
+
+        .news-source {
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .news-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .news-title a {
+            color: var(--text);
+            text-decoration: none;
+        }
+
+        .news-title a:hover {
+            color: var(--primary);
+        }
+
+        .news-summary {
+            font-size: 13px;
+            color: #475569;
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        /* Analysis Results */
+        .analysis-result-box {
+            margin-bottom: 24px;
+        }
+
+        .analysis-result-box:last-child {
+            margin-bottom: 0;
+        }
+
+        .result-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--text);
+        }
+
+        .result-content {
+            background-color: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            font-size: 13px;
+            line-height: 1.6;
+            color: var(--text);
+            min-height: 120px;
+        }
+
+        .result-content h3 {
+            font-size: 14px;
+            color: var(--primary);
+            margin-top: 16px;
+            margin-bottom: 8px;
+        }
+
+        .result-content h3:first-child {
+            margin-top: 0;
+        }
+
+        .result-content p {
+            margin-bottom: 12px;
+        }
+
+        .result-content p:last-child {
+            margin-bottom: 0;
+        }
+
+        .result-content ul, .result-content ol {
+            margin-left: 20px;
+            margin-bottom: 12px;
+        }
+
+        /* Table Styles */
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            margin-bottom: 12px;
+        }
+
+        .analysis-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            text-align: left;
+        }
+
+        .analysis-table th,
+        .analysis-table td {
+            border: 1px solid var(--border);
+            padding: 10px 12px;
+        }
+
+        .analysis-table th {
+            background-color: #f8fafc;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .analysis-table tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+
+        .analysis-table tfoot td {
+            font-weight: 600;
+            background-color: #f1f5f9;
+        }
+
+        .text-up { color: #ef4444; }
+        .text-down { color: #3b82f6; }
+        .text-neutral { color: #64748b; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+
+        /* Utilities */
+        .empty-state {
+            text-align: center;
+            padding: 32px 16px;
+            color: #64748b;
+            font-size: 13px;
+            background-color: var(--bg);
+            border: 1px dashed #cbd5e1;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            min-height: 100px;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(15, 23, 42, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 1;
+            transition: opacity 0.2s ease;
+        }
+
+        .modal-overlay.hidden {
+            display: none !important;
+            opacity: 0;
+        }
+
+        .modal-container {
+            background-color: var(--surface);
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            border-radius: 8px;
+            border: none;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        .modal-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .modal-header h2 {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text);
+            margin: 0;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #64748b;
+            line-height: 1;
+            padding: 0;
+            transition: color 0.2s ease;
+        }
+
+        .modal-close:hover {
+            color: var(--text);
+        }
+
+        .modal-body {
+            padding: 24px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            background-color: var(--bg);
+            border-radius: 0 0 8px 8px;
+        }
+
+        /* Print Styles */
+        @media print {
+            body {
+                background-color: var(--surface);
+            }
+            
+            .app-header, 
+            .dashboard-layout {
+                display: none !important;
+            }
+            
+            .modal-overlay {
+                position: static;
+                background-color: transparent;
+                display: block !important;
+                opacity: 1 !important;
+            }
+            
+            .modal-container {
+                width: 100%;
+                max-width: none;
+                border: none;
+                box-shadow: none;
+                max-height: none;
+            }
+            
+            .modal-header, 
+            .modal-footer, 
+            .modal-close {
+                display: none !important;
+            }
+            
+            .modal-body {
+                padding: 0;
+                overflow: visible;
+                height: auto;
+            }
+            
+            #report-modal {
+                display: block !important;
+            }
+        }
+    </style>
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="container">
+        <div class="logo-area">
+          <h1 class="logo-title">RISK NEWS</h1>
+          <span class="logo-subtitle">키워드 기반 뉴스 수집 및 AI 현황 분석 시스템</span>
+        </div>
+      </div>
+    </header>
+    <main class="container dashboard-layout">
+      <!-- 좌측: 설정 및 검색 패널 -->
+      <aside class="panel control-panel">
+        <div class="panel-header">
+          <h2>설정 및 검색</h2>
+        </div>
+        <div class="panel-body">
+          <!-- 뉴스 검색 섹션 -->
+          <div class="control-section">
+            <h3>뉴스 검색</h3>
+            <div class="form-group">
+              <label class="form-label" for="news-keyword">검색 키워드</label>
+              <input class="form-input" id="news-keyword" placeholder="예: 하나은행" type="text" value="하나은행"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="news-period">검색 기간</label>
+              <select class="form-input" id="news-period">
+                <option value="1">최근 1일</option>
+                <option selected="" value="3">최근 3일</option>
+                <option value="7">최근 7일</option>
+                <option value="30">최근 1개월</option>
+              </select>
+            </div>
+            <button class="btn btn-primary btn-block" id="btn-global-collect">뉴스 수집</button>
+            <div class="quick-keywords">
+              <span style="font-size: 12px; color: #64748b; width: 100%; margin-bottom: 4px; font-weight: 600;">추천 키워드</span>
+              <button class="btn-keyword" type="button">신용리스크</button>
+              <button class="btn-keyword" type="button">시장리스크</button>
+              <button class="btn-keyword" type="button">운영리스크</button>
+              <button class="btn-keyword" type="button">유동성리스크</button>
+              <button class="btn-keyword" type="button">금리리스크</button>
+              <button class="btn-keyword" type="button">평판리스크</button>
+              <button class="btn-keyword active" type="button">하나은행</button>
+              <button class="btn-keyword" type="button">부동산PF</button>
+              <button class="btn-keyword" type="button">연체</button>
+              <button class="btn-keyword" type="button">금감원</button>
+              <button class="btn-keyword" type="button">시중은행</button>
+              <button class="btn-keyword" type="button">증권사</button>
+              <button class="btn-keyword" type="button">ABCP</button>
+              <button class="btn-keyword" type="button">손실사건</button>
+              <button class="btn-keyword" type="button">자본적정성</button>
+            </div>
+          </div>
+          <hr class="divider"/>
+          <!-- AI 분석 설정 섹션 -->
+          <div class="control-section">
+            <h3>내부 시스템 연계 분석</h3>
+            <div class="form-group">
+              <label class="form-label" for="alpha-api-key">Alpha API Key</label>
+              <input autocomplete="off" class="form-input" id="alpha-api-key" placeholder="sk-..." type="password"/>
+              <p class="help-text">※ 입력하신 키는 브라우저 메모리에만 임시 보관되며 저장되지 않습니다.</p>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <button class="btn btn-primary btn-block btn-system active" id="btn-analyze-general">일반 현황 분석</button>
+              <button class="btn btn-outline btn-block btn-system" id="btn-analyze-bis">BIS비율 시스템 연계</button>
+              <button class="btn btn-outline btn-block btn-system" id="btn-analyze-exposure">익스포져 시스템 연계</button>
+              <button class="btn btn-outline btn-block btn-system" id="btn-analyze-credit">신용리스크 시스템 연계</button>
+              <button class="btn btn-outline btn-block btn-system" id="btn-analyze-market">시장리스크 시스템 연계</button>
+              <button class="btn btn-outline btn-block btn-system" id="btn-analyze-operational">운영리스크 시스템 연계</button>
+              <button class="btn btn-outline btn-block btn-system" id="btn-analyze-liquidity">유동성리스크 시스템 연계</button>
+              <button class="btn btn-outline btn-block btn-system" id="btn-analyze-rrp">RRP 시스템 연계</button>
+            </div>
+          </div>
+          <hr class="divider"/>
+          <!-- 리포트 생성 섹션 -->
+          <div class="control-section">
+            <h3>리포트</h3>
+            <button class="btn btn-outline btn-block" id="btn-generate-report">CRO 보고용 리포트 생성</button>
+          </div>
+        </div>
+      </aside>
+      <!-- 중앙: 뉴스 피드 패널 -->
+      <section class="panel news-panel">
+        <div class="panel-header">
+          <h2 id="news-panel-title">최근 RISK NEWS</h2>
+        </div>
+        <div class="panel-body" style="padding-right: 12px;">
+          <div class="news-list" id="news-container">
+            <div class="empty-state">
+              <p>뉴스 데이터를 불러와주세요.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- 우측: AI 분석 결과 패널 -->
+      <section class="panel analysis-panel">
+        <div class="panel-header">
+          <h2>AI 현황 분석 결과</h2>
+        </div>
+        <div class="panel-body">
+          <div class="analysis-result-box">
+            <h3 class="result-title">기사 요약</h3>
+            <div class="result-content" id="summary-content">
+              <div class="empty-state">
+                <p>API Key를 입력하고 분석을 실행하면 결과가 여기에 표시됩니다.</p>
+              </div>
+            </div>
+          </div>
+          <div class="analysis-result-box">
+            <h3 class="result-title" id="impact-title">현황 분석</h3>
+            <div class="result-content" id="impact-content" style="min-height: 300px;">
+              <div class="empty-state">
+                <p>API Key를 입력하고 분석을 실행하면 결과가 여기에 표시됩니다.</p>
+              </div>
+            </div>
+          </div>
+          <div class="analysis-result-box">
+            <h3 class="result-title">하나은행 익스포져 현황 (참고)</h3>
+            <div class="result-content" style="padding: 0; overflow: hidden; min-height: auto;">
+              <div class="table-responsive" style="margin-bottom: 0;">
+                <table class="analysis-table">
+                  <thead>
+                    <tr>
+                      <th class="text-center">구분</th>
+                      <th class="text-right">차주수</th>
+                      <th class="text-right">여신잔액(억원)</th>
+                      <th class="text-right">비중(%)</th>
+                      <th class="text-center">전월대비</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="text-center">대기업</td>
+                      <td class="text-right">1,245</td>
+                      <td class="text-right">450,230</td>
+                      <td class="text-right">28.5</td>
+                      <td class="text-center text-up">▲ 1.2%</td>
+                    </tr>
+                    <tr>
+                      <td class="text-center">중소기업</td>
+                      <td class="text-right">45,890</td>
+                      <td class="text-right">620,150</td>
+                      <td class="text-right">39.2</td>
+                      <td class="text-center text-down">▼ 0.5%</td>
+                    </tr>
+                    <tr>
+                      <td class="text-center">가계</td>
+                      <td class="text-right">1,250,400</td>
+                      <td class="text-right">480,500</td>
+                      <td class="text-right">30.4</td>
+                      <td class="text-center text-up">▲ 0.8%</td>
+                    </tr>
+                    <tr>
+                      <td class="text-center">공공/기타</td>
+                      <td class="text-right">320</td>
+                      <td class="text-right">30,120</td>
+                      <td class="text-right">1.9</td>
+                      <td class="text-center text-neutral">-</td>
+                    </tr>
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td class="text-center">합계</td>
+                      <td class="text-right">1,297,855</td>
+                      <td class="text-right">1,581,000</td>
+                      <td class="text-right">100.0</td>
+                      <td class="text-center text-up">▲ 0.6%</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div class="analysis-result-box">
+            <h3 class="result-title">하나은행 리스크 현황</h3>
+            <div class="result-content" style="padding: 0; overflow: hidden; min-height: auto;">
+              <div class="table-responsive" style="margin-bottom: 0;">
+                <table class="analysis-table">
+                  <thead>
+                    <tr>
+                      <th class="text-center">구분</th>
+                      <th class="text-right">당분기</th>
+                      <th class="text-right">전분기</th>
+                      <th class="text-center">증감</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="text-center">고정이하여신비율</td>
+                      <td class="text-right">0.23%</td>
+                      <td class="text-right">0.21%</td>
+                      <td class="text-center text-up">▲ 0.02%p</td>
+                    </tr>
+                    <tr>
+                      <td class="text-center">연체율</td>
+                      <td class="text-right">0.25%</td>
+                      <td class="text-right">0.22%</td>
+                      <td class="text-center text-up">▲ 0.03%p</td>
+                    </tr>
+                    <tr>
+                      <td class="text-center">BIS자기자본비율</td>
+                      <td class="text-right">17.50%</td>
+                      <td class="text-right">17.35%</td>
+                      <td class="text-center text-up">▲ 0.15%p</td>
+                    </tr>
+                    <tr>
+                      <td class="text-center">유동성커버리지비율(LCR)</td>
+                      <td class="text-right">105.2%</td>
+                      <td class="text-right">104.8%</td>
+                      <td class="text-center text-up">▲ 0.4%p</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+    <!-- CRO 보고용 리포트 모달 -->
+    <div class="modal-overlay hidden" id="report-modal">
+      <div class="modal-container">
+        <div class="modal-header">
+          <h2>CRO 일일 리스크 보고서</h2>
+          <button aria-label="닫기" class="modal-close" id="btn-close-modal">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="result-content" id="report-content" style="background-color: var(--surface); border: none; padding: 0; min-height: auto;">
+            <div class="empty-state">
+              <p>리포트 데이터를 생성 중입니다. 잠시만 기다려주세요...</p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" id="btn-close-report">닫기</button>
+          <button class="btn btn-primary" id="btn-print-report">리포트 출력</button>
+        </div>
+      </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM Elements
+            const btnGlobalCollect = document.getElementById('btn-global-collect');
+            const newsKeyword = document.getElementById('news-keyword');
+            const newsPeriod = document.getElementById('news-period');
+            const newsPanelTitle = document.getElementById('news-panel-title');
+            const newsContainer = document.getElementById('news-container');
+            const apiKeyInput = document.getElementById('alpha-api-key');
+            const btnAnalyzeGeneral = document.getElementById('btn-analyze-general');
+            const btnAnalyzeBis = document.getElementById('btn-analyze-bis');
+            const btnAnalyzeExposure = document.getElementById('btn-analyze-exposure');
+            const btnAnalyzeCredit = document.getElementById('btn-analyze-credit');
+            const btnAnalyzeMarket = document.getElementById('btn-analyze-market');
+            const btnAnalyzeOperational = document.getElementById('btn-analyze-operational');
+            const btnAnalyzeLiquidity = document.getElementById('btn-analyze-liquidity');
+            const btnAnalyzeRrp = document.getElementById('btn-analyze-rrp');
+            const summaryContent = document.getElementById('summary-content');
+            const impactContent = document.getElementById('impact-content');
+            const impactTitle = document.getElementById('impact-title');
+            
+            // Report Modal Elements
+            const btnGenerateReport = document.getElementById('btn-generate-report');
+            const reportModal = document.getElementById('report-modal');
+            const btnCloseModal = document.getElementById('btn-close-modal');
+            const btnCloseReport = document.getElementById('btn-close-report');
+            const btnPrintReport = document.getElementById('btn-print-report');
+            const reportContent = document.getElementById('report-content');
+
+            // State
+            let newsData = [];
+            let selectedNewsIds = new Set();
+            let lastSummaryText = "";
+            let lastImpactText = "";
+
+            // Initialize
+            btnGenerateReport.disabled = true;
+
+            // Event Listeners
+            btnGlobalCollect.addEventListener('click', loadNewsData);
+            
+            const systemButtons = [
+                { btn: btnAnalyzeGeneral, type: 'general' },
+                { btn: btnAnalyzeBis, type: 'bis' },
+                { btn: btnAnalyzeExposure, type: 'exposure' },
+                { btn: btnAnalyzeCredit, type: 'credit' },
+                { btn: btnAnalyzeMarket, type: 'market' },
+                { btn: btnAnalyzeOperational, type: 'operational' },
+                { btn: btnAnalyzeLiquidity, type: 'liquidity' },
+                { btn: btnAnalyzeRrp, type: 'rrp' }
+            ];
+
+            systemButtons.forEach(({ btn, type }) => {
+                btn.addEventListener('click', () => {
+                    // Update active state
+                    systemButtons.forEach(b => b.btn.classList.remove('active'));
+                    btn.classList.add('active');
+                    
+                    // Run analysis
+                    analyzeSelectedNews(type);
+                });
+            });
+            
+            // Quick Keywords
+            const keywordButtons = document.querySelectorAll('.btn-keyword');
+            keywordButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    btn.classList.toggle('active');
+                    
+                    let currentVal = newsKeyword.value.trim();
+                    let keywords = currentVal ? currentVal.split(',').map(k => k.trim()).filter(k => k) : [];
+                    
+                    const keyword = btn.textContent;
+                    if (btn.classList.contains('active')) {
+                        if (!keywords.includes(keyword)) {
+                            keywords.push(keyword);
+                        }
+                    } else {
+                        keywords = keywords.filter(k => k !== keyword);
+                    }
+                    
+                    newsKeyword.value = keywords.join(', ');
+                });
+            });
+            
+            // Report Event Listeners
+            btnGenerateReport.addEventListener('click', openReportModal);
+            btnCloseModal.addEventListener('click', closeReportModal);
+            btnCloseReport.addEventListener('click', closeReportModal);
+            btnPrintReport.addEventListener('click', printReport);
+
+            // Close modal on outside click
+            reportModal.addEventListener('click', (e) => {
+                if (e.target === reportModal) {
+                    closeReportModal();
+                }
+            });
+
+            // 초기 로드 시 자동으로 뉴스 데이터 불러오기
+            loadNewsData();
+
+            // Load News Data from JSON
+            async function loadNewsData() {
+                try {
+                    btnGlobalCollect.disabled = true;
+                    btnGlobalCollect.textContent = '수집 중...';
+                    
+                    const keyword = newsKeyword.value.trim() || '하나은행';
+                    const periodText = newsPeriod.options[newsPeriod.selectedIndex].text;
+                    newsPanelTitle.textContent = `최근 RISK NEWS`;
+                    
+                    // Inlined data to avoid fetch issues in preview environment
+                    const baseNewsData = [
+                      {
+                        "id": "news_001",
+                        "title": "{keyword}, AI 기반 맞춤형 자산관리 서비스 전면 개편",
+                        "summary": "{keyword}이(가) 인공지능(AI) 기술을 활용해 초개인화된 고객 맞춤형 자산관리 서비스를 대폭 개편했다고 밝혔다. 빅데이터 분석을 통해 시장 변동성에 선제적으로 대응할 수 있는 포트폴리오를 제공한다.",
+                        "date": "2024-05-24",
+                        "link": "https://news.naver.com/mock/001",
+                        "source": "한국경제",
+                        "severity": "하"
+                      },
+                      {
+                        "id": "news_002",
+                        "title": "{keyword}, 1분기 호실적 달성... 비이자이익 큰 폭 증가",
+                        "summary": "{keyword}의 올해 1분기 당기순이익이 전년 동기 대비 크게 증가하며 호실적을 기록했다. 특히 기업금융과 자산관리 부문의 성장에 힘입어 비이자이익이 대폭 개선된 것으로 나타났다.",
+                        "date": "2024-05-24",
+                        "link": "https://news.naver.com/mock/002",
+                        "source": "매일경제",
+                        "severity": "하"
+                      },
+                      {
+                        "id": "news_003",
+                        "title": "{keyword}, 소상공인 대상 5000억 규모 상생금융 지원",
+                        "summary": "고금리 장기화로 어려움을 겪는 소상공인과 자영업자를 위해 {keyword}이(가) 5000억원 규모의 상생금융 지원책을 발표했다. 이자 캐시백 및 저금리 대환대출 프로그램이 포함된다.",
+                        "date": "2024-05-23",
+                        "link": "https://news.naver.com/mock/003",
+                        "source": "조선비즈",
+                        "severity": "중"
+                      },
+                      {
+                        "id": "news_004",
+                        "title": "글로벌 영토 넓히는 {keyword}, 인도네시아 디지털 뱅킹 강화",
+                        "summary": "{keyword}이(가) 동남아시아 시장 공략을 위해 인도네시아 법인의 디지털 뱅킹 플랫폼을 고도화한다. 현지 핀테크 기업과의 제휴를 통해 2030 세대 고객 확보에 주력할 방침이다.",
+                        "date": "2024-05-23",
+                        "link": "https://news.naver.com/mock/004",
+                        "source": "파이낸셜뉴스",
+                        "severity": "하"
+                      },
+                      {
+                        "id": "news_005",
+                        "title": "{keyword}, 시니어 특화 영업점 확대... '금융 소외계층 포용'",
+                        "summary": "디지털 금융 전환 속에서 고령층의 금융 접근성을 높이기 위해 {keyword}이(가) 시니어 특화 영업점을 전국적으로 확대한다. 큰 글씨 ATM과 전담 매니저가 배치된다.",
+                        "date": "2024-05-22",
+                        "link": "https://news.naver.com/mock/005",
+                        "source": "헤럴드경제",
+                        "severity": "중"
+                      },
+                      {
+                        "id": "news_006",
+                        "title": "{keyword}, 기업대출 금리 인하... 중소기업 자금난 숨통",
+                        "summary": "{keyword}이(가) 선제적인 리스크 관리와 함께 우량 중소기업을 대상으로 기업대출 가산금리를 인하하기로 결정했다. 이를 통해 지역 경제 활성화에 기여한다는 계획이다.",
+                        "date": "2024-05-22",
+                        "link": "https://news.naver.com/mock/006",
+                        "source": "이데일리",
+                        "severity": "상"
+                      },
+                      {
+                        "id": "news_007",
+                        "title": "{keyword}, 하반기 신입행원 200명 공개 채용",
+                        "summary": "{keyword}이(가) 청년 일자리 창출과 우수 인재 확보를 위해 하반기 신입행원 200명을 공개 채용한다. 디지털 역량과 글로벌 감각을 갖춘 인재를 우대할 예정이다.",
+                        "date": "2024-05-21",
+                        "link": "https://news.naver.com/mock/007",
+                        "source": "동아일보",
+                        "severity": "하"
+                      },
+                      {
+                        "id": "news_008",
+                        "title": "{keyword}, 부동산 PF 부실 우려에 대손충당금 대폭 적립",
+                        "summary": "최근 부동산 프로젝트파이낸싱(PF) 시장의 부실 우려가 커지면서 {keyword}이(가) 선제적으로 대규모 대손충당금을 적립했다. 건전성 관리에 만전을 기하겠다는 방침이다.",
+                        "date": "2024-05-20",
+                        "link": "https://news.naver.com/mock/008",
+                        "source": "서울경제",
+                        "severity": "상"
+                      },
+                      {
+                        "id": "news_009",
+                        "title": "{keyword}, 혁신금융 서비스 '트래블로그' 가입자 500만 돌파",
+                        "summary": "{keyword}의 대표적인 해외여행 특화 서비스인 '트래블로그'가 출시 1년 만에 가입자 500만 명을 돌파하며 큰 인기를 끌고 있다. 환전 수수료 무료 혜택이 주효했다는 평가다.",
+                        "date": "2024-05-19",
+                        "link": "https://news.naver.com/mock/009",
+                        "source": "머니투데이",
+                        "severity": "하"
+                      },
+                      {
+                        "id": "news_010",
+                        "title": "{keyword}, 내부통제 강화 위한 'AI 모니터링 시스템' 도입",
+                        "summary": "최근 잇따른 금융사고를 방지하기 위해 {keyword}이(가) 인공지능(AI) 기반의 이상거래 탐지 및 내부통제 모니터링 시스템을 전면 도입했다. 직원들의 비정상적인 패턴을 실시간으로 감지한다.",
+                        "date": "2024-05-18",
+                        "link": "https://news.naver.com/mock/010",
+                        "source": "아시아경제",
+                        "severity": "중"
+                      },
+                      {
+                        "id": "news_011",
+                        "title": "{keyword}, ESG 경영 박차... 친환경 기업 대상 금리 우대",
+                        "summary": "{keyword}이(가) ESG 경영 실천의 일환으로 친환경 기술을 보유하거나 탄소 배출 저감에 앞장서는 기업을 대상으로 대출 금리를 최대 1.5%p 우대하는 상품을 출시했다.",
+                        "date": "2024-05-17",
+                        "link": "https://news.naver.com/mock/011",
+                        "source": "국민일보",
+                        "severity": "하"
+                      },
+                      {
+                        "id": "news_012",
+                        "title": "{keyword}, 홍콩 H지수 ELS 배상 절차 본격 돌입",
+                        "summary": "홍콩 H지수 주가연계증권(ELS) 대규모 손실 사태와 관련해 {keyword}이(가) 자율배상 위원회를 구성하고 본격적인 배상 절차에 돌입했다. 고객 피해 최소화에 집중할 계획이다.",
+                        "date": "2024-05-16",
+                        "link": "https://news.naver.com/mock/012",
+                        "source": "연합뉴스",
+                        "severity": "상"
+                      }
+                    ];
+
+                    newsData = baseNewsData.map(news => ({
+                        ...news,
+                        title: news.title.replace(/\{keyword\}/g, keyword),
+                        summary: news.summary.replace(/\{keyword\}/g, keyword)
+                    }));
+                    
+                    // Simulate network delay
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                    
+                    renderNewsList();
+                } catch (error) {
+                    newsContainer.innerHTML = `
+                        <div class="empty-state" style="color: #2b5c9e;">
+                            <p>오류: ${error.message}</p>
+                        </div>
+                    `;
+                } finally {
+                    btnGlobalCollect.disabled = false;
+                    btnGlobalCollect.textContent = '뉴스 수집';
+                }
+            }
+
+            // Render News List
+            function renderNewsList() {
+                newsContainer.innerHTML = '';
+                selectedNewsIds.clear();
+
+                if (!newsData || newsData.length === 0) {
+                    newsContainer.innerHTML = `
+                        <div class="empty-state">
+                            <p>수집된 뉴스 데이터가 없습니다.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                newsData.forEach(news => {
+                    const article = document.createElement('article');
+                    article.className = 'news-card';
+                    article.dataset.id = news.id;
+                    
+                    const severityClass = news.severity === '상' ? 'severity-high' : news.severity === '중' ? 'severity-medium' : 'severity-low';
+                    article.innerHTML = `
+                        <div class="news-meta">
+                            <div class="news-meta-left">
+                                <span class="news-severity ${severityClass}">${escapeHTML(news.severity || '하')}</span>
+                                <span class="news-source">${escapeHTML(news.source)}</span>
+                            </div>
+                            <span class="news-date">${escapeHTML(news.date)}</span>
+                        </div>
+                        <h3 class="news-title">
+                            <a href="${escapeHTML(news.link)}" target="_blank" rel="noopener noreferrer" onclick="event.preventDefault()">${escapeHTML(news.title)}</a>
+                        </h3>
+                        <p class="news-summary">${escapeHTML(news.summary)}</p>
+                    `;
+
+                    article.addEventListener('click', () => toggleNewsSelection(article, news.id));
+                    newsContainer.appendChild(article);
+                });
+            }
+
+            // Toggle News Selection
+            function toggleNewsSelection(element, id) {
+                if (selectedNewsIds.has(id)) {
+                    selectedNewsIds.delete(id);
+                    element.classList.remove('selected');
+                } else {
+                    selectedNewsIds.add(id);
+                    element.classList.add('selected');
+                }
+            }
+
+            // Analyze Selected News via Workspace API
+            async function analyzeSelectedNews(systemType = 'general') {
+                const apiKey = apiKeyInput.value.trim();
+                
+                if (!apiKey) {
+                    alert('Alpha API Key를 입력해주세요.');
+                    apiKeyInput.focus();
+                    return;
+                }
+
+                if (selectedNewsIds.size === 0) {
+                    alert('분석할 뉴스를 하나 이상 선택해주세요.');
+                    return;
+                }
+
+                const keyword = newsKeyword.value.trim() || '하나은행';
+                const selectedNewsList = newsData.filter(news => selectedNewsIds.has(news.id));
+                const newsContext = selectedNewsList.map(news => `제목: ${news.title}\n요약: ${news.summary}`).join('\n\n');
+                
+                let systemContext = "";
+                let analysisTitle = "현황 분석";
+                
+                if (systemType === 'bis') {
+                    systemContext = `해당 기사가 ${keyword}의 BIS비율 및 자본적정성에 미치는 영향을 내부 시스템 데이터와 연계하여 현황 분석 (반드시 마크다운 표 형식으로 작성)`;
+                    analysisTitle = "BIS비율 연계 현황 분석";
+                } else if (systemType === 'exposure') {
+                    systemContext = `해당 기사에 언급된 기업/산업에 대한 ${keyword}의 익스포져(위험노출액) 및 건전성에 미치는 영향을 내부 시스템 데이터와 연계하여 현황 분석 (반드시 마크다운 표 형식으로 작성)`;
+                    analysisTitle = "익스포져 연계 현황 분석";
+                } else if (systemType === 'credit') {
+                    systemContext = `해당 기사가 ${keyword}의 신용리스크(부도율, 부실채권 등)에 미치는 영향을 내부 시스템 데이터와 연계하여 현황 분석 (반드시 마크다운 표 형식으로 작성)`;
+                    analysisTitle = "신용리스크 연계 현황 분석";
+                } else if (systemType === 'market') {
+                    systemContext = `해당 기사가 ${keyword}의 시장리스크(금리, 환율, 주가 변동 등)에 미치는 영향을 내부 시스템 데이터와 연계하여 현황 분석 (반드시 마크다운 표 형식으로 작성)`;
+                    analysisTitle = "시장리스크 연계 현황 분석";
+                } else if (systemType === 'operational') {
+                    systemContext = `해당 기사가 ${keyword}의 운영리스크(내부통제, IT장애, 금융사고 등)에 미치는 영향을 내부 시스템 데이터와 연계하여 현황 분석 (반드시 마크다운 표 형식으로 작성)`;
+                    analysisTitle = "운영리스크 연계 현황 분석";
+                } else if (systemType === 'liquidity') {
+                    systemContext = `해당 기사가 ${keyword}의 유동성리스크(자금조달, LCR 등)에 미치는 영향을 내부 시스템 데이터와 연계하여 현황 분석 (반드시 마크다운 표 형식으로 작성)`;
+                    analysisTitle = "유동성리스크 연계 현황 분석";
+                } else if (systemType === 'rrp') {
+                    systemContext = `해당 기사가 ${keyword}의 RRP(회생정리계획) 및 위기상황 분석에 미치는 영향을 내부 시스템 데이터와 연계하여 현황 분석 (반드시 마크다운 표 형식으로 작성)`;
+                    analysisTitle = "RRP 연계 현황 분석";
+                } else {
+                    systemContext = `해당 기사가 ${keyword}의 비즈니스, 재무, 고객 서비스 등에 미치는 현황 분석 (반드시 마크다운 표 형식으로 작성)`;
+                    analysisTitle = `${keyword} 현황 분석`;
+                }
+
+                const prompt = `다음은 ${keyword}와(과) 관련된 최근 기사들입니다. 이 기사들을 바탕으로 다음 두 가지를 작성해주세요.\n1. 기사 요약 (3~4문장 내외)\n2. ${systemContext}\n\n반드시 아래 형식을 지켜서 답변해주세요.\n[기사 요약]\n(요약 내용)\n\n[현황 분석]\n(마크다운 표 형식의 분석 내용)\n\n[기사 내용]\n${newsContext}`;
+
+                // Update impact title
+                impactTitle.textContent = analysisTitle;
+
+                // Set Loading State
+                btnAnalyzeGeneral.disabled = true;
+                btnAnalyzeBis.disabled = true;
+                btnAnalyzeExposure.disabled = true;
+                btnAnalyzeCredit.disabled = true;
+                btnAnalyzeMarket.disabled = true;
+                btnAnalyzeOperational.disabled = true;
+                btnAnalyzeLiquidity.disabled = true;
+                btnAnalyzeRrp.disabled = true;
+                btnGenerateReport.disabled = true;
+                
+                const loadingHtml = `
+                    <div class="empty-state">
+                        <p>AI가 분석을 진행하고 있습니다. 잠시만 기다려주세요...</p>
+                    </div>
+                `;
+                summaryContent.innerHTML = loadingHtml;
+                impactContent.innerHTML = loadingHtml;
+
+                try {
+                    const response = await fetch('https://workspace.kr.pwc.com/api/workspace/coding_agent/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${apiKey}`
+                        },
+                        body: JSON.stringify({
+                            model: 'Default',
+                            messages: [
+                                { 
+                                    role: 'system', 
+                                    content: '당신은 금융 데이터 분석 전문가입니다. 주어진 기사를 바탕으로 은행에 미치는 영향을 객관적이고 전문적으로 분석하여 리포트 형식으로 제공합니다.' 
+                                },
+                                { 
+                                    role: 'user', 
+                                    content: prompt 
+                                }
+                            ]
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(errorData.error?.message || `API 요청 실패 (상태 코드: ${response.status})`);
+                    }
+
+                    const data = await response.json();
+                    
+                    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+                        throw new Error('유효하지 않은 API 응답 형식입니다.');
+                    }
+
+                    const resultText = data.choices[0].message.content;
+                    
+                    // Parse the result
+                    let summaryText = "요약 결과를 찾을 수 없습니다.";
+                    let impactText = "현황 분석 결과를 찾을 수 없습니다.";
+                    
+                    const summaryMatch = resultText.match(/\[기사 요약\]([\s\S]*?)(?=\[현황 분석\]|$)/);
+                    const impactMatch = resultText.match(/\[현황 분석\]([\s\S]*?)$/);
+                    
+                    if (summaryMatch && summaryMatch[1]) {
+                        summaryText = summaryMatch[1].trim();
+                    }
+                    if (impactMatch && impactMatch[1]) {
+                        impactText = impactMatch[1].trim();
+                    }
+                    
+                    // Save to state for report generation
+                    lastSummaryText = summaryText;
+                    lastImpactText = impactText;
+
+                    // Render Result
+                    summaryContent.innerHTML = formatMarkdown(summaryText);
+                    impactContent.innerHTML = formatMarkdown(impactText);
+
+                    // Enable Report Generation
+                    btnGenerateReport.disabled = false;
+
+                } catch (error) {
+                    const errorHtml = `
+                        <div class="empty-state" style="color: #0f172a; border-color: #e2e8f0;">
+                            <div>
+                                <p style="font-weight: 600; margin-bottom: 8px; color: #2b5c9e;">분석 중 오류가 발생했습니다.</p>
+                                <p>${escapeHTML(error.message)}</p>
+                                <p style="margin-top: 16px; font-size: 12px; color: #64748b;">API Key가 유효한지 확인하고 다시 시도해주세요.</p>
+                            </div>
+                        </div>
+                    `;
+                    summaryContent.innerHTML = errorHtml;
+                    impactContent.innerHTML = errorHtml;
+                } finally {
+                    btnAnalyzeGeneral.disabled = false;
+                    btnAnalyzeBis.disabled = false;
+                    btnAnalyzeExposure.disabled = false;
+                    btnAnalyzeCredit.disabled = false;
+                    btnAnalyzeMarket.disabled = false;
+                    btnAnalyzeOperational.disabled = false;
+                    btnAnalyzeLiquidity.disabled = false;
+                    btnAnalyzeRrp.disabled = false;
+                }
+            }
+
+            // Report Modal Logic
+            function openReportModal() {
+                if (!lastSummaryText || !lastImpactText) {
+                    alert('먼저 AI 현황 분석을 실행해주세요.');
+                    return;
+                }
+
+                const today = new Date();
+                const dateString = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일`;
+
+                reportContent.innerHTML = `
+                    <div style="margin-bottom: 32px; text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 16px;">
+                        <h1 style="font-size: 28px; color: #0f172a; margin-bottom: 8px; font-weight: 700;">일일 리스크 모니터링 보고서</h1>
+                        <p style="color: #64748b; font-size: 14px;">보고일자: ${dateString} | 작성: 리스크 이슈 보고서 시스템</p>
+                    </div>
+                    
+                    <div style="margin-bottom: 32px;">
+                        <h3 style="font-size: 18px; color: #2b5c9e; border-bottom: 1px solid #2b5c9e; padding-bottom: 8px; margin-bottom: 16px;">1. 주요 기사 요약</h3>
+                        <div style="line-height: 1.8; color: #0f172a;">
+                            ${formatMarkdown(lastSummaryText)}
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h3 style="font-size: 18px; color: #2b5c9e; border-bottom: 1px solid #2b5c9e; padding-bottom: 8px; margin-bottom: 16px;">2. ${newsKeyword.value.trim() || '하나은행'} 현황 분석 및 대응 방안</h3>
+                        <div style="line-height: 1.8; color: #0f172a;">
+                            ${formatMarkdown(lastImpactText)}
+                        </div>
+                    </div>
+                `;
+
+                reportModal.classList.remove('hidden');
+                document.body.style.overflow = 'hidden'; // Prevent background scrolling
+            }
+
+            function closeReportModal() {
+                reportModal.classList.add('hidden');
+                document.body.style.overflow = ''; // Restore background scrolling
+            }
+
+            function printReport() {
+                window.print();
+            }
+
+            // Utility: Escape HTML to prevent XSS
+            function escapeHTML(str) {
+                const div = document.createElement('div');
+                div.textContent = str;
+                return div.innerHTML;
+            }
+
+            // Utility: Basic Markdown to HTML formatter for the result
+            function formatMarkdown(text) {
+                let html = escapeHTML(text);
+                
+                // Headers
+                html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+                html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+                html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+                
+                // Bold
+                html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                
+                // Lists
+                html = html.replace(/^- (.*$)/gim, '<ul><li>$1</li></ul>');
+                html = html.replace(/^\* (.*$)/gim, '<ul><li>$1</li></ul>');
+                
+                // Merge adjacent lists
+                html = html.replace(/<\/ul>\n<ul>/gim, '\n');
+                
+                // Tables
+                if (html.includes('|')) {
+                    const lines = html.split('\n');
+                    let inTable = false;
+                    let tableHtml = '';
+                    const newLines = [];
+                    
+                    for (let i = 0; i < lines.length; i++) {
+                        const line = lines[i].trim();
+                        if (line.startsWith('|') && line.endsWith('|')) {
+                            if (!inTable) {
+                                inTable = true;
+                                tableHtml += '<div class="table-responsive"><table class="analysis-table">';
+                            }
+                            
+                            if (line.match(/^\|(?:[\s\-\:]+\|)+$/)) {
+                                continue;
+                            }
+                            
+                            const cells = line.split('|').slice(1, -1).map(c => c.trim());
+                            const isHeader = inTable && tableHtml === '<div class="table-responsive"><table class="analysis-table">';
+                            
+                            tableHtml += '<tr>';
+                            cells.forEach(cell => {
+                                if (isHeader) {
+                                    tableHtml += `<th>${cell}</th>`;
+                                } else {
+                                    tableHtml += `<td>${cell}</td>`;
+                                }
+                            });
+                            tableHtml += '</tr>';
+                        } else {
+                            if (inTable) {
+                                inTable = false;
+                                tableHtml += '</table></div>';
+                                newLines.push(tableHtml);
+                                tableHtml = '';
+                            }
+                            newLines.push(lines[i]);
+                        }
+                    }
+                    if (inTable) {
+                        tableHtml += '</table></div>';
+                        newLines.push(tableHtml);
+                    }
+                    html = newLines.join('\n');
+                }
+                
+                // Convert remaining newlines to <br>
+                html = html.replace(/\n/g, '<br>');
+                // Clean up <br> around block elements
+                html = html.replace(/<br><div class="table-responsive">/g, '<div class="table-responsive">');
+                html = html.replace(/<\/div><br>/g, '</div>');
+                html = html.replace(/<br><h3>/g, '<h3>');
+                html = html.replace(/<\/h3><br>/g, '</h3>');
+                html = html.replace(/<br><ul>/g, '<ul>');
+                html = html.replace(/<\/ul><br>/g, '</ul>');
+                
+                return html;
+            }
+        });
+    </script>
+  </body>
+</html>
